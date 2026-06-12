@@ -11,6 +11,8 @@ public final class AgentService {
     public private(set) var isSweeping = false
     public private(set) var isExecuting = false
     public private(set) var lastError: String?
+    /// Title of the recommendation currently executing (drives the hover panel).
+    public private(set) var currentTitle: String?
 
     private let context: ModelContext
     private let claude: ClaudeRun
@@ -59,8 +61,9 @@ public final class AgentService {
     public func execute(_ rec: Recommendation) async {
         guard !isExecuting else { return }
         isExecuting = true
+        currentTitle = rec.title
         rec.executionState = .running
-        defer { isExecuting = false }
+        defer { isExecuting = false; currentTitle = nil }
 
         let result = await claude(
             VaultSweep.executePrompt(title: rec.title, body: rec.body), rec.vaultPath
