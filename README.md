@@ -23,6 +23,9 @@ open build/Mustard.app
   task tomorrow 9:00) · **I'll do it** (becomes an inbox task) · **Deny**. Every
   execution produces an output card in the **Review** queue: **Accept · Revise ·
   Discard**. No silent completion.
+- **Command bar** — ⌘K: type to capture a task (Enter), or run "Go to Today" / "Go to Agent" / "Sweep now" — arrow keys + Enter, Esc closes.
+- **Notch** — auto-shows on the built-in display: black notch-hugging strip rotating focus → waiting count; hover expands into the agent tray (inline Approve/Deny) + quick capture. ⌘⇧N toggles.
+- **Scheduled sweeps** — "Auto" menu in the Agent console (hourly / 4h / daily); the app checks every minute and sweeps when due.
 - **Hover panel** — ⌘⇧H: always-on-top, non-activating mini panel showing your
   current focus (or what the agent is executing) and how many items wait on you.
   Expands on hover.
