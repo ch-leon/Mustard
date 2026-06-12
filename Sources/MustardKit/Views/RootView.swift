@@ -17,6 +17,7 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
 /// Root: a calm fixed sidebar (no toolbar chrome) and the active screen.
 public struct RootView: View {
     @State private var screen: MustardScreen = .today
+    @State private var showCommandBar = false
     @Query private var cards: [OutputCard]
     @Query private var recommendations: [Recommendation]
 
@@ -40,6 +41,23 @@ public struct RootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.Palette.bg)
+        .overlay {
+            if showCommandBar {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.12)
+                        .ignoresSafeArea()
+                        .onTapGesture { showCommandBar = false }
+                    CommandBarView(isPresented: $showCommandBar, screen: $screen)
+                        .padding(.top, 90)
+                }
+            }
+        }
+        .background {
+            // Hidden trigger: ⌘K opens the command bar while the window is key.
+            Button("") { showCommandBar.toggle() }
+                .keyboardShortcut("k", modifiers: .command)
+                .opacity(0)
+        }
     }
 
     private var sidebar: some View {
