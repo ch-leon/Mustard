@@ -46,6 +46,7 @@ public final class AgentService {
             )
             context.insert(rec)
         }
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
     }
 
     /// Record a decision. Approval triggers execution.

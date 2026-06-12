@@ -8,6 +8,8 @@ public struct AgentConsoleView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
     @AppStorage("vaultPath") private var vaultPath = ""
+    @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
+    @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
     @Query(sort: \OutputCard.createdAt, order: .reverse) private var cards: [OutputCard]
 
@@ -108,8 +110,31 @@ public struct AgentConsoleView: View {
             }
             .disabled(vaultPath.isEmpty || agent.isSweeping)
             .tint(Theme.Palette.accent)
+
+            Menu(autoLabel) {
+                Button("Off") { sweepIntervalHours = 0 }
+                Button("Every hour") { sweepIntervalHours = 1 }
+                Button("Every 4 hours") { sweepIntervalHours = 4 }
+                Button("Daily") { sweepIntervalHours = 24 }
+            }
+            .controlSize(.small)
+            .fixedSize()
+            .disabled(vaultPath.isEmpty)
         }
         .padding(.vertical, 10)
+    }
+
+    private var autoLabel: String {
+        let last = lastSweptAt > 0
+            ? " · last " + Date(timeIntervalSince1970: lastSweptAt)
+                .formatted(date: .omitted, time: .shortened)
+            : ""
+        switch sweepIntervalHours {
+        case 0: return "Auto: off"
+        case 1: return "Auto: hourly" + last
+        case 24: return "Auto: daily" + last
+        default: return "Auto: \(Int(sweepIntervalHours))h" + last
+        }
     }
 
     private func sectionLabel(_ title: String, count: Int) -> some View {
