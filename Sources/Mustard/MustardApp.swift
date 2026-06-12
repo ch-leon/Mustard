@@ -7,6 +7,7 @@ struct MustardApp: App {
     private let container: ModelContainer
     @State private var agent: AgentService
     @State private var hoverPanel: HoverPanel?
+    @State private var notch: NotchController?
 
     init() {
         let container = MustardContainer.make()
@@ -20,9 +21,9 @@ struct MustardApp: App {
                 .environment(agent)
                 .frame(minWidth: 640, minHeight: 520)
                 .task {
+                    let container = container
+                    let agent = agent
                     if hoverPanel == nil {
-                        let container = container
-                        let agent = agent
                         hoverPanel = HoverPanel {
                             AnyView(
                                 HoverPanelView()
@@ -31,6 +32,17 @@ struct MustardApp: App {
                             )
                         }
                     }
+                    if notch == nil {
+                        let controller = NotchController { onHover in
+                            AnyView(
+                                NotchView(onHoverChange: onHover)
+                                    .environment(agent)
+                                    .modelContainer(container)
+                            )
+                        }
+                        controller.show()
+                        notch = controller
+                    }
                 }
         }
         .modelContainer(container)
@@ -38,6 +50,8 @@ struct MustardApp: App {
             CommandGroup(after: .toolbar) {
                 Button("Toggle Hover Panel") { hoverPanel?.toggle() }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Toggle Notch") { notch?.toggle() }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
             }
         }
     }
