@@ -10,6 +10,9 @@ public struct AgentConsoleView: View {
     @AppStorage("vaultPath") private var vaultPath = ""
     @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
     @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
+    @AppStorage("trustLevel") private var trustRaw = TrustLevel.manual.rawValue
+
+    private var trust: TrustLevel { TrustLevel(rawValue: trustRaw) ?? .manual }
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
     @Query(sort: \OutputCard.createdAt, order: .reverse) private var cards: [OutputCard]
 
@@ -120,6 +123,20 @@ public struct AgentConsoleView: View {
             .controlSize(.small)
             .fixedSize()
             .disabled(vaultPath.isEmpty)
+
+            Menu("Trust: \(trust.label)") {
+                ForEach(TrustLevel.allCases) { level in
+                    Button {
+                        trustRaw = level.rawValue
+                        Task { await agent.applyTrust(level) }
+                    } label: {
+                        Text("\(level.label) — \(level.blurb)")
+                    }
+                }
+            }
+            .controlSize(.small)
+            .fixedSize()
+            .help(trust.blurb)
         }
         .padding(.vertical, 10)
     }
@@ -174,6 +191,13 @@ struct RecommendationRow: View {
                 Text(rec.title)
                     .font(Theme.Fonts.title)
                     .foregroundStyle(Theme.Palette.textPrimary)
+                if TrustPolicy.isGated(actionType: rec.proposedActionType) {
+                    Label("Always needs you", systemImage: "lock")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .help("Email, ticket, and Slack actions are always gated regardless of trust.")
+                }
             }
             if !rec.body.isEmpty {
                 Text(rec.body)
