@@ -47,20 +47,47 @@ public final class AgentService {
             context.insert(rec)
         }
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
+        await applyTrust(Self.storedTrust())
+    }
+
+    /// Trust level from settings (defaults to manual = nothing auto).
+    static func storedTrust() -> TrustLevel {
+        TrustLevel(rawValue: UserDefaults.standard.string(forKey: "trustLevel") ?? "") ?? .manual
+    }
+
+    /// Auto-process the pending backlog according to trust: approve+execute
+    /// eligible recommendations serially, and auto-accept their output when the
+    /// level allows. Gated action types are never touched.
+    public func applyTrust(_ trust: TrustLevel) async {
+        guard trust != .manual else { return }
+        let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
+            .filter { $0.decision == .pending } ?? []
+        for rec in pending {
+            guard TrustPolicy.shouldAutoApprove(actionType: rec.proposedActionType, trust: trust)
+            else { continue }
+            rec.decision = .approved
+            let card = await execute(rec)
+            if let card,
+               TrustPolicy.shouldAutoAccept(actionType: rec.proposedActionType, trust: trust) {
+                card.review = .accepted
+            }
+        }
     }
 
     /// Record a decision. Approval triggers execution.
     public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
         rec.decision = decision
         if decision == .approved {
-            await execute(rec)
+            _ = await execute(rec)
         }
     }
 
     /// Run an approved recommendation; always produce exactly one OutputCard
-    /// per execution (success or failure — no silent completion).
-    public func execute(_ rec: Recommendation) async {
-        guard !isExecuting else { return }
+    /// per execution (success or failure — no silent completion). Returns the
+    /// card so callers (auto-accept) can act on it.
+    @discardableResult
+    public func execute(_ rec: Recommendation) async -> OutputCard? {
+        guard !isExecuting else { return nil }
         isExecuting = true
         currentTitle = rec.title
         rec.executionState = .running
@@ -76,5 +103,6 @@ public final class AgentService {
         )
         context.insert(card)
         rec.executionState = result.ok ? .finished : .failed
+        return card
     }
 }

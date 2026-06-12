@@ -119,4 +119,44 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertFalse(called)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
     }
+
+    func test_applyTrust_supervised_autoRunsNonGated_outputAwaitsReview() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.applyTrust(.supervised)
+
+        XCTAssertEqual(rec.decision, .approved)
+        XCTAssertEqual(rec.executionState, .finished)
+        let cards = try ctx.fetch(FetchDescriptor<OutputCard>())
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards.first?.review, .pending)
+    }
+
+    func test_applyTrust_trusted_autoAcceptsNonGated() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).first?.review, .accepted)
+    }
+
+    func test_applyTrust_neverTouchesGatedActions() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Email Kamil", actionType: "email_send", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.applyTrust(.autonomous)
+
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
 }
