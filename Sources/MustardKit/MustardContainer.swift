@@ -10,7 +10,7 @@ public enum MustardContainer {
         let config = ModelConfiguration(url: dir.appending(path: "mustard.store"))
         do {
             return try ModelContainer(
-                for: Area.self, TaskList.self, MustardTask.self, configurations: config
+                for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, configurations: config
             )
         } catch {
             fatalError("Could not open Mustard store: \(error)")
