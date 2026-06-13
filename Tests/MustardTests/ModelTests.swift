@@ -40,4 +40,29 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(task.statusRaw, "inProgress")
         XCTAssertEqual(task.status, .inProgress)
     }
+
+    func test_priority_defaultsToNormal_andSurvivesRawRoundTrip() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertEqual(task.priority, .normal)
+        task.priority = .high
+        XCTAssertEqual(task.priorityRaw, "high")
+        XCTAssertEqual(task.priority, .high)
+    }
+
+    func test_recurrence_defaultsToNil_andSurvivesRawRoundTrip() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertNil(task.recurrence)
+        task.recurrence = .weekly
+        XCTAssertEqual(task.recurrenceRaw, "weekly")
+        XCTAssertEqual(task.recurrence, .weekly)
+        task.recurrence = nil
+        XCTAssertNil(task.recurrenceRaw)
+    }
+
+    func test_isBlocked_reflectsBlockedReason() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertFalse(task.isBlocked)
+        task.blockedReason = "waiting on Kamil"
+        XCTAssertTrue(task.isBlocked)
+    }
 }

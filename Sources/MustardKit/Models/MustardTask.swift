@@ -14,6 +14,16 @@ public final class MustardTask {
     public var createdAt: Date = Date.now
     public var completedAt: Date?
     public var list: TaskList?
+    public var priorityRaw: String = TaskPriority.normal.rawValue
+    public var dueAt: Date?
+    public var recurrenceRaw: String?
+    public var tags: [String] = []
+    public var blockedReason: String = ""
+    public var recurredFrom: String?
+    public var autoCompleted: Bool = false
+    public var parent: MustardTask?
+    @Relationship(deleteRule: .nullify, inverse: \MustardTask.parent)
+    public var subtasks: [MustardTask]? = []
 
     public var status: TaskStatus {
         get { TaskStatus(rawValue: statusRaw) ?? .inbox }
@@ -23,6 +33,26 @@ public final class MustardTask {
     public var owner: TaskOwner {
         get { TaskOwner(rawValue: ownerRaw) ?? .me }
         set { ownerRaw = newValue.rawValue }
+    }
+
+    public var priority: TaskPriority {
+        get { TaskPriority(rawValue: priorityRaw) ?? .normal }
+        set { priorityRaw = newValue.rawValue }
+    }
+
+    public var recurrence: Recurrence? {
+        get { recurrenceRaw.flatMap(Recurrence.init(rawValue:)) }
+        set { recurrenceRaw = newValue?.rawValue }
+    }
+
+    public var isBlocked: Bool {
+        !blockedReason.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// (completed, total) over direct subtasks — drives the "0/1" header.
+    public var subtaskProgress: (done: Int, total: Int) {
+        let subs = subtasks ?? []
+        return (subs.filter { $0.status == .done }.count, subs.count)
     }
 
     public init(title: String = "", owner: TaskOwner = .me, scheduledAt: Date? = nil) {
