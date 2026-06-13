@@ -30,6 +30,17 @@ public enum PreviewData {
             joinURL: "https://meet.google.com/sample"
         )
         ctx.insert(meeting)
+
+        let rec = Recommendation(
+            title: "Reply to Kamil re: BLE handshake regression",
+            body: "Kamil asked for a status by EOD.",
+            actionType: "draft_email", vaultPath: "/vault",
+            confidence: 0.82,
+            reasoning: "He flagged a regression and asked for status by EOD; the tracker shows the fix moved to In Review yesterday.",
+            draft: "Hi Kamil,\n\nConfirming the BLE handshake regression is now in review — fix landed yesterday, QA verifying today. Verified build by EOD tomorrow.\n\nCheers,\nLeon",
+            source: "gmail", sourceContext: "Thales SDK — kamil@thalesgroup.com"
+        )
+        ctx.insert(rec)
         return container
     }()
 }
