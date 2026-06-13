@@ -106,7 +106,7 @@ public struct TaskDetailSheet: View {
             .controlSize(.small)
             Spacer()
             if task.status != .done {
-                Button("Mark done") { task.markDone(); dismiss() }
+                Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
                     .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
             }
         }

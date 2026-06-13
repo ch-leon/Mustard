@@ -63,7 +63,11 @@ public struct BoardView: View {
             guard let uid = uids.first,
                   let task = allTasks.first(where: { $0.uid == uid }) else { return false }
             guard task.status != status else { return true }
-            PersonalBoard.move(task, to: status)
+            if status == .done {
+                TaskCompletion.complete(task, in: context)
+            } else {
+                PersonalBoard.move(task, to: status)
+            }
             return true
         }
     }
