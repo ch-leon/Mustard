@@ -28,7 +28,12 @@ open build/Mustard.app
   work, you review output) · **Trusted** (auto-runs + auto-accepts) ·
   **Autonomous**. Email/ticket/Slack actions are *always* gated regardless of
   level (shown with a lock badge). Raising trust also processes the backlog.
-- **Command bar** — ⌘K: type to capture a task (Enter), or run "Go to Today" / "Go to Agent" / "Sweep now" — arrow keys + Enter, Esc closes.
+- **Board** — personal Kanban: Inbox · Planned · In Progress · Done · Someday
+  columns, drag cards between them, per-column quick add.
+- **Week** — Sunsama/Akiflow-style Mon–Sun planner: unscheduled rail on the
+  left, drag a task onto a day to schedule it (keeps time-of-day, 9:00 default),
+  drag back to the rail to unschedule, week paging.
+- **Command bar** — ⌘K: type to capture a task (Enter), or run "Go to Today / Board / Week / Agent" / "Sweep now" — arrow keys + Enter, Esc closes.
 - **Notch** — auto-shows on the built-in display: black notch-hugging strip rotating focus → waiting count; hover expands into the agent tray (inline Approve/Deny) + quick capture. ⌘⇧N toggles.
 - **Scheduled sweeps** — "Auto" menu in the Agent console (hourly / 4h / daily); the app checks every minute and sweeps when due.
 - **Hover panel** — ⌘⇧H: always-on-top, non-activating mini panel showing your
