@@ -28,6 +28,20 @@ final class NotchTickerTests: XCTestCase {
         )
     }
 
+    func test_idleItems_includesNextEventBetweenFocusAndWaiting() {
+        let items = NotchTicker.idleItems(
+            focusTitle: "Write notes", waitingCount: 2, nextEvent: "Standup 9:30"
+        )
+        XCTAssertEqual(items, ["Write notes", "Standup 9:30", "2 waiting"])
+    }
+
+    func test_idleItems_nextEventOnly() {
+        XCTAssertEqual(
+            NotchTicker.idleItems(focusTitle: nil, waitingCount: 0, nextEvent: "Standup 9:30"),
+            ["Standup 9:30"]
+        )
+    }
+
     func test_item_cyclesByIndex() {
         let items = ["a", "b", "c"]
         XCTAssertEqual(NotchTicker.item(items, tick: 0), "a")

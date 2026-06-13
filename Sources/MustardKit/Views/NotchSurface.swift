@@ -11,7 +11,7 @@ public final class NotchController {
     private var panel: NSPanel?
     private let makeContent: (_ onHover: @escaping (Bool) -> Void) -> AnyView
 
-    private let expandedSize = NSSize(width: 420, height: 208)
+    private let expandedSize = NSSize(width: 420, height: 300)
 
     public init(content: @escaping (_ onHover: @escaping (Bool) -> Void) -> AnyView) {
         self.makeContent = content
@@ -102,6 +102,7 @@ public struct NotchView: View {
     @Query private var tasks: [MustardTask]
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
     @Query private var cards: [OutputCard]
+    @Query(sort: \CalendarEvent.start) private var events: [CalendarEvent]
     @State private var hovering = false
     @State private var captureText = ""
     let onHoverChange: (Bool) -> Void
@@ -121,6 +122,19 @@ public struct NotchView: View {
 
     private var waitingCount: Int {
         pending.count + cards.filter { $0.review == .pending }.count
+    }
+
+    private var todayMeetings: [CalendarEvent] {
+        events.filter { Calendar.current.isDateInToday($0.start) }
+    }
+
+    private var nextMeeting: CalendarEvent? {
+        events.first { $0.start > .now && Calendar.current.isDateInToday($0.start) }
+    }
+
+    private func nextMeetingLabel() -> String? {
+        guard let m = nextMeeting else { return nil }
+        return "\(m.title) · \(m.start.formatted(date: .omitted, time: .shortened))"
     }
 
     public var body: some View {
@@ -153,7 +167,8 @@ public struct NotchView: View {
             TimelineView(.periodic(from: .now, by: 4)) { timeline in
                 let items = NotchTicker.idleItems(
                     focusTitle: agent.isExecuting ? (agent.currentTitle ?? "Agent working…") : focusTask?.title,
-                    waitingCount: waitingCount
+                    waitingCount: waitingCount,
+                    nextEvent: nextMeetingLabel()
                 )
                 let tick = Int(timeline.date.timeIntervalSinceReferenceDate / 4)
                 HStack(spacing: 5) {
@@ -206,6 +221,29 @@ public struct NotchView: View {
             }
 
             Rectangle().fill(.white.opacity(0.12)).frame(height: 1)
+
+            if !todayMeetings.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TODAY").font(.system(size: 9, weight: .semibold)).tracking(0.08)
+                        .foregroundStyle(.white.opacity(0.4))
+                    ForEach(todayMeetings.prefix(3)) { event in
+                        HStack(spacing: 8) {
+                            Text(event.isAllDay ? "all-day" : event.start.formatted(date: .omitted, time: .shortened))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color(hex: "#9FB7E0"))
+                                .frame(width: 56, alignment: .leading)
+                            Text(event.title)
+                                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                            Spacer(minLength: 0)
+                            if let join = event.joinURL, let url = URL(string: join) {
+                                Link("Join", destination: url)
+                                    .font(.system(size: 11)).foregroundStyle(Color(hex: "#6E9FFF"))
+                            }
+                        }
+                    }
+                }
+                Rectangle().fill(.white.opacity(0.12)).frame(height: 1)
+            }
 
             if pending.isEmpty {
                 Text("No recommendations waiting")

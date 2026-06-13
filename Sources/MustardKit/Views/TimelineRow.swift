@@ -3,10 +3,12 @@ import SwiftUI
 public struct TimelineRow: View {
     let task: MustardTask
     var onToggleDone: () -> Void
+    var onOpen: () -> Void
 
-    public init(task: MustardTask, onToggleDone: @escaping () -> Void) {
+    public init(task: MustardTask, onToggleDone: @escaping () -> Void, onOpen: @escaping () -> Void = {}) {
         self.task = task
         self.onToggleDone = onToggleDone
+        self.onOpen = onOpen
     }
 
     private var timeText: String {
@@ -52,5 +54,6 @@ public struct TimelineRow: View {
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
+        .onTapGesture(perform: onOpen)
     }
 }

@@ -2,11 +2,17 @@ import Foundation
 
 /// Pure content provider for the notch's idle rotation.
 public enum NotchTicker {
-    /// The strings the idle strip rotates through, in order.
-    public static func idleItems(focusTitle: String?, waitingCount: Int) -> [String] {
+    /// The strings the idle strip rotates through, in order:
+    /// current focus → next meeting → agent-waiting count.
+    public static func idleItems(
+        focusTitle: String?, waitingCount: Int, nextEvent: String? = nil
+    ) -> [String] {
         var items: [String] = []
         if let focus = focusTitle, !focus.isEmpty {
             items.append(focus)
+        }
+        if let nextEvent, !nextEvent.isEmpty {
+            items.append(nextEvent)
         }
         if waitingCount > 0 {
             items.append("\(waitingCount) waiting")

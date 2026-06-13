@@ -47,6 +47,17 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertEqual(doneStale.scheduledAt, at("2026-06-10T14:30:00Z"))
     }
 
+    func test_upcoming_returnsOpenScheduledAfterNow_soonestFirst_limited() {
+        let now = at("2026-06-12T10:00:00Z")
+        let soon = MustardTask(title: "soon", scheduledAt: at("2026-06-12T11:00:00Z"))
+        let later = MustardTask(title: "later", scheduledAt: at("2026-06-12T15:00:00Z"))
+        let past = MustardTask(title: "past", scheduledAt: at("2026-06-12T09:00:00Z"))
+        let done = MustardTask(title: "done", scheduledAt: at("2026-06-12T12:00:00Z")); done.markDone()
+        let unsched = MustardTask(title: "unsched")
+        let result = DayPlanner.upcoming([later, soon, past, done, unsched], after: now, limit: 2)
+        XCTAssertEqual(result.map(\.title), ["soon", "later"])
+    }
+
     func test_carryForward_leavesTodayAndFutureTasksAlone() {
         let today = at("2026-06-12T00:00:00Z")
         let todays = MustardTask(title: "today", scheduledAt: at("2026-06-12T09:00:00Z"))

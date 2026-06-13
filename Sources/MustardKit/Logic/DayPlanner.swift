@@ -20,6 +20,20 @@ public enum DayPlanner {
         tasks.filter { $0.scheduledAt == nil && $0.status.isOpen }
     }
 
+    /// Next open, scheduled tasks starting after `after`, soonest first (for the hover panel).
+    public static func upcoming(
+        _ tasks: [MustardTask], after: Date, limit: Int = 3
+    ) -> [MustardTask] {
+        tasks
+            .filter { task in
+                guard task.status.isOpen, let when = task.scheduledAt else { return false }
+                return when > after
+            }
+            .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     /// Move open tasks scheduled before `today` onto `today`, keeping their time-of-day.
     public static func carryForward(
         _ tasks: [MustardTask], to today: Date, calendar: Calendar = .current

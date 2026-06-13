@@ -68,6 +68,10 @@ public struct HoverPanelView: View {
             + cards.filter { $0.review == .pending }.count
     }
 
+    private var upcoming: [MustardTask] {
+        DayPlanner.upcoming(tasks, after: .now, limit: 3).filter { $0.id != focusTask?.id }
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -106,9 +110,29 @@ public struct HoverPanelView: View {
                         .font(Theme.Fonts.meta)
                         .foregroundStyle(Theme.Palette.textSecondary)
                 }
+
+                if !upcoming.isEmpty {
+                    Rectangle().fill(Theme.Palette.hairline).frame(height: 1).padding(.vertical, 2)
+                    Text("NEXT UP")
+                        .font(.system(size: 9, weight: .semibold)).tracking(0.08)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                    ForEach(upcoming) { task in
+                        HStack(spacing: 8) {
+                            Text(task.scheduledAt?.formatted(date: .omitted, time: .shortened) ?? "")
+                                .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.accent)
+                                .frame(width: 52, alignment: .leading)
+                            Text(task.title)
+                                .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+
                 Text(waitingCount > 0 ? "\(waitingCount) waiting on you" : "Nothing waiting on you")
                     .font(Theme.Fonts.meta)
                     .foregroundStyle(Theme.Palette.textTertiary)
+                    .padding(.top, 2)
             }
         }
         .padding(12)

@@ -4,6 +4,7 @@ import SwiftData
 public struct TodayView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
+    @State private var selectedTask: MustardTask?
     private let today = Date.now
 
     public init() {}
@@ -16,7 +17,7 @@ public struct TodayView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 ForEach(scheduled) { task in
-                    TimelineRow(task: task) { toggle(task) }
+                    TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
                     Divider().overlay(Theme.Palette.hairline)
                 }
                 if scheduled.isEmpty {
@@ -34,7 +35,7 @@ public struct TodayView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 4)
                     ForEach(unscheduled) { task in
-                        TimelineRow(task: task) { toggle(task) }
+                        TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
                         Divider().overlay(Theme.Palette.hairline)
                     }
                 }
@@ -46,6 +47,7 @@ public struct TodayView: View {
         }
         .background(Theme.Palette.bg)
         .onAppear { DayPlanner.carryForward(allTasks, to: today) }
+        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
     }
 
     private var header: some View {

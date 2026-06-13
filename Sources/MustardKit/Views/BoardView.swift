@@ -6,6 +6,7 @@ import SwiftData
 public struct BoardView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
+    @State private var selectedTask: MustardTask?
 
     public init() {}
 
@@ -30,6 +31,7 @@ public struct BoardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
+        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
     }
 
     private func column(_ status: TaskStatus) -> some View {
@@ -49,6 +51,7 @@ public struct BoardView: View {
             ForEach(tasks) { task in
                 BoardCard(task: task)
                     .draggable(task.uid)
+                    .onTapGesture { selectedTask = task }
             }
 
             QuickColumnAdd(status: status)
