@@ -4,6 +4,7 @@ public enum CommandKind: Equatable {
     case addTask(String)
     case goToday
     case goBoard
+    case goWeek
     case goAgent
     case sweep
 }
@@ -20,6 +21,7 @@ public enum CommandBarEngine {
     private static let commands: [CommandItem] = [
         CommandItem(id: "today", title: "Go to Today", icon: "sun.max", kind: .goToday),
         CommandItem(id: "board", title: "Go to Board", icon: "rectangle.split.3x1", kind: .goBoard),
+        CommandItem(id: "week", title: "Go to Week", icon: "calendar", kind: .goWeek),
         CommandItem(id: "agent", title: "Go to Agent", icon: "sparkles", kind: .goAgent),
         CommandItem(id: "sweep", title: "Sweep knowledge base now", icon: "wand.and.stars", kind: .sweep),
     ]

@@ -4,7 +4,7 @@ import XCTest
 final class CommandBarEngineTests: XCTestCase {
     func test_emptyQuery_offersDefaultActions() {
         let items = CommandBarEngine.items(query: "")
-        XCTAssertEqual(items.map(\.kind), [.goToday, .goBoard, .goAgent, .sweep])
+        XCTAssertEqual(items.map(\.kind), [.goToday, .goBoard, .goWeek, .goAgent, .sweep])
     }
 
     func test_freeText_offersAddTaskFirst() {
@@ -25,7 +25,7 @@ final class CommandBarEngineTests: XCTestCase {
     }
 
     func test_whitespaceOnly_treatedAsEmpty() {
-        XCTAssertEqual(CommandBarEngine.items(query: "   ").map(\.kind), [.goToday, .goBoard, .goAgent, .sweep])
+        XCTAssertEqual(CommandBarEngine.items(query: "   ").map(\.kind), [.goToday, .goBoard, .goWeek, .goAgent, .sweep])
     }
 
     func test_boardMatches() {

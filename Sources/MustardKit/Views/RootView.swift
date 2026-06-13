@@ -4,6 +4,7 @@ import SwiftData
 public enum MustardScreen: String, CaseIterable, Identifiable {
     case today = "Today"
     case board = "Board"
+    case week = "Week"
     case agent = "Agent"
     public var id: String { rawValue }
 
@@ -11,6 +12,7 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
         switch self {
         case .today: "sun.max"
         case .board: "rectangle.split.3x1"
+        case .week: "calendar"
         case .agent: "sparkles"
         }
     }
@@ -38,6 +40,7 @@ public struct RootView: View {
                 switch screen {
                 case .today: TodayView()
                 case .board: BoardView()
+                case .week: WeekView()
                 case .agent: AgentConsoleView()
                 }
             }

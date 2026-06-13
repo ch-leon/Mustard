@@ -87,6 +87,8 @@ struct CommandBarView: View {
             screen = .today
         case .goBoard:
             screen = .board
+        case .goWeek:
+            screen = .week
         case .goAgent:
             screen = .agent
         case .sweep:
