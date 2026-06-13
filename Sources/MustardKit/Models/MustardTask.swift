@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 public final class MustardTask {
+    /// Stable id for drag-and-drop transfer (PersistentIdentifier isn't Transferable).
+    public var uid: String = UUID().uuidString
     public var title: String = ""
     public var notes: String = ""
     public var statusRaw: String = TaskStatus.inbox.rawValue

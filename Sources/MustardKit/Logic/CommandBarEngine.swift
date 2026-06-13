@@ -3,6 +3,7 @@ import Foundation
 public enum CommandKind: Equatable {
     case addTask(String)
     case goToday
+    case goBoard
     case goAgent
     case sweep
 }
@@ -18,6 +19,7 @@ public struct CommandItem: Identifiable, Equatable {
 public enum CommandBarEngine {
     private static let commands: [CommandItem] = [
         CommandItem(id: "today", title: "Go to Today", icon: "sun.max", kind: .goToday),
+        CommandItem(id: "board", title: "Go to Board", icon: "rectangle.split.3x1", kind: .goBoard),
         CommandItem(id: "agent", title: "Go to Agent", icon: "sparkles", kind: .goAgent),
         CommandItem(id: "sweep", title: "Sweep knowledge base now", icon: "wand.and.stars", kind: .sweep),
     ]

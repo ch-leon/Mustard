@@ -3,12 +3,14 @@ import SwiftData
 
 public enum MustardScreen: String, CaseIterable, Identifiable {
     case today = "Today"
+    case board = "Board"
     case agent = "Agent"
     public var id: String { rawValue }
 
     var systemImage: String {
         switch self {
         case .today: "sun.max"
+        case .board: "rectangle.split.3x1"
         case .agent: "sparkles"
         }
     }
@@ -35,6 +37,7 @@ public struct RootView: View {
             Group {
                 switch screen {
                 case .today: TodayView()
+                case .board: BoardView()
                 case .agent: AgentConsoleView()
                 }
             }

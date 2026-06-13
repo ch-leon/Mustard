@@ -85,6 +85,8 @@ struct CommandBarView: View {
             context.insert(task)
         case .goToday:
             screen = .today
+        case .goBoard:
+            screen = .board
         case .goAgent:
             screen = .agent
         case .sweep:
