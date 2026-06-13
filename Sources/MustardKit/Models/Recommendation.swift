@@ -17,6 +17,15 @@ public final class Recommendation {
     public var decisionRaw: String = RecommendationDecision.pending.rawValue
     public var executionStateRaw: String = ExecutionState.idle.rawValue
     public var vaultPath: String = ""
+    // Rich triage fields (Plan 6): provenance, agent signal, editable draft.
+    public var confidence: Double = 0.5
+    public var reasoning: String = ""
+    public var draft: String = ""
+    public var source: String = "vault"
+    public var sourceContext: String = ""
+    public var sourceURL: String?
+    public var comment: String = ""
+    public var snoozedUntil: Date?
     public var createdAt: Date = Date.now
     @Relationship(deleteRule: .cascade, inverse: \OutputCard.recommendation)
     public var outputs: [OutputCard]? = []
@@ -31,12 +40,28 @@ public final class Recommendation {
         set { executionStateRaw = newValue.rawValue }
     }
 
-    public init(title: String = "", body: String = "", actionType: String = "vault_note", vaultPath: String = "") {
+    public init(
+        title: String = "", body: String = "", actionType: String = "vault_note",
+        vaultPath: String = "", confidence: Double = 0.5, reasoning: String = "",
+        draft: String = "", source: String = "vault", sourceContext: String = "",
+        sourceURL: String? = nil
+    ) {
         self.title = title
         self.body = body
         self.proposedActionType = actionType
         self.vaultPath = vaultPath
+        self.confidence = confidence
+        self.reasoning = reasoning
+        self.draft = draft
+        self.source = source
+        self.sourceContext = sourceContext
+        self.sourceURL = sourceURL
         self.createdAt = .now
+    }
+
+    public var action: RecommendationAction {
+        get { RecommendationAction.from(proposedActionType) }
+        set { proposedActionType = newValue.rawValue }
     }
 }
 

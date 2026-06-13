@@ -34,6 +34,23 @@ final class VaultSweepParserTests: XCTestCase {
         let items = (1...8).map { #"{"title": "t\#($0)"}"# }.joined(separator: ",")
         XCTAssertEqual(VaultSweep.parse("[\(items)]").count, 5)
     }
+
+    func test_parse_readsConfidenceReasoningDraft() {
+        let text = #"[{"title":"Reply","action_type":"draft_email","confidence":0.82,"reasoning":"asked by EOD","draft":"Hi Kamil,"}]"#
+        let p = VaultSweep.parse(text)[0]
+        XCTAssertEqual(p.actionType, "draft_email")
+        XCTAssertEqual(p.confidence, 0.82, accuracy: 0.001)
+        XCTAssertEqual(p.reasoning, "asked by EOD")
+        XCTAssertEqual(p.draft, "Hi Kamil,")
+    }
+
+    func test_parse_defaultsAndClampsConfidence() {
+        let missing = VaultSweep.parse(#"[{"title":"x"}]"#)[0]
+        XCTAssertEqual(missing.confidence, 0.5, accuracy: 0.001)
+        XCTAssertEqual(missing.reasoning, "")
+        let over = VaultSweep.parse(#"[{"title":"x","confidence":1.8}]"#)[0]
+        XCTAssertEqual(over.confidence, 1.0, accuracy: 0.001)
+    }
 }
 
 @MainActor
@@ -123,7 +140,7 @@ final class AgentServiceTests: XCTestCase {
     func test_applyTrust_supervised_autoRunsNonGated_outputAwaitsReview() async throws {
         let ctx = try makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v", confidence: 0.9)
         ctx.insert(rec)
 
         await service.applyTrust(.supervised)
@@ -138,7 +155,7 @@ final class AgentServiceTests: XCTestCase {
     func test_applyTrust_trusted_autoAcceptsNonGated() async throws {
         let ctx = try makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v", confidence: 0.9)
         ctx.insert(rec)
 
         await service.applyTrust(.trusted)
@@ -146,11 +163,37 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).first?.review, .accepted)
     }
 
+    func test_applyTrust_skipsLowConfidence_evenTrusted() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Shaky", actionType: "vault_note", vaultPath: "/v", confidence: 0.3)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertFalse(called)
+    }
+
+    func test_commentAndSnooze() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "x", vaultPath: "/v")
+        ctx.insert(rec)
+        service.comment(rec, "make it shorter")
+        let until = Date.now.addingTimeInterval(3600)
+        service.snooze(rec, until: until)
+        XCTAssertEqual(rec.comment, "make it shorter")
+        XCTAssertEqual(rec.snoozedUntil, until)
+        XCTAssertEqual(rec.decision, .pending)
+    }
+
     func test_applyTrust_neverTouchesGatedActions() async throws {
         let ctx = try makeContext()
         var called = false
         let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Email Kamil", actionType: "email_send", vaultPath: "/v")
+        let rec = Recommendation(title: "Email Kamil", actionType: "draft_email", vaultPath: "/v")
         ctx.insert(rec)
 
         await service.applyTrust(.autonomous)

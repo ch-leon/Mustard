@@ -42,7 +42,9 @@ public final class AgentService {
         for proposal in proposals {
             let rec = Recommendation(
                 title: proposal.title, body: proposal.body,
-                actionType: proposal.actionType, vaultPath: vaultPath
+                actionType: proposal.actionType, vaultPath: vaultPath,
+                confidence: proposal.confidence, reasoning: proposal.reasoning,
+                draft: proposal.draft
             )
             context.insert(rec)
         }
@@ -63,15 +65,27 @@ public final class AgentService {
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
             .filter { $0.decision == .pending } ?? []
         for rec in pending {
-            guard TrustPolicy.shouldAutoApprove(actionType: rec.proposedActionType, trust: trust)
-            else { continue }
+            guard TrustPolicy.shouldAutoApprove(
+                actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
+            ) else { continue }
             rec.decision = .approved
             let card = await execute(rec)
-            if let card,
-               TrustPolicy.shouldAutoAccept(actionType: rec.proposedActionType, trust: trust) {
+            if let card, TrustPolicy.shouldAutoAccept(
+                actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
+            ) {
                 card.review = .accepted
             }
         }
+    }
+
+    /// Record feedback on a recommendation without deciding it (stays pending).
+    public func comment(_ rec: Recommendation, _ text: String) {
+        rec.comment = text
+    }
+
+    /// Hide a recommendation until `until`; it reappears in the queue after.
+    public func snooze(_ rec: Recommendation, until: Date) {
+        rec.snoozedUntil = until
     }
 
     /// Record a decision. Approval triggers execution.

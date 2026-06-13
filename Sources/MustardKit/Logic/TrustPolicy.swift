@@ -36,19 +36,33 @@ public enum TrustLevel: String, Codable, CaseIterable, Identifiable {
 /// Decides how much the agent may do without you. Pure + tested.
 public enum TrustPolicy {
     /// Actions that ALWAYS require explicit sign-off, regardless of trust.
-    public static let gatedActionTypes: Set<String> = ["email_send", "ticket_write", "slack_post"]
+    public static let gatedActionTypes: Set<String> = Set(
+        RecommendationAction.allCases.filter(\.isGated).map(\.rawValue)
+    )
+
+    /// Confidence below this never auto-runs, even when Trusted/Autonomous.
+    public static let autoConfidenceThreshold = 0.7
 
     public static func isGated(actionType: String) -> Bool {
-        gatedActionTypes.contains(actionType)
+        RecommendationAction.from(actionType).isGated
     }
 
     /// May this recommendation execute without a manual Approve?
-    public static func shouldAutoApprove(actionType: String, trust: TrustLevel) -> Bool {
-        !isGated(actionType: actionType) && trust.rank >= TrustLevel.supervised.rank
+    /// Requires: not gated, trust ≥ supervised, AND confidence ≥ threshold.
+    public static func shouldAutoApprove(
+        actionType: String, trust: TrustLevel, confidence: Double = 1.0
+    ) -> Bool {
+        !isGated(actionType: actionType)
+            && trust.rank >= TrustLevel.supervised.rank
+            && confidence >= autoConfidenceThreshold
     }
 
     /// May this execution's output be accepted without a manual Accept?
-    public static func shouldAutoAccept(actionType: String, trust: TrustLevel) -> Bool {
-        !isGated(actionType: actionType) && trust.rank >= TrustLevel.trusted.rank
+    public static func shouldAutoAccept(
+        actionType: String, trust: TrustLevel, confidence: Double = 1.0
+    ) -> Bool {
+        !isGated(actionType: actionType)
+            && trust.rank >= TrustLevel.trusted.rank
+            && confidence >= autoConfidenceThreshold
     }
 }
