@@ -106,25 +106,33 @@ struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
     let status: TaskStatus
     @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "plus")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.Palette.textTertiary)
+            Button(action: add) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
             TextField("Add…", text: $text)
                 .textFieldStyle(.plain)
                 .font(Theme.Fonts.meta)
-                .onSubmit {
-                    let trimmed = text.trimmingCharacters(in: .whitespaces)
-                    guard !trimmed.isEmpty else { return }
-                    let task = MustardTask(title: trimmed)
-                    task.status = status
-                    context.insert(task)
-                    text = ""
-                }
+                .focused($focused)
+                .onSubmit(add)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+
+    private func add() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { focused = true; return }
+        let task = MustardTask(title: trimmed)
+        task.status = status
+        context.insert(task)
+        text = ""
+        focused = true
     }
 }

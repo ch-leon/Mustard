@@ -105,6 +105,7 @@ public struct NotchView: View {
     @Query(sort: \CalendarEvent.start) private var events: [CalendarEvent]
     @State private var hovering = false
     @State private var captureText = ""
+    @FocusState private var captureFocused: Bool
     let onHoverChange: (Bool) -> Void
 
     public init(onHoverChange: @escaping (Bool) -> Void) {
@@ -146,6 +147,14 @@ public struct NotchView: View {
             withAnimation(.snappy(duration: 0.16)) { hovering = isIn }
             onHoverChange(isIn)
         }
+    }
+
+    private func capture() {
+        let trimmed = captureText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { captureFocused = true; return }
+        context.insert(MustardTask(title: trimmed))
+        captureText = ""
+        captureFocused = true
     }
 
     private var shape: some View {
@@ -278,19 +287,18 @@ public struct NotchView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
+                Button(action: capture) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+                .buttonStyle(.plain)
                 TextField("Quick capture…", text: $captureText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.white)
-                    .onSubmit {
-                        let trimmed = captureText.trimmingCharacters(in: .whitespaces)
-                        guard !trimmed.isEmpty else { return }
-                        context.insert(MustardTask(title: trimmed))
-                        captureText = ""
-                    }
+                    .focused($captureFocused)
+                    .onSubmit(capture)
             }
             .padding(.bottom, 12)
         }
