@@ -42,4 +42,28 @@ final class RecurrenceEngineTests: XCTestCase {
             RecurrenceEngine.nextDate(.monthly, after: at("2026-01-31T09:00:00Z"), calendar: cal),
             at("2026-02-28T09:00:00Z"))
     }
+
+    func test_nextInstance_nilWhenNotRecurring() {
+        let t = MustardTask(title: "one-off")
+        XCTAssertNil(RecurrenceEngine.nextInstance(of: t, now: at("2026-06-12T09:00:00Z"), calendar: cal))
+    }
+
+    func test_nextInstance_copiesFieldsAndAdvancesDue() {
+        let t = MustardTask(title: "standup")
+        t.recurrence = .daily
+        t.dueAt = at("2026-06-12T00:00:00Z")
+        t.priority = .high
+        t.tags = ["work"]
+        t.estimateMinutes = 15
+        let next = RecurrenceEngine.nextInstance(of: t, now: at("2026-06-12T09:00:00Z"), calendar: cal)
+        XCTAssertEqual(next?.title, "standup")
+        XCTAssertEqual(next?.priority, .high)
+        XCTAssertEqual(next?.tags, ["work"])
+        XCTAssertEqual(next?.estimateMinutes, 15)
+        XCTAssertEqual(next?.recurrence, .daily)
+        XCTAssertEqual(next?.dueAt, at("2026-06-13T00:00:00Z"))
+        XCTAssertEqual(next?.status, .inbox)
+        XCTAssertEqual(next?.recurredFrom, t.uid)
+        XCTAssertNil(next?.completedAt)
+    }
 }
