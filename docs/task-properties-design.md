@@ -82,11 +82,11 @@ Pure, decision-bearing code lands in `Logic/`, failing test first:
    cascade: open subtasks (`status.isOpen`) → `done` + `autoCompleted = true`.
    Completing all children does **not** auto-complete the parent (one direction
    only, matching the reference). Tested via in-memory container in `ModelTests`.
-5. **Blocked enforcement** — `DayPlanner` (unscheduled + carry-forward) and
-   `NotchTicker` (focus / next-up) exclude `isBlocked` tasks (they stay visible in
-   lists, just aren't *suggested*). Added to the existing planner suites.
-6. **`TaskPriority.sortRank`** — ordering within a status (high first). Tested.
-
+5. **Blocked enforcement** — `DayPlanner.upcoming` (the next-up suggestions for the
+   hover panel / notch) excludes `isBlocked` tasks; the notch's single focus pick and
+   Today's next-up do the same at the View layer. Blocked tasks stay **visible** in
+   the inbox rail / timeline (badged) — they're just not *suggested*. The `upcoming`
+   exclusion is covered in `DayPlannerTests`.
 **Completion choke-point** (orchestration; build + eye, not unit-tested):
 `TaskCompletion.complete(_ task:in context:now:)` → `nextInstance` → `markDone`
 (cascade) → inserts the spawned task. **Every** "done" path routes through it
