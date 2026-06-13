@@ -7,7 +7,7 @@ public enum PreviewData {
     public static let container: ModelContainer = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
-            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, configurations: config
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, CalendarEvent.self, configurations: config
         )
         let ctx = container.mainContext
         let cal = Calendar.current
@@ -23,6 +23,13 @@ public enum PreviewData {
         let sync = MustardTask(title: "Thales SDK sync", scheduledAt: today(11, 30))
         let loose = MustardTask(title: "Reply to Kamil re: BLE issue")
         for task in [standup, focus, sync, loose] { ctx.insert(task) }
+
+        let meeting = CalendarEvent(
+            externalId: "sample-1", title: "Sprint planning",
+            start: today(13, 0), end: today(14, 0),
+            joinURL: "https://meet.google.com/sample"
+        )
+        ctx.insert(meeting)
         return container
     }()
 }

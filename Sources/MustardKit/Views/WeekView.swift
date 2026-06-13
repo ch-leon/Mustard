@@ -7,9 +7,37 @@ import SwiftData
 public struct WeekView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
+    @Query private var events: [CalendarEvent]
     @State private var weekOffset = 0
 
     public init() {}
+
+    /// A timeline cell: a meeting or a scheduled task, sorted together by start.
+    private enum DayItem: Identifiable {
+        case event(CalendarEvent)
+        case task(MustardTask)
+        var id: String {
+            switch self {
+            case .event(let e): "e-\(e.externalId)"
+            case .task(let t): "t-\(t.uid)"
+            }
+        }
+        var start: Date {
+            switch self {
+            case .event(let e): e.start
+            case .task(let t): t.scheduledAt ?? .distantPast
+            }
+        }
+    }
+
+    private func items(on day: Date) -> [DayItem] {
+        let cal = Calendar.current
+        let dayEvents = events
+            .filter { cal.isDate($0.start, inSameDayAs: day) }
+            .map { DayItem.event($0) }
+        let dayTasks = WeekPlanner.tasks(allTasks, on: day).map { DayItem.task($0) }
+        return (dayEvents + dayTasks).sorted { $0.start < $1.start }
+    }
 
     private var days: [Date] { WeekPlanner.days(weekOffset: weekOffset) }
     private var unscheduled: [MustardTask] { WeekPlanner.unscheduled(allTasks) }
@@ -83,7 +111,6 @@ public struct WeekView: View {
 
     private func dayColumn(_ day: Date) -> some View {
         let isToday = Calendar.current.isDateInToday(day)
-        let dayTasks = WeekPlanner.tasks(allTasks, on: day)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 5) {
                 Text(day.formatted(.dateTime.weekday(.abbreviated)))
@@ -95,8 +122,13 @@ public struct WeekView: View {
             }
             ScrollView {
                 VStack(spacing: 6) {
-                    ForEach(dayTasks) { task in
-                        WeekBlock(task: task).draggable(task.uid)
+                    ForEach(items(on: day)) { item in
+                        switch item {
+                        case .event(let event):
+                            MeetingBlock(event: event)
+                        case .task(let task):
+                            WeekBlock(task: task).draggable(task.uid)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 280, alignment: .top)
@@ -129,6 +161,44 @@ struct WeekChip: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
+    }
+}
+
+struct MeetingBlock: View {
+    let event: CalendarEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                if !event.isAllDay {
+                    Text(event.start.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                } else {
+                    Text("All day")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                }
+            }
+            Text(event.title)
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(Theme.Palette.textPrimary)
+                .lineLimit(2)
+            if let join = event.joinURL, let url = URL(string: join) {
+                Link("Join", destination: url)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.Palette.accent)
+            }
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6).stroke(Theme.Palette.hairline)
+        )
     }
 }
 
