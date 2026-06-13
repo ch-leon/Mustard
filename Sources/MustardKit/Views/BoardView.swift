@@ -82,6 +82,12 @@ struct BoardCard: View {
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textPrimary)
                 .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+            if task.isBlocked {
+                Label("Blocked", systemImage: "exclamationmark.octagon")
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                    .lineLimit(1)
+            }
             if task.scheduledAt != nil || task.estimateMinutes != 30 {
                 HStack(spacing: 6) {
                     if let when = task.scheduledAt {
