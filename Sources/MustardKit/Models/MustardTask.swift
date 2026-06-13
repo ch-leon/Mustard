@@ -62,9 +62,15 @@ public final class MustardTask {
         self.createdAt = .now
     }
 
-    /// Mark done, stamping completion time. Idempotent.
+    /// Mark done, stamping completion time, and cascade-complete open subtasks
+    /// (recursively). Idempotent. Subtasks completed this way are flagged
+    /// `autoCompleted`; the task you call this on is not.
     public func markDone(now: Date = .now) {
         status = .done
         completedAt = now
+        for child in subtasks ?? [] where child.status.isOpen {
+            child.autoCompleted = true
+            child.markDone(now: now)
+        }
     }
 }

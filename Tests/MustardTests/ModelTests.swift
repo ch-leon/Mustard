@@ -65,4 +65,33 @@ final class ModelTests: XCTestCase {
         task.blockedReason = "waiting on Kamil"
         XCTAssertTrue(task.isBlocked)
     }
+
+    func test_markDone_cascadesToOpenSubtasks_settingAutoCompleted() throws {
+        let ctx = try makeContext()
+        let parent = MustardTask(title: "parent")
+        let c1 = MustardTask(title: "c1")
+        let c2 = MustardTask(title: "c2")
+        ctx.insert(parent); ctx.insert(c1); ctx.insert(c2)
+        c1.parent = parent
+        c2.parent = parent
+        let when = Date(timeIntervalSince1970: 2_000_000)
+        parent.markDone(now: when)
+        XCTAssertEqual(parent.status, .done)
+        XCTAssertFalse(parent.autoCompleted)        // manually completed
+        XCTAssertEqual(c1.status, .done)
+        XCTAssertTrue(c1.autoCompleted)             // cascaded
+        XCTAssertEqual(c2.status, .done)
+    }
+
+    func test_subtaskProgress_countsDoneOverTotal() throws {
+        let ctx = try makeContext()
+        let parent = MustardTask(title: "parent")
+        let c1 = MustardTask(title: "c1")
+        let c2 = MustardTask(title: "c2")
+        ctx.insert(parent); ctx.insert(c1); ctx.insert(c2)
+        c1.parent = parent; c2.parent = parent
+        c1.markDone()
+        XCTAssertEqual(parent.subtaskProgress.done, 1)
+        XCTAssertEqual(parent.subtaskProgress.total, 2)
+    }
 }
