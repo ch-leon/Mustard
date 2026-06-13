@@ -9,6 +9,7 @@ public struct TaskDetailSheet: View {
     @Bindable var task: MustardTask
 
     @Query private var allTasks: [MustardTask]
+    @Query private var lists: [TaskList]
     @State private var isScheduled: Bool
     @State private var scheduledDate: Date
     @State private var hasDue: Bool
@@ -105,6 +106,15 @@ public struct TaskDetailSheet: View {
                         PropertyRow(label: "Blocked by") {
                             TextField("reason (optional)", text: $task.blockedReason)
                                 .textFieldStyle(.plain).font(Theme.Fonts.meta)
+                        }
+                        PropertyRow(label: "In") {
+                            Picker("", selection: $task.list) {
+                                Text("None").tag(TaskList?.none)
+                                ForEach(lists) { list in
+                                    Text(list.name).tag(TaskList?.some(list))
+                                }
+                            }
+                            .labelsHidden().fixedSize()
                         }
                     }
                     .padding(14)
