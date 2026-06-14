@@ -5,11 +5,14 @@ public struct QuickCaptureField: View {
     @Environment(\.modelContext) private var context
     /// When set, captured tasks are scheduled onto this day at 9:00.
     var scheduleOnto: Date?
+    /// When set, captured tasks are filed into this list.
+    var fileInto: TaskList?
     @State private var text = ""
     @FocusState private var focused: Bool
 
-    public init(scheduleOnto: Date? = nil) {
+    public init(scheduleOnto: Date? = nil, fileInto: TaskList? = nil) {
         self.scheduleOnto = scheduleOnto
+        self.fileInto = fileInto
     }
 
     public var body: some View {
@@ -36,6 +39,7 @@ public struct QuickCaptureField: View {
                 bySettingHour: 9, minute: 0, second: 0, of: day)
             task.status = .planned
         }
+        if let list = fileInto { task.list = list }
         context.insert(task)
         text = ""
         focused = true

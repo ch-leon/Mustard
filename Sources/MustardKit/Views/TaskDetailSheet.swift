@@ -7,6 +7,8 @@ public struct TaskDetailSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Bindable var task: MustardTask
+    @Query private var areas: [Area]
+    @Query private var lists: [TaskList]
 
     @State private var isScheduled: Bool
     @State private var scheduledDate: Date
@@ -60,6 +62,29 @@ public struct TaskDetailSheet: View {
                             }
                             .labelsHidden().fixedSize()
                         }
+                    }
+                    field("List") {
+                        Picker("", selection: $task.list) {
+                            Text("None").tag(TaskList?.none)
+                            ForEach(AreaOrganizer.sortedAreas(areas)) { area in
+                                Section(area.name.isEmpty ? "Untitled area" : area.name) {
+                                    ForEach(AreaOrganizer.sortedLists(area.lists ?? [])) { list in
+                                        Text(list.name.isEmpty ? "Untitled list" : list.name)
+                                            .tag(Optional(list))
+                                    }
+                                }
+                            }
+                            let loose = AreaOrganizer.areaLessLists(lists)
+                            if !loose.isEmpty {
+                                Section("No area") {
+                                    ForEach(loose) { list in
+                                        Text(list.name.isEmpty ? "Untitled list" : list.name)
+                                            .tag(Optional(list))
+                                    }
+                                }
+                            }
+                        }
+                        .labelsHidden().fixedSize()
                     }
                     field("Schedule") {
                         VStack(alignment: .leading, spacing: 8) {
