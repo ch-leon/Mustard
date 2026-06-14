@@ -88,7 +88,7 @@ struct BoardCard: View {
                     .foregroundStyle(Theme.Palette.textSecondary)
                     .lineLimit(1)
             }
-            if task.scheduledAt != nil || task.estimateMinutes != 30 {
+            if task.scheduledAt != nil || task.estimateMinutes != 30 || task.list != nil {
                 HStack(spacing: 6) {
                     if let when = task.scheduledAt {
                         Label(
@@ -96,6 +96,9 @@ struct BoardCard: View {
                             systemImage: "calendar"
                         )
                         .foregroundStyle(Theme.Palette.accent)
+                    }
+                    if let list = task.list {
+                        ListBadge(list: list)
                     }
                     if task.estimateMinutes != 30 {
                         Text("\(task.estimateMinutes)m")

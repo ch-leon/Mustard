@@ -7,9 +7,9 @@ public struct TaskDetailSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Bindable var task: MustardTask
-
-    @Query private var allTasks: [MustardTask]
+    @Query private var areas: [Area]
     @Query private var lists: [TaskList]
+    @Query private var allTasks: [MustardTask]
     @State private var isScheduled: Bool
     @State private var scheduledDate: Date
     @State private var hasDue: Bool
@@ -115,8 +115,22 @@ public struct TaskDetailSheet: View {
                         PropertyRow(label: "In") {
                             Picker("", selection: $task.list) {
                                 Text("None").tag(TaskList?.none)
-                                ForEach(lists) { list in
-                                    Text(list.name).tag(TaskList?.some(list))
+                                ForEach(AreaOrganizer.sortedAreas(areas)) { area in
+                                    Section(area.name.isEmpty ? "Untitled area" : area.name) {
+                                        ForEach(AreaOrganizer.sortedLists(area.lists ?? [])) { list in
+                                            Text(list.name.isEmpty ? "Untitled list" : list.name)
+                                                .tag(TaskList?.some(list))
+                                        }
+                                    }
+                                }
+                                let loose = AreaOrganizer.areaLessLists(lists)
+                                if !loose.isEmpty {
+                                    Section("No area") {
+                                        ForEach(loose) { list in
+                                            Text(list.name.isEmpty ? "Untitled list" : list.name)
+                                                .tag(TaskList?.some(list))
+                                        }
+                                    }
                                 }
                             }
                             .labelsHidden().fixedSize()

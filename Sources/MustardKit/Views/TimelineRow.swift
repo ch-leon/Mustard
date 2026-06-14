@@ -38,14 +38,19 @@ public struct TimelineRow: View {
                     .font(isDone ? Theme.Fonts.body : Theme.Fonts.title)
                     .foregroundStyle(isDone ? Theme.Palette.textSecondary : Theme.Palette.textPrimary)
                     .strikethrough(isDone, color: Theme.Palette.textTertiary)
-                if task.estimateMinutes != 30 || task.owner == .agent {
+                if task.estimateMinutes != 30 || task.owner == .agent || task.list != nil {
                     HStack(spacing: 6) {
                         if task.owner == .agent {
                             Label("Agent", systemImage: "cpu")
                                 .foregroundStyle(Theme.Palette.agent)
                         }
-                        Text("\(task.estimateMinutes) min")
-                            .foregroundStyle(Theme.Palette.textSecondary)
+                        if let list = task.list {
+                            ListBadge(list: list)
+                        }
+                        if task.estimateMinutes != 30 {
+                            Text("\(task.estimateMinutes) min")
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                        }
                     }
                     .font(Theme.Fonts.meta)
                 }
