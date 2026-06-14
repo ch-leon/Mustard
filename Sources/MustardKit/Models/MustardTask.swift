@@ -10,6 +10,9 @@ public final class MustardTask {
     public var statusRaw: String = TaskStatus.inbox.rawValue
     public var ownerRaw: String = TaskOwner.me.rawValue
     public var scheduledAt: Date?
+    /// When scheduled: `false` = planned for the day (flows in the week list);
+    /// `true` = anchored to a specific time on the week's time axis.
+    public var isTimed: Bool = false
     public var estimateMinutes: Int = 30
     public var createdAt: Date = Date.now
     public var completedAt: Date?
