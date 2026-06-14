@@ -67,12 +67,17 @@ public struct TaskDetailSheet: View {
                                 .toggleStyle(.switch).font(Theme.Fonts.meta)
                                 .onChange(of: isScheduled) { _, on in
                                     task.scheduledAt = on ? scheduledDate : nil
+                                    task.isTimed = on
                                     if on, task.status == .inbox { task.status = .planned }
                                 }
                             if isScheduled {
+                                // Picking a specific time anchors the task to the week's time axis.
                                 DatePicker("", selection: $scheduledDate)
                                     .labelsHidden()
-                                    .onChange(of: scheduledDate) { _, d in task.scheduledAt = d }
+                                    .onChange(of: scheduledDate) { _, d in
+                                        task.scheduledAt = d
+                                        task.isTimed = true
+                                    }
                             }
                         }
                     }

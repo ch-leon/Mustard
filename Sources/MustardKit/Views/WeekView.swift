@@ -1,46 +1,43 @@
 import SwiftUI
 import SwiftData
 
-/// Week planner (spec feature 6, Sunsama/Akiflow): an unscheduled rail and a
-/// Mon–Sun grid. Drag a rail task onto a day to schedule it (keeps time-of-day,
+/// Week planner v2 (Sunsama/Akiflow/Morgen hybrid): an unscheduled + overdue rail
+/// and a Mon–Sun grid. Each day has a light time axis (8am–6pm) where meetings and
+/// *timed* tasks anchor and size by duration, plus an ordered list below for
+/// *untimed* tasks. Drag a rail task onto a day to schedule it (keeps time-of-day,
 /// 9:00 default); drag a day block back to the rail to unschedule.
 public struct WeekView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
     @Query private var events: [CalendarEvent]
     @State private var weekOffset = 0
+    @State private var selectedTask: MustardTask?
+
+    // Time axis configuration.
+    private let axisStartHour = 8
+    private let axisEndHour = 18
+    private let hourHeight: CGFloat = 44
+    private var perMinute: CGFloat { hourHeight / 60 }
+    private var axisSpanMinutes: Int { (axisEndHour - axisStartHour) * 60 }
+    private var axisHeight: CGFloat { CGFloat(axisEndHour - axisStartHour) * hourHeight }
 
     public init() {}
 
-    /// A timeline cell: a meeting or a scheduled task, sorted together by start.
-    private enum DayItem: Identifiable {
-        case event(CalendarEvent)
-        case task(MustardTask)
-        var id: String {
-            switch self {
-            case .event(let e): "e-\(e.externalId)"
-            case .task(let t): "t-\(t.uid)"
-            }
-        }
-        var start: Date {
-            switch self {
-            case .event(let e): e.start
-            case .task(let t): t.scheduledAt ?? .distantPast
-            }
-        }
-    }
-
-    private func items(on day: Date) -> [DayItem] {
-        let cal = Calendar.current
-        let dayEvents = events
-            .filter { cal.isDate($0.start, inSameDayAs: day) }
-            .map { DayItem.event($0) }
-        let dayTasks = WeekPlanner.tasks(allTasks, on: day).map { DayItem.task($0) }
-        return (dayEvents + dayTasks).sorted { $0.start < $1.start }
-    }
-
+    private let cal = Calendar.current
     private var days: [Date] { WeekPlanner.days(weekOffset: weekOffset) }
     private var unscheduled: [MustardTask] { WeekPlanner.unscheduled(allTasks) }
+    private var overdue: [MustardTask] { WeekPlanner.overdue(allTasks) }
+
+    private func dayTasks(_ day: Date) -> [MustardTask] { WeekPlanner.tasks(allTasks, on: day) }
+    private func dayEvents(_ day: Date) -> [CalendarEvent] {
+        events.filter { cal.isDate($0.start, inSameDayAs: day) }
+    }
+
+    /// True when `date`'s time-of-day falls inside the visible 8am–6pm window.
+    private func inWindow(_ date: Date) -> Bool {
+        let m = WeekPlanner.minutesSinceDayStart(date, dayStartHour: axisStartHour, calendar: cal)
+        return m >= 0 && m < axisSpanMinutes
+    }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -57,6 +54,7 @@ public struct WeekView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
+        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
     }
 
     private var header: some View {
@@ -78,26 +76,19 @@ public struct WeekView: View {
         .padding(.horizontal, 20).padding(.vertical, 14)
     }
 
+    // MARK: - Rail
+
     private var rail: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("UNSCHEDULED")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Theme.Palette.textTertiary)
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(unscheduled) { task in
-                        WeekChip(task: task).draggable(task.uid)
-                    }
-                    if unscheduled.isEmpty {
-                        Text("All scheduled")
-                            .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary)
-                            .padding(.top, 16)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if !overdue.isEmpty {
+                    railSection(title: "OVERDUE", tasks: overdue, accent: Theme.Palette.warning)
                 }
-                .frame(maxWidth: .infinity, minHeight: 300, alignment: .top)
+                railSection(title: "UNSCHEDULED", tasks: unscheduled, accent: nil)
             }
+            .frame(maxWidth: .infinity, minHeight: 300, alignment: .top)
+            .padding(12)
         }
-        .padding(12)
         .frame(width: 190)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.Palette.surface.opacity(0.4))
@@ -105,12 +96,41 @@ public struct WeekView: View {
             guard let uid = uids.first, let task = allTasks.first(where: { $0.uid == uid })
             else { return false }
             task.scheduledAt = nil
+            task.isTimed = false
             return true
         }
     }
 
+    private func railSection(title: String, tasks: [MustardTask], accent: Color?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(accent ?? Theme.Palette.textTertiary)
+            if tasks.isEmpty {
+                Text(title == "UNSCHEDULED" ? "All scheduled" : "")
+                    .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary)
+            } else {
+                ForEach(tasks) { task in
+                    WeekChip(task: task, overdue: accent != nil)
+                        .draggable(task.uid)
+                        .onTapGesture { selectedTask = task }
+                        .contextMenu { menu(for: task) }
+                }
+            }
+        }
+    }
+
+    // MARK: - Day column
+
     private func dayColumn(_ day: Date) -> some View {
-        let isToday = Calendar.current.isDateInToday(day)
+        let isToday = cal.isDateInToday(day)
+        let tasks = dayTasks(day)
+        let evts = dayEvents(day)
+        let axisTasks = tasks.filter { $0.isTimed && ($0.scheduledAt.map(inWindow) ?? false) }
+        let axisEvents = evts.filter { !$0.isAllDay && inWindow($0.start) }
+        let listTasks = tasks.filter { !($0.isTimed && ($0.scheduledAt.map(inWindow) ?? false)) }
+        let listEvents = evts.filter { $0.isAllDay || !inWindow($0.start) }
+
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 5) {
                 Text(day.formatted(.dateTime.weekday(.abbreviated)))
@@ -120,16 +140,19 @@ public struct WeekView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.Palette.textTertiary)
             }
+            .frame(height: 18)
             ScrollView {
-                VStack(spacing: 6) {
-                    ForEach(items(on: day)) { item in
-                        switch item {
-                        case .event(let event):
-                            MeetingBlock(event: event)
-                        case .task(let task):
-                            WeekBlock(task: task).draggable(task.uid)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    axis(events: axisEvents, tasks: axisTasks)
+                    ForEach(listEvents) { MeetingBlock(event: $0) }
+                    ForEach(listTasks) { task in
+                        WeekBlock(task: task,
+                                  onOpen: { selectedTask = task },
+                                  onToggle: { toggle(task) })
+                            .draggable(task.uid)
+                            .contextMenu { menu(for: task) }
                     }
+                    QuickCaptureField(scheduleOnto: day)
                 }
                 .frame(maxWidth: .infinity, minHeight: 280, alignment: .top)
             }
@@ -145,10 +168,80 @@ public struct WeekView: View {
             return true
         }
     }
+
+    /// The time axis: faint 30-min hairlines with meetings and timed tasks
+    /// positioned by start and sized by duration.
+    private func axis(events: [CalendarEvent], tasks: [MustardTask]) -> some View {
+        ZStack(alignment: .topLeading) {
+            // Hour / half-hour gridlines.
+            ForEach(0...((axisEndHour - axisStartHour) * 2), id: \.self) { half in
+                let onHour = half % 2 == 0
+                Rectangle()
+                    .fill(Theme.Palette.hairline.opacity(onHour ? 1 : 0.4))
+                    .frame(height: 1)
+                    .offset(y: CGFloat(half) * (hourHeight / 2))
+            }
+            ForEach(events) { event in
+                AxisMeetingBlock(event: event, height: blockHeight(minutes: durationMinutes(event)))
+                    .offset(y: yOffset(for: event.start))
+            }
+            ForEach(tasks) { task in
+                AxisTaskBlock(task: task,
+                              perMinute: perMinute,
+                              height: blockHeight(minutes: task.estimateMinutes),
+                              onOpen: { selectedTask = task },
+                              onToggle: { toggle(task) })
+                    .draggable(task.uid)
+                    .contextMenu { menu(for: task) }
+                    .offset(y: yOffset(for: task.scheduledAt ?? Date()))
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: axisHeight, alignment: .topLeading)
+    }
+
+    private func yOffset(for date: Date) -> CGFloat {
+        let m = WeekPlanner.minutesSinceDayStart(date, dayStartHour: axisStartHour, calendar: cal)
+        return max(0, CGFloat(m) * perMinute)
+    }
+
+    private func blockHeight(minutes: Int) -> CGFloat {
+        max(18, CGFloat(minutes) * perMinute)
+    }
+
+    private func durationMinutes(_ event: CalendarEvent) -> Int {
+        max(30, Int(event.end.timeIntervalSince(event.start) / 60))
+    }
+
+    // MARK: - Mutations
+
+    @ViewBuilder private func menu(for task: MustardTask) -> some View {
+        if task.status == .done {
+            Button("Reopen") { task.status = .planned; task.completedAt = nil }
+        } else {
+            Button("Complete") { task.markDone() }
+        }
+        Button("Open detail") { selectedTask = task }
+        Button("Unschedule") { task.scheduledAt = nil; task.isTimed = false }
+        Divider()
+        Button("Delete", role: .destructive) { context.delete(task) }
+    }
+
+    private func toggle(_ task: MustardTask) {
+        if task.status == .done {
+            task.status = .planned
+            task.completedAt = nil
+        } else {
+            task.markDone()
+        }
+    }
 }
 
+// MARK: - Chips & blocks
+
+/// Rail chip: an unscheduled or overdue task.
 struct WeekChip: View {
     let task: MustardTask
+    var overdue = false
     var body: some View {
         HStack(spacing: 6) {
             if task.owner == .agent {
@@ -156,11 +249,16 @@ struct WeekChip: View {
             }
             Text(task.title).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
             Spacer(minLength: 0)
+            if overdue, let when = task.scheduledAt {
+                Text(when.formatted(.dateTime.day().month()))
+                    .font(.system(size: 9)).foregroundStyle(Theme.Palette.warning)
+            }
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
+        .overlay(RoundedRectangle(cornerRadius: 8)
+            .stroke(overdue ? Theme.Palette.warning.opacity(0.5) : Theme.Palette.hairline))
     }
 }
 
@@ -173,15 +271,9 @@ struct MeetingBlock: View {
                 Image(systemName: "calendar")
                     .font(.system(size: 9))
                     .foregroundStyle(Theme.Palette.textSecondary)
-                if !event.isAllDay {
-                    Text(event.start.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                } else {
-                    Text("All day")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.textSecondary)
-                }
+                Text(event.isAllDay ? "All day" : event.start.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.textSecondary)
             }
             Text(event.title)
                 .font(Theme.Fonts.meta)
@@ -196,29 +288,118 @@ struct MeetingBlock: View {
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6).stroke(Theme.Palette.hairline)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.Palette.hairline))
     }
 }
 
-struct WeekBlock: View {
-    let task: MustardTask
+/// A meeting positioned on the time axis, sized by its duration.
+struct AxisMeetingBlock: View {
+    let event: CalendarEvent
+    let height: CGFloat
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let when = task.scheduledAt {
-                Text(when.formatted(date: .omitted, time: .shortened))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.Palette.accent)
+        VStack(alignment: .leading, spacing: 1) {
+            Text(event.start.formatted(date: .omitted, time: .shortened))
+                .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.Palette.textSecondary)
+            Text(event.title)
+                .font(.system(size: 11)).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
+            Spacer(minLength: 0)
+        }
+        .padding(5)
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .topLeading)
+        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.Palette.hairline))
+    }
+}
+
+/// A timed task positioned on the axis, sized by `estimateMinutes`, with a
+/// bottom resize handle that writes the snapped duration back to the estimate.
+struct AxisTaskBlock: View {
+    @Bindable var task: MustardTask
+    let perMinute: CGFloat
+    let height: CGFloat
+    let onOpen: () -> Void
+    let onToggle: () -> Void
+    @State private var dragStartEstimate: Int?
+
+    private var tint: Color { task.owner == .agent ? Theme.Palette.agent : Theme.Palette.accent }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Button(action: onToggle) {
+                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 11)).foregroundStyle(tint)
+                }
+                .buttonStyle(.plain)
+                if let when = task.scheduledAt {
+                    Text(when.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(tint)
+                }
+                Spacer(minLength: 0)
             }
             Text(task.title)
-                .font(Theme.Fonts.meta)
-                .foregroundStyle(Theme.Palette.textPrimary)
+                .font(.system(size: 11)).foregroundStyle(Theme.Palette.textPrimary)
                 .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
                 .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+        .padding(5)
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .topLeading)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(tint.opacity(0.25)))
+        .overlay(alignment: .bottom) { resizeHandle }
+        .onTapGesture(perform: onOpen)
+    }
+
+    private var resizeHandle: some View {
+        Capsule()
+            .fill(tint.opacity(0.4))
+            .frame(width: 24, height: 4)
+            .padding(.bottom, 2)
+            .contentShape(Rectangle().inset(by: -8))
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if dragStartEstimate == nil { dragStartEstimate = task.estimateMinutes }
+                        let delta = Int(value.translation.height / perMinute)
+                        task.estimateMinutes = WeekPlanner.snapDuration((dragStartEstimate ?? 30) + delta)
+                    }
+                    .onEnded { _ in dragStartEstimate = nil }
+            )
+    }
+}
+
+/// A task in the list below the axis (untimed, or timed outside the window).
+struct WeekBlock: View {
+    @Bindable var task: MustardTask
+    let onOpen: () -> Void
+    let onToggle: () -> Void
+
+    private var tint: Color { task.owner == .agent ? Theme.Palette.agent : Theme.Palette.accent }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: onToggle) {
+                Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 11)).foregroundStyle(tint)
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                if task.isTimed, let when = task.scheduledAt {
+                    Text(when.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(tint)
+                }
+                Text(task.title)
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                    .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
         }
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Palette.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .onTapGesture(perform: onOpen)
     }
 }

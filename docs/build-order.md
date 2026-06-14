@@ -25,6 +25,12 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       chips, editable draft, Comment/Snooze/Schedule/Reject; confidence × trust.
 - [x] **F12 Task detail editor** — shared sheet (edit/status/owner/estimate/schedule,
       mark done, delete); tap-to-open from Today & Board.
+- [x] **F13 Week planner v2** — Sunsama/Akiflow/Morgen hybrid: per-day time axis
+      (8am–6pm) where meetings + *timed* tasks anchor and size by duration
+      (resize handle → `estimateMinutes`); untimed tasks list below; per-day
+      quick-add; tap-to-detail, check-off, right-click menu; OVERDUE + UNSCHEDULED
+      rail; agent tasks in purple. New `MustardTask.isTimed`. Plan:
+      `docs/plans/2026-06-14-week-planner-v2.md`.
 
 ## Next — needs Leon ⛔
 
