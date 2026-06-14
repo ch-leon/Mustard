@@ -88,19 +88,34 @@ public final class AgentService {
         rec.snoozedUntil = until
     }
 
-    /// Record a decision. Approval triggers execution.
+    /// Record a decision. Approval triggers execution, honouring any triage
+    /// comment as feedback for the agent on this first run.
     public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
         rec.decision = decision
         if decision == .approved {
-            _ = await execute(rec)
+            _ = await execute(rec, feedback: rec.comment)
         }
     }
 
-    /// Run an approved recommendation; always produce exactly one OutputCard
-    /// per execution (success or failure — no silent completion). Returns the
-    /// card so callers (auto-accept) can act on it.
+    /// Re-run a reviewed output with the user's feedback and the prior output as
+    /// context, producing a NEW OutputCard. The old card is retired (`.revised`)
+    /// only once its replacement exists, so the review queue never empties without
+    /// one — and the prior cards stay linked to the recommendation as history.
     @discardableResult
-    public func execute(_ rec: Recommendation) async -> OutputCard? {
+    public func revise(_ card: OutputCard, feedback: String) async -> OutputCard? {
+        guard let rec = card.recommendation else { return nil }
+        rec.comment = feedback
+        let newCard = await execute(rec, feedback: feedback, priorOutput: card.content)
+        if newCard != nil { card.review = .revised }
+        return newCard
+    }
+
+    /// Run an approved recommendation; always produce exactly one OutputCard
+    /// per execution (success or failure — no silent completion). The prompt is
+    /// grounded in the proposal (action type, draft) and any `feedback`/`priorOutput`
+    /// turns it into a revision. Returns the card so callers (auto-accept) can act on it.
+    @discardableResult
+    public func execute(_ rec: Recommendation, feedback: String = "", priorOutput: String = "") async -> OutputCard? {
         guard !isExecuting else { return nil }
         isExecuting = true
         currentTitle = rec.title
@@ -108,7 +123,12 @@ public final class AgentService {
         defer { isExecuting = false; currentTitle = nil }
 
         let result = await claude(
-            VaultSweep.executePrompt(title: rec.title, body: rec.body), rec.vaultPath
+            VaultSweep.executePrompt(
+                title: rec.title, body: rec.body, action: rec.action,
+                draft: rec.draft, sourceContext: rec.sourceContext,
+                feedback: feedback, priorOutput: priorOutput
+            ),
+            rec.vaultPath
         )
         let card = OutputCard(
             content: result.ok ? result.text : "Execution failed: \(result.text)",
