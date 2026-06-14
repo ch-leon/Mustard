@@ -64,6 +64,10 @@ public struct RootView: View {
                 .keyboardShortcut("k", modifiers: .command)
                 .opacity(0)
         }
+        // Locked light design (ADR-0005); pin appearance so native controls
+        // (TextEditor, DatePicker, pickers) don't render dark under macOS dark mode.
+        // The notch is a separate panel with its own explicit dark colors — unaffected.
+        .preferredColorScheme(.light)
     }
 
     private var sidebar: some View {
