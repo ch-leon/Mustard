@@ -26,7 +26,7 @@ public enum DayPlanner {
     ) -> [MustardTask] {
         tasks
             .filter { task in
-                guard task.status.isOpen, let when = task.scheduledAt else { return false }
+                guard task.status.isOpen, !task.isBlocked, let when = task.scheduledAt else { return false }
                 return when > after
             }
             .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }

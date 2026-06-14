@@ -14,8 +14,11 @@ public struct QuickCaptureField: View {
 
     public var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "plus.circle")
-                .foregroundStyle(Theme.Palette.textTertiary)
+            Button(action: capture) {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
             TextField("Add a task…", text: $text)
                 .textFieldStyle(.plain)
                 .font(Theme.Fonts.body)
@@ -29,7 +32,7 @@ public struct QuickCaptureField: View {
 
     private func capture() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { focused = true; return }
         let task = MustardTask(title: trimmed)
         if let day = scheduleOnto {
             task.scheduledAt = Calendar.current.date(

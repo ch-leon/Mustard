@@ -25,6 +25,9 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       chips, editable draft, Comment/Snooze/Schedule/Reject; confidence × trust.
 - [x] **F12 Task detail editor** — shared sheet (edit/status/owner/estimate/schedule,
       mark done, delete); tap-to-open from Today & Board.
+- [x] **F13 Rich task properties** — priority, due, recurrence, tags, blocked-by,
+      parent/subtasks (+ estimate); recurrence spawn, subtask cascade, blocked-aware
+      next-up, cycle guard. See `task-properties-design.md`.
 
 ## Next — needs Leon ⛔
 
@@ -42,5 +45,4 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 - [ ] Gate tuning after real use (`autoConfidenceThreshold`, `isGated`).
 - [ ] Areas/Lists organisation UI (models exist; no UI yet).
 - [ ] Evening shutdown / morning planning ritual (Sunsama-style).
-- [ ] Recurrence for tasks.
 - [ ] Re-run-with-comment (feed a Recommendation's comment back into a re-sweep).

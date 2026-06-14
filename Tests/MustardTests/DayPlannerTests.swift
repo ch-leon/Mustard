@@ -66,4 +66,13 @@ final class DayPlannerTests: XCTestCase {
         XCTAssertEqual(todays.scheduledAt, at("2026-06-12T09:00:00Z"))
         XCTAssertEqual(future.scheduledAt, at("2026-06-14T09:00:00Z"))
     }
+
+    func test_upcoming_excludesBlockedTasks() {
+        let now = at("2026-06-12T10:00:00Z")
+        let open = MustardTask(title: "open", scheduledAt: at("2026-06-12T11:00:00Z"))
+        let blocked = MustardTask(title: "blocked", scheduledAt: at("2026-06-12T11:30:00Z"))
+        blocked.blockedReason = "waiting on review"
+        let result = DayPlanner.upcoming([open, blocked], after: now, limit: 5)
+        XCTAssertEqual(result.map(\.title), ["open"])
+    }
 }
