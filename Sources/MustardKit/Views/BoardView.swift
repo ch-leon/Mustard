@@ -82,6 +82,8 @@ struct BoardCard: View {
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textPrimary)
                 .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             if task.isBlocked {
                 Label("Blocked", systemImage: "exclamationmark.octagon")
                     .font(Theme.Fonts.meta)
@@ -89,20 +91,26 @@ struct BoardCard: View {
                     .lineLimit(1)
             }
             if task.scheduledAt != nil || task.estimateMinutes != 30 || task.list != nil {
-                HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
                     if let when = task.scheduledAt {
                         Label(
                             when.formatted(.dateTime.weekday(.abbreviated).hour().minute()),
                             systemImage: "calendar"
                         )
                         .foregroundStyle(Theme.Palette.accent)
+                        .lineLimit(1)
                     }
-                    if let list = task.list {
-                        ListBadge(list: list)
-                    }
-                    if task.estimateMinutes != 30 {
-                        Text("\(task.estimateMinutes)m")
-                            .foregroundStyle(Theme.Palette.textTertiary)
+                    if task.list != nil || task.estimateMinutes != 30 {
+                        HStack(spacing: 6) {
+                            if let list = task.list {
+                                ListBadge(list: list)
+                            }
+                            if task.estimateMinutes != 30 {
+                                Text("\(task.estimateMinutes)m")
+                                    .foregroundStyle(Theme.Palette.textTertiary)
+                            }
+                        }
+                        .lineLimit(1)
                     }
                 }
                 .font(Theme.Fonts.meta)

@@ -7,12 +7,15 @@ public struct QuickCaptureField: View {
     var scheduleOnto: Date?
     /// When set, captured tasks are filed into this list.
     var fileInto: TaskList?
+    /// Placeholder text — shortened in narrow contexts (e.g. Week day columns).
+    var placeholder: String = "Add a task…"
     @State private var text = ""
     @FocusState private var focused: Bool
 
-    public init(scheduleOnto: Date? = nil, fileInto: TaskList? = nil) {
+    public init(scheduleOnto: Date? = nil, fileInto: TaskList? = nil, placeholder: String = "Add a task…") {
         self.scheduleOnto = scheduleOnto
         self.fileInto = fileInto
+        self.placeholder = placeholder
     }
 
     public var body: some View {
@@ -22,7 +25,7 @@ public struct QuickCaptureField: View {
                     .foregroundStyle(Theme.Palette.textTertiary)
             }
             .buttonStyle(.plain)
-            TextField("Add a task…", text: $text)
+            TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textPrimary)
