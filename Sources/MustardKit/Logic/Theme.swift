@@ -27,6 +27,7 @@ public enum Theme {
         public static let accent = Color(hex: "#2D7FF9")
         public static let agent = Color(hex: "#7F77DD")
         public static let done = Color(hex: "#1D9E75")
+        public static let warning = Color(hex: "#D98A29") // overdue / needs-attention amber
     }
 
     public enum Fonts {
