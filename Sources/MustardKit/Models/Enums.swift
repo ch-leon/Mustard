@@ -22,3 +22,30 @@ public enum TaskOwner: String, Codable, CaseIterable, Identifiable {
     public var id: String { rawValue }
     public var label: String { self == .me ? "Me" : "Agent" }
 }
+
+public enum TaskPriority: String, Codable, CaseIterable, Identifiable {
+    case high, normal, low
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .high: "High"
+        case .normal: "Normal"
+        case .low: "Low"
+        }
+    }
+}
+
+public enum Recurrence: String, Codable, CaseIterable, Identifiable {
+    case daily, weekdays, weekly, monthly
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .daily: "Daily"
+        case .weekdays: "Weekdays"
+        case .weekly: "Weekly"
+        case .monthly: "Monthly"
+        }
+    }
+}

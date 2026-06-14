@@ -53,6 +53,53 @@ final class VaultSweepParserTests: XCTestCase {
     }
 }
 
+final class VaultSweepPromptTests: XCTestCase {
+    func test_executePrompt_includesDraftAsStartingPoint() {
+        let p = VaultSweep.executePrompt(
+            title: "Reply to Kamil", body: "He asked for the figures.",
+            action: .draftEmail, draft: "Hi Kamil, here are the Q2 figures…"
+        )
+        XCTAssertTrue(p.contains("Hi Kamil, here are the Q2 figures…"))
+        XCTAssertTrue(p.contains("Starting point"))
+    }
+
+    func test_executePrompt_emailPhrasingDiffersFromVaultNote() {
+        let email = VaultSweep.executePrompt(title: "t", body: "b", action: .draftEmail)
+        let note = VaultSweep.executePrompt(title: "t", body: "b", action: .vaultNote)
+        XCTAssertTrue(email.lowercased().contains("email"))
+        XCTAssertTrue(note.lowercased().contains("knowledge base"))
+        XCTAssertNotEqual(email, note)
+    }
+
+    func test_executePrompt_gatedActionStaysDraftOnly() {
+        let p = VaultSweep.executePrompt(title: "t", body: "b", action: .draftEmail)
+        XCTAssertTrue(p.lowercased().contains("do not send"))
+    }
+
+    func test_executePrompt_withFeedbackAndPriorOutput_instructsRevision() {
+        let p = VaultSweep.executePrompt(
+            title: "t", body: "b", action: .vaultNote,
+            feedback: "make it shorter", priorOutput: "A long previous draft."
+        )
+        XCTAssertTrue(p.contains("make it shorter"))
+        XCTAssertTrue(p.contains("A long previous draft."))
+        XCTAssertTrue(p.lowercased().contains("revis"))
+    }
+
+    func test_executePrompt_withoutFeedbackOrPrior_omitsRevisionBlock() {
+        let p = VaultSweep.executePrompt(title: "t", body: "b", action: .vaultNote)
+        XCTAssertFalse(p.contains("You previously produced"))
+        XCTAssertFalse(p.contains("This is a revision."))
+    }
+
+    func test_executePrompt_emptyDraftFallsBackToBody() {
+        let p = VaultSweep.executePrompt(
+            title: "t", body: "The body text.", action: .vaultNote, draft: ""
+        )
+        XCTAssertTrue(p.contains("The body text."))
+    }
+}
+
 @MainActor
 final class AgentServiceTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
@@ -91,7 +138,9 @@ final class AgentServiceTests: XCTestCase {
     func test_approve_executesAndProducesExactlyOneCard() async throws {
         let ctx = try makeContext()
         let stub: ClaudeRun = { prompt, _ in
-            ClaudeResult(ok: true, text: prompt.contains("Execute") ? "Did the thing." : "[]")
+            // Key on the rec title rather than prompt copy, so the test is robust
+            // to prompt wording changes.
+            ClaudeResult(ok: true, text: prompt.contains("Do it") ? "Did the thing." : "[]")
         }
         let service = AgentService(context: ctx, claude: stub)
         let rec = Recommendation(title: "Do it", vaultPath: "/tmp/vault")
@@ -187,6 +236,95 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(rec.comment, "make it shorter")
         XCTAssertEqual(rec.snoozedUntil, until)
         XCTAssertEqual(rec.decision, .pending)
+    }
+
+    func test_execute_buildsGroundedPrompt_includingDraft() async throws {
+        let ctx = try makeContext()
+        var captured = ""
+        let service = AgentService(context: ctx, claude: { prompt, _ in
+            captured = prompt; return ClaudeResult(ok: true, text: "ok")
+        })
+        let rec = Recommendation(
+            title: "Reply", actionType: "draft_email", vaultPath: "/v",
+            draft: "Hi Kamil,"
+        )
+        ctx.insert(rec)
+
+        await service.execute(rec)
+
+        XCTAssertTrue(captured.contains("Hi Kamil,"))
+        XCTAssertTrue(captured.lowercased().contains("email"))
+    }
+
+    func test_decide_approved_passesTriageCommentAsFeedback() async throws {
+        let ctx = try makeContext()
+        var captured = ""
+        let service = AgentService(context: ctx, claude: { prompt, _ in
+            captured = prompt; return ClaudeResult(ok: true, text: "ok")
+        })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+        service.comment(rec, "keep it under 100 words")
+
+        await service.decide(rec, .approved)
+
+        XCTAssertTrue(captured.contains("keep it under 100 words"))
+    }
+
+    func test_revise_retiresOldCard_createsNewPending_chainsHistory() async throws {
+        let ctx = try makeContext()
+        var captured = ""
+        let service = AgentService(context: ctx, claude: { prompt, _ in
+            captured = prompt; return ClaudeResult(ok: true, text: "v2 output")
+        })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+        let first = OutputCard(content: "v1 output", recommendation: rec)
+        ctx.insert(first)
+
+        let newCard = await service.revise(first, feedback: "make it shorter")
+
+        XCTAssertEqual(first.review, .revised)
+        XCTAssertNotNil(newCard)
+        XCTAssertEqual(newCard?.review, .pending)
+        XCTAssertEqual(newCard?.content, "v2 output")
+        XCTAssertEqual(rec.comment, "make it shorter")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 2)
+        XCTAssertTrue(captured.contains("v1 output"))
+        XCTAssertTrue(captured.contains("make it shorter"))
+    }
+
+    func test_revise_emptyFeedback_stillRevisesWithPriorOutput() async throws {
+        let ctx = try makeContext()
+        var captured = ""
+        let service = AgentService(context: ctx, claude: { prompt, _ in
+            captured = prompt; return ClaudeResult(ok: true, text: "v2")
+        })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+        let first = OutputCard(content: "v1 output", recommendation: rec)
+        ctx.insert(first)
+
+        let newCard = await service.revise(first, feedback: "")
+
+        XCTAssertNotNil(newCard)
+        XCTAssertTrue(captured.contains("v1 output"))
+    }
+
+    func test_revise_noRecommendation_isNoOp() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in
+            called = true; return ClaudeResult(ok: true, text: "x")
+        })
+        let orphan = OutputCard(content: "orphan", recommendation: nil)
+        ctx.insert(orphan)
+
+        let result = await service.revise(orphan, feedback: "change it")
+
+        XCTAssertNil(result)
+        XCTAssertFalse(called)
+        XCTAssertEqual(orphan.review, .pending)
     }
 
     func test_applyTrust_neverTouchesGatedActions() async throws {

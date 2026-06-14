@@ -73,4 +73,58 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(lists.count, 1, "list should survive its area's deletion")
         XCTAssertNil(lists.first?.area, "list should be area-less, not deleted")
     }
+
+    func test_priority_defaultsToNormal_andSurvivesRawRoundTrip() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertEqual(task.priority, .normal)
+        task.priority = .high
+        XCTAssertEqual(task.priorityRaw, "high")
+        XCTAssertEqual(task.priority, .high)
+    }
+
+    func test_recurrence_defaultsToNil_andSurvivesRawRoundTrip() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertNil(task.recurrence)
+        task.recurrence = .weekly
+        XCTAssertEqual(task.recurrenceRaw, "weekly")
+        XCTAssertEqual(task.recurrence, .weekly)
+        task.recurrence = nil
+        XCTAssertNil(task.recurrenceRaw)
+    }
+
+    func test_isBlocked_reflectsBlockedReason() throws {
+        let task = MustardTask(title: "x")
+        XCTAssertFalse(task.isBlocked)
+        task.blockedReason = "waiting on Kamil"
+        XCTAssertTrue(task.isBlocked)
+    }
+
+    func test_markDone_cascadesToOpenSubtasks_settingAutoCompleted() throws {
+        let ctx = try makeContext()
+        let parent = MustardTask(title: "parent")
+        let c1 = MustardTask(title: "c1")
+        let c2 = MustardTask(title: "c2")
+        ctx.insert(parent); ctx.insert(c1); ctx.insert(c2)
+        c1.parent = parent
+        c2.parent = parent
+        let when = Date(timeIntervalSince1970: 2_000_000)
+        parent.markDone(now: when)
+        XCTAssertEqual(parent.status, .done)
+        XCTAssertFalse(parent.autoCompleted)        // manually completed
+        XCTAssertEqual(c1.status, .done)
+        XCTAssertTrue(c1.autoCompleted)             // cascaded
+        XCTAssertEqual(c2.status, .done)
+    }
+
+    func test_subtaskProgress_countsDoneOverTotal() throws {
+        let ctx = try makeContext()
+        let parent = MustardTask(title: "parent")
+        let c1 = MustardTask(title: "c1")
+        let c2 = MustardTask(title: "c2")
+        ctx.insert(parent); ctx.insert(c1); ctx.insert(c2)
+        c1.parent = parent; c2.parent = parent
+        c1.markDone()
+        XCTAssertEqual(parent.subtaskProgress.done, 1)
+        XCTAssertEqual(parent.subtaskProgress.total, 2)
+    }
 }

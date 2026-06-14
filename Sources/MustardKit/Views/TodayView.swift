@@ -68,7 +68,7 @@ public struct TodayView: View {
             task.status = .planned
             task.completedAt = nil
         } else {
-            task.markDone()
+            TaskCompletion.complete(task, in: context)
         }
     }
 }

@@ -63,7 +63,11 @@ public struct BoardView: View {
             guard let uid = uids.first,
                   let task = allTasks.first(where: { $0.uid == uid }) else { return false }
             guard task.status != status else { return true }
-            PersonalBoard.move(task, to: status)
+            if status == .done {
+                TaskCompletion.complete(task, in: context)
+            } else {
+                PersonalBoard.move(task, to: status)
+            }
             return true
         }
     }
@@ -78,6 +82,12 @@ struct BoardCard: View {
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textPrimary)
                 .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+            if task.isBlocked {
+                Label("Blocked", systemImage: "exclamationmark.octagon")
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                    .lineLimit(1)
+            }
             if task.scheduledAt != nil || task.estimateMinutes != 30 || task.list != nil {
                 HStack(spacing: 6) {
                     if let when = task.scheduledAt {
@@ -109,25 +119,33 @@ struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
     let status: TaskStatus
     @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "plus")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.Palette.textTertiary)
+            Button(action: add) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
             TextField("Add…", text: $text)
                 .textFieldStyle(.plain)
                 .font(Theme.Fonts.meta)
-                .onSubmit {
-                    let trimmed = text.trimmingCharacters(in: .whitespaces)
-                    guard !trimmed.isEmpty else { return }
-                    let task = MustardTask(title: trimmed)
-                    task.status = status
-                    context.insert(task)
-                    text = ""
-                }
+                .focused($focused)
+                .onSubmit(add)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+
+    private func add() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { focused = true; return }
+        let task = MustardTask(title: trimmed)
+        task.status = status
+        context.insert(task)
+        text = ""
+        focused = true
     }
 }
