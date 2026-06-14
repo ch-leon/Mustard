@@ -40,4 +40,37 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(task.statusRaw, "inProgress")
         XCTAssertEqual(task.status, .inProgress)
     }
+
+    func test_deletingList_keepsTasks_unfilesThem() throws {
+        let ctx = try makeContext()
+        let area = Area(name: "Work")
+        let list = TaskList(name: "Dev", area: area)
+        let task = MustardTask(title: "Filed")
+        task.list = list
+        ctx.insert(area); ctx.insert(list); ctx.insert(task)
+        try ctx.save()
+
+        ctx.delete(list)
+        try ctx.save()
+
+        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
+        XCTAssertEqual(tasks.count, 1, "task should survive its list's deletion")
+        XCTAssertNil(tasks.first?.list, "task should be unfiled, not deleted")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<TaskList>()).count, 0)
+    }
+
+    func test_deletingArea_keepsLists_orphansThem() throws {
+        let ctx = try makeContext()
+        let area = Area(name: "Work")
+        let list = TaskList(name: "Dev", area: area)
+        ctx.insert(area); ctx.insert(list)
+        try ctx.save()
+
+        ctx.delete(area)
+        try ctx.save()
+
+        let lists = try ctx.fetch(FetchDescriptor<TaskList>())
+        XCTAssertEqual(lists.count, 1, "list should survive its area's deletion")
+        XCTAssertNil(lists.first?.area, "list should be area-less, not deleted")
+    }
 }

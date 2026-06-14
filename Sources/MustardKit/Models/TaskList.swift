@@ -6,7 +6,9 @@ public final class TaskList {
     public var name: String = ""
     public var createdAt: Date = Date.now
     public var area: Area?
-    @Relationship(deleteRule: .cascade, inverse: \MustardTask.list)
+    // Nullify (not cascade): deleting a list keeps its tasks — they become
+    // unfiled (list == nil), never deleted.
+    @Relationship(deleteRule: .nullify, inverse: \MustardTask.list)
     public var tasks: [MustardTask]? = []
 
     public init(name: String = "", area: Area? = nil) {
