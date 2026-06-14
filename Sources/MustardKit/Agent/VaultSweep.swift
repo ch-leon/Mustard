@@ -51,17 +51,74 @@ public enum VaultSweep {
         }
     }
 
-    public static func executePrompt(title: String, body: String) -> String {
-        """
+    /// Grounded, action-aware execution prompt. Unlike a generic "do this task",
+    /// it tells Claude what kind of deliverable to produce, hands back the draft it
+    /// already proposed as the starting point, and — when feedback or a prior output
+    /// are present — instructs it to revise rather than start over. Pure: takes the
+    /// `RecommendationAction` enum plus primitives so it stays unit-testable.
+    public static func executePrompt(
+        title: String, body: String, action: RecommendationAction,
+        draft: String = "", sourceContext: String = "",
+        feedback: String = "", priorOutput: String = ""
+    ) -> String {
+        var parts: [String] = []
+        parts.append("""
         Execute this task against the knowledge base in the current directory.
-        If it is a research/summary task, produce the deliverable as text.
-        If it asks for note changes, make them.
+        \(directive(for: action))
 
         Task: \(title)
 
         \(body)
+        """)
 
-        End your response with a concise summary of what you did and any output produced.
-        """
+        let starting = draft.isEmpty ? body : draft
+        if !starting.isEmpty {
+            parts.append("""
+            Starting point (your proposed draft — finalize and improve it, don't restart):
+            \(starting)
+            """)
+        }
+
+        if !sourceContext.isEmpty {
+            parts.append("Context: \(sourceContext)")
+        }
+
+        if !priorOutput.isEmpty || !feedback.isEmpty {
+            var revision = "This is a revision."
+            if !priorOutput.isEmpty {
+                revision += "\nYou previously produced:\n\(priorOutput)"
+            }
+            if !feedback.isEmpty {
+                revision += "\nRevise per this feedback: \(feedback)"
+            } else {
+                revision += "\nImprove on the previous attempt."
+            }
+            revision += "\nReturn the full revised deliverable, not a diff."
+            parts.append(revision)
+        }
+
+        parts.append("End your response with a concise summary of what you did and any output produced.")
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Per-action instruction. Gated actions (email/Slack/ticket) stay draft-only —
+    /// execution produces text for review, it never sends or files anything.
+    private static func directive(for action: RecommendationAction) -> String {
+        switch action {
+        case .draftEmail:
+            return "Finalize a ready-to-send email (subject line + body) from the draft below. Produce the text only — do not send it."
+        case .draftSlack:
+            return "Finalize a concise, well-toned Slack message from the draft below. Produce the text only — do not send it."
+        case .ticket:
+            return "Produce the finalized ticket text (title + description) from the draft below. Produce the text only — do not file it."
+        case .createTask:
+            return "Produce the finalized task (title + description) from the draft below; do not invent fields."
+        case .vaultNote:
+            return "Apply this change to the knowledge base, starting from the proposed note text below."
+        case .fyi:
+            return "Produce the finalized briefing/FYI text from the draft below."
+        case .ignore:
+            return "No action is needed; briefly note why this was surfaced."
+        }
     }
 }

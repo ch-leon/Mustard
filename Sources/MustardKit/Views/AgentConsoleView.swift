@@ -390,6 +390,15 @@ struct OutputCardRow: View {
     @Environment(AgentService.self) private var agent
     let card: OutputCard
     @State private var expanded = false
+    @State private var revising = false
+    @State private var feedbackText = ""
+
+    /// 1-based version of this card within its recommendation's output history.
+    private var version: Int {
+        guard let outputs = card.recommendation?.outputs else { return 1 }
+        let ordered = outputs.sorted { $0.createdAt < $1.createdAt }
+        return (ordered.firstIndex { $0 === card } ?? ordered.count - 1) + 1
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -400,6 +409,14 @@ struct OutputCardRow: View {
                 Text(card.recommendation?.title ?? "Output")
                     .font(Theme.Fonts.title)
                     .foregroundStyle(Theme.Palette.textPrimary)
+                if version > 1 {
+                    Text("v\(version)")
+                        .font(.system(size: 10, weight: .semibold)).tracking(0.04)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Theme.Palette.surface, in: Capsule())
+                        .help("Revision \(version) — earlier outputs are kept in history.")
+                }
                 Spacer()
                 Button(expanded ? "Less" : "More") { expanded.toggle() }
                     .buttonStyle(.plain)
@@ -417,15 +434,22 @@ struct OutputCardRow: View {
                     .tint(Theme.Palette.done)
                     .controlSize(.small)
                 Button("Revise") {
-                    card.review = .revised
-                    if let rec = card.recommendation {
-                        Task { await agent.execute(rec) }
-                    }
+                    revising.toggle()
+                    feedbackText = card.recommendation?.comment ?? ""
                 }
                 .controlSize(.small)
                 .disabled(agent.isExecuting)
                 Button("Discard", role: .destructive) { card.review = .discarded }
                     .controlSize(.small)
+            }
+            if revising {
+                TextField("What should change?", text: $feedbackText)
+                    .textFieldStyle(.roundedBorder).font(Theme.Fonts.meta)
+                    .onSubmit {
+                        let text = feedbackText
+                        revising = false
+                        Task { await agent.revise(card, feedback: text) }
+                    }
             }
         }
         .padding(.vertical, 10)
