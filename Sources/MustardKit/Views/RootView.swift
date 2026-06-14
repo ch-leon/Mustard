@@ -6,7 +6,12 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
     case board = "Board"
     case week = "Week"
     case agent = "Agent"
+    case lists = "Lists"
     public var id: String { rawValue }
+
+    /// Screens shown as top-level sidebar buttons. `.lists` is intentionally
+    /// excluded — it's reached by selecting an area/list/unfiled row below.
+    static let primary: [MustardScreen] = [.today, .board, .week, .agent]
 
     var systemImage: String {
         switch self {
@@ -14,13 +19,32 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
         case .board: "rectangle.split.3x1"
         case .week: "calendar"
         case .agent: "sparkles"
+        case .lists: "tray.full"
         }
     }
+}
+
+/// What the Lists screen is showing: a specific list, or the unfiled bucket.
+enum ListScope: Equatable {
+    case list(TaskList)
+    case unfiled
+
+    static func == (lhs: ListScope, rhs: ListScope) -> Bool {
+        switch (lhs, rhs) {
+        case (.unfiled, .unfiled): return true
+        case let (.list(a), .list(b)): return a === b
+        default: return false
+        }
+    }
+
+    var isUnfiled: Bool { if case .unfiled = self { return true }; return false }
+    var listValue: TaskList? { if case .list(let l) = self { return l }; return nil }
 }
 
 /// Root: a calm fixed sidebar (no toolbar chrome) and the active screen.
 public struct RootView: View {
     @State private var screen: MustardScreen = .today
+    @State private var selectedScope: ListScope?
     @State private var showCommandBar = false
     @Query private var cards: [OutputCard]
     @Query private var recommendations: [Recommendation]
@@ -42,6 +66,7 @@ public struct RootView: View {
                 case .board: BoardView()
                 case .week: WeekView()
                 case .agent: AgentConsoleView()
+                case .lists: ListContentView(scope: selectedScope ?? .unfiled)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,7 +97,7 @@ public struct RootView: View {
                 .font(Theme.Fonts.title)
                 .foregroundStyle(Theme.Palette.textTertiary)
                 .padding(.bottom, 16)
-            ForEach(MustardScreen.allCases) { item in
+            ForEach(MustardScreen.primary) { item in
                 Button {
                     screen = item
                 } label: {
@@ -100,6 +125,9 @@ public struct RootView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            AreaSidebarSection(screen: $screen, selectedScope: $selectedScope)
+
             Spacer()
         }
         .padding(14)
