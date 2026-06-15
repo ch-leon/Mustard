@@ -34,6 +34,16 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       quick-add; tap-to-detail, check-off, right-click menu; OVERDUE + UNSCHEDULED
       rail; agent tasks in purple. New `MustardTask.isTimed`. Plan:
       `docs/plans/2026-06-14-week-planner-v2.md`.
+- [x] **F15 Agent feedback loop** — grounded, action-aware execution prompt
+      (uses the proposed draft + action type + source context); a triage Comment is
+      fed to the agent on the first run; `revise(card, feedback:)` re-runs with the
+      feedback + prior output, producing a new OutputCard with version history.
+      `AreaOrganizer`-style pure prompt builder in `VaultSweep`.
+- [x] **F16 Areas/Lists organisation UI** — sidebar AREAS section (areas → nested
+      lists with open-task counts, an Unfiled bucket), filtered `ListContentView`,
+      inline create/rename/delete, **nullify** deletes (organising never loses
+      tasks), area-grouped List picker in the detail sheet, list badges on rows.
+      Pure `AreaOrganizer` logic.
 
 ## Next — needs Leon ⛔
 
@@ -49,6 +59,40 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 ## Later — autonomous, unblocked 🔓
 
 - [ ] Gate tuning after real use (`autoConfidenceThreshold`, `isGated`).
-- [ ] Areas/Lists organisation UI (models exist; no UI yet).
-- [ ] Evening shutdown / morning planning ritual (Sunsama-style).
-- [ ] Re-run-with-comment (feed a Recommendation's comment back into a re-sweep).
+
+## Ideas — brainstormed 2026-06-15, not yet planned 💡
+
+Captured from a brainstorm; each needs its own spec + plan before building.
+⭐ = highest-leverage (most advances the "plan your work + your agents' work" wedge).
+Intended for Linear later — kept here for now.
+
+**A. Deepen the agent loop**
+- [ ] **I1 ⭐ You → agent delegation** — hand a task to the agent from Board/Today
+      ("Ask agent to do this"); it enters the existing recommend → approve → execute
+      → review pipeline. Completes the currently one-way (agent → you) loop — the
+      core of the product thesis.
+- [ ] **I2 ⭐ Trust that earns itself** — track accept/revise/reject history per
+      action type; surface the hit-rate ("vault notes: 9/10 accepted") and nudge to
+      raise the trust level. Makes the trust ladder feel earned, not static.
+- [ ] **I3 Multi-step agent plans** — agent proposes a stepwise plan, executes with
+      checkpoints, one OutputCard per step. For larger delegations.
+- [ ] **I4 Diff view on vault edits** — OutputCard shows a before/after diff for note
+      changes, not just prose, so you can accept with confidence.
+
+**B. Planning rituals (Sunsama/Akiflow DNA)**
+- [ ] **I5 ⭐ Evening shutdown / morning planning** — guided flow: review what got
+      done, roll over unfinished, plan tomorrow, set 1–3 intentions — and fold in the
+      agent's overnight output + pending reviews. The human+agent daily standup.
+- [ ] **I6 Capacity awareness** — sum today's `estimateMinutes` vs available hours;
+      gently flag overcommit. (Deferred from the week planner.)
+- [ ] **I7 Weekly objectives** — set a few goals for the week, link tasks to them,
+      surface on the Week view. Gives the planner a "why". (Deferred from week planner.)
+
+**C. Calm UX refinements**
+- [ ] **I8 Natural-language capture** — ⌘K parses "email Sam re: BLE Thursday 2pm"
+      into a scheduled task (and could suggest it as an agent draft-email).
+- [ ] **I9 Tag filtering / saved smart lists** — tags exist (F13) but aren't
+      filterable yet; add filtering + saved views.
+- [ ] **I10 Focus mode** — "start" a task → live timer in the notch/hover, everything
+      else dims.
+
