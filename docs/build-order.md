@@ -43,8 +43,19 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 - [ ] **N2 CloudKit sync + iOS target** — migrate SPM → Xcode project, iCloud
       entitlement, iOS app sharing `MustardKit`. *Blocked on:* Apple Developer
       account / entitlements (Leon).
-- [ ] **N3 More sources** — email / Slack / meetings as triage sources, via the
+- [ ] **N3 More sources** — email / Slack as triage sources, via the
       `claude` CLI's MCP config. *Blocked on:* confirming MCP availability + scope.
+      *(Meetings split out to B1 — handled by vault-harvest, not MCP.)*
+
+## Next — buildable, unblocked 🟢
+
+- [ ] **B1 Meeting task ingest** — harvest the curated `- [ ]` lines from the
+      meeting notes Leon's Sync pipeline writes into his Code Heroes vaults, into
+      Mustard's inbox; two-way completion (tick the note's checkbox, snapshot-first).
+      Pure `MeetingTaskParser` + `MeetingTaskSync`; vault → Area mapping; new
+      provenance fields on `MustardTask`. Spec-ready — design locked 2026-06-16.
+      See `docs/plans/2026-06-16-meeting-task-ingest.md`. *Supersedes the "meetings"
+      half of N3 — vault-harvest, no MCP needed.*
 
 ## Later — autonomous, unblocked 🔓
 
