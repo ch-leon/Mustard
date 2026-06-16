@@ -24,6 +24,11 @@ public final class Recommendation {
     public var source: String = "vault"
     public var sourceContext: String = ""
     public var sourceURL: String?
+    // Ingestion provenance (Plan 7): stable identity for dedupe + when it occurred.
+    // Optional → auto-nil default keeps the model CloudKit-compatible (ADR-0001).
+    public var sourceItemID: String?
+    public var sourceEventID: String?
+    public var occurredAt: Date?
     public var comment: String = ""
     public var snoozedUntil: Date?
     public var createdAt: Date = Date.now
