@@ -22,7 +22,9 @@ public final class AgentService {
         self.claude = claude
     }
 
-    /// Sweep the vault: ask claude for recommendations, insert them pending.
+    /// Manual vault sweep: ask claude for recommendations, ingest them through the
+    /// shared pipeline (so manual sweeps dedupe too). Kept as the command-bar /
+    /// console entry point during the multi-source transition.
     public func sweep(vaultPath: String) async {
         guard !isSweeping, !vaultPath.isEmpty else { return }
         isSweeping = true
@@ -34,22 +36,60 @@ public final class AgentService {
             lastError = "Sweep failed: \(result.text)"
             return
         }
-        let proposals = VaultSweep.parse(result.text)
+        let proposals = VaultSweep.parse(result.text).map(SourceProposal.init(vault:))
         if proposals.isEmpty {
             lastError = "Sweep returned no parseable recommendations"
             return
         }
-        for proposal in proposals {
-            let rec = Recommendation(
-                title: proposal.title, body: proposal.body,
-                actionType: proposal.actionType, vaultPath: vaultPath,
-                confidence: proposal.confidence, reasoning: proposal.reasoning,
-                draft: proposal.draft
-            )
-            context.insert(rec)
-        }
+        ingest(proposals, vaultPath: vaultPath)
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
         await applyTrust(Self.storedTrust())
+    }
+
+    /// Scheduled multi-source sweep: run each enabled + due source serially through
+    /// the shared pipeline, advance per-source scheduling state only on success, and
+    /// run trust once at the end. Returns updated settings for the caller to persist.
+    @discardableResult
+    public func sweepDueSources(_ settings: SourceSettings, now: Date = .now) async -> SourceSettings {
+        guard !isSweeping else { return settings }
+        isSweeping = true
+        defer { isSweeping = false }
+
+        var updated = settings
+        var didIngest = false
+        for config in settings.sources where config.enabled {
+            let state = settings.state.first { $0.id == config.id }
+            guard SweepScheduler.isDue(
+                lastSweptAt: state?.lastSweptAt, intervalHours: config.intervalHours, now: now
+            ) else { continue }
+            // Only the vault source runs locally; Gmail discovery is the cloud scout (ADR-0007).
+            guard config.id == .vault else { continue }
+
+            let result = await claude(VaultSweep.prompt, config.workingDirectory)
+            if result.ok {
+                let proposals = VaultSweep.parse(result.text).map(SourceProposal.init(vault:))
+                ingest(proposals, vaultPath: config.workingDirectory)
+                updated.upsertState(SourceState(id: config.id, lastSweptAt: now, lastError: nil))
+                didIngest = true
+            } else {
+                updated.upsertState(SourceState(id: config.id, lastSweptAt: state?.lastSweptAt, lastError: result.text))
+            }
+        }
+        if didIngest { await applyTrust(Self.storedTrust()) }
+        return updated
+    }
+
+    /// Single insert pipeline shared by manual + scheduled sweeps: dedupe each
+    /// proposal against existing recommendations (and ones accepted earlier in this
+    /// batch), then insert non-duplicates with source identity stamped.
+    private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
+        let existing = (try? context.fetch(FetchDescriptor<Recommendation>())) ?? []
+        var accepted: [Recommendation] = []
+        for p in proposals where SourceDedupe.shouldInsert(p, against: existing + accepted) {
+            let rec = Recommendation(from: p, vaultPath: vaultPath)
+            context.insert(rec)
+            accepted.append(rec)
+        }
     }
 
     /// Trust level from settings (defaults to manual = nothing auto).

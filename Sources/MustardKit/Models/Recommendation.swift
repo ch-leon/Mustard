@@ -64,6 +64,19 @@ public final class Recommendation {
         self.createdAt = .now
     }
 
+    /// Build a recommendation from an ingested `SourceProposal`, stamping its
+    /// source identity (Plan 7). Used by the shared insert pipeline.
+    public convenience init(from p: SourceProposal, vaultPath: String) {
+        self.init(
+            title: p.title, body: p.body, actionType: p.actionType, vaultPath: vaultPath,
+            confidence: p.confidence, reasoning: p.reasoning, draft: p.draft,
+            source: p.source.rawValue, sourceContext: p.sourceContext, sourceURL: p.sourceURL
+        )
+        self.sourceItemID = p.sourceItemID
+        self.sourceEventID = p.sourceEventID
+        self.occurredAt = p.occurredAt
+    }
+
     public var action: RecommendationAction {
         get { RecommendationAction.from(proposedActionType) }
         set { proposedActionType = newValue.rawValue }

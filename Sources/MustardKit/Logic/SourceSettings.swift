@@ -39,6 +39,12 @@ public struct SourceSettings: Codable, Equatable {
         self.sources = sources
         self.state = state
     }
+
+    /// Replace (or append) the state entry for a source id.
+    public mutating func upsertState(_ s: SourceState) {
+        if let i = state.firstIndex(where: { $0.id == s.id }) { state[i] = s }
+        else { state.append(s) }
+    }
 }
 
 /// Loads/saves `SourceSettings` as a Codable JSON blob in `UserDefaults`
