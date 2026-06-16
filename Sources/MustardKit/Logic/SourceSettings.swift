@@ -80,4 +80,18 @@ public enum SourceSettingsStore {
             state: [SourceState(id: .vault, project: project, lastSweptAt: lastSweptAt)]
         )
     }
+
+    /// Load saved settings, or migrate the legacy single-vault keys on first run
+    /// (persisting the result so subsequent loads are stable).
+    public static func loadOrMigrate(_ defaults: UserDefaults = .standard) -> SourceSettings {
+        if let existing = load(defaults) { return existing }
+        let lastTS = defaults.double(forKey: "lastSweptAt")
+        let migrated = migrate(
+            vaultPath: defaults.string(forKey: "vaultPath") ?? "",
+            sweepIntervalHours: defaults.double(forKey: "sweepIntervalHours"),
+            lastSweptAt: lastTS > 0 ? Date(timeIntervalSince1970: lastTS) : nil
+        )
+        save(migrated, to: defaults)
+        return migrated
+    }
 }

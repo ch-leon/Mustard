@@ -56,4 +56,27 @@ final class SourceSettingsTests: XCTestCase {
         XCTAssertEqual(s.state.count, 2, "same (id, project) updates in place")
         XCTAssertEqual(s.state.first { $0.project == "DL" }?.lastSweptAt, Date(timeIntervalSince1970: 200))
     }
+
+    func test_loadOrMigrate_present_loadsExisting() {
+        let name = "mustard-test-\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: name)!
+        defer { suite.removePersistentDomain(forName: name) }
+        SourceSettingsStore.save(
+            SourceSettings(sources: [SourceConfig(id: .vault, project: "SB", workingDirectory: "/sb")], state: []),
+            to: suite)
+        XCTAssertEqual(SourceSettingsStore.loadOrMigrate(suite).sources.first?.project, "SB")
+    }
+
+    func test_loadOrMigrate_absent_migratesLegacyKeysAndPersists() {
+        let name = "mustard-test-\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: name)!
+        defer { suite.removePersistentDomain(forName: name) }
+        suite.set("/Users/x/DL-Knowledge-Base", forKey: "vaultPath")
+        suite.set(4.0, forKey: "sweepIntervalHours")
+        let s = SourceSettingsStore.loadOrMigrate(suite)
+        XCTAssertEqual(s.sources.first?.project, "DL-Knowledge-Base")
+        XCTAssertEqual(s.sources.first?.workingDirectory, "/Users/x/DL-Knowledge-Base")
+        XCTAssertEqual(s.sources.first?.intervalHours, 4)
+        XCTAssertNotNil(SourceSettingsStore.load(suite), "migration should persist so next load is stable")
+    }
 }
