@@ -22,6 +22,9 @@ public final class Recommendation {
     public var reasoning: String = ""
     public var draft: String = ""
     public var source: String = "vault"
+    /// Project / knowledge base (KB folder name) — isolates dedupe, grounding, and
+    /// UI per project (multi-project). Defaulted → CloudKit-compatible (ADR-0001).
+    public var project: String = ""
     public var sourceContext: String = ""
     public var sourceURL: String?
     // Ingestion provenance (Plan 7): stable identity for dedupe + when it occurred.
@@ -72,6 +75,7 @@ public final class Recommendation {
             confidence: p.confidence, reasoning: p.reasoning, draft: p.draft,
             source: p.source.rawValue, sourceContext: p.sourceContext, sourceURL: p.sourceURL
         )
+        self.project = p.project
         self.sourceItemID = p.sourceItemID
         self.sourceEventID = p.sourceEventID
         self.occurredAt = p.occurredAt

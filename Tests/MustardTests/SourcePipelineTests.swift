@@ -88,4 +88,23 @@ final class SourcePipelineTests: XCTestCase {
         _ = await service.sweepDueSources(settings, now: now)
         XCTAssertFalse(called)
     }
+
+    // Multi-project isolation, end to end.
+    func test_sweep_stampsProjectFromVaultPath() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: #"[{"title":"One"}]"#) })
+        await service.sweep(vaultPath: "/Users/x/DL-Knowledge-Base")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).first?.project, "DL-Knowledge-Base")
+    }
+
+    func test_twoProjects_identicalContent_doNotCrossContaminate() async throws {
+        let ctx = try makeContext()
+        let stub: ClaudeRun = { _, _ in ClaudeResult(ok: true, text: #"[{"title":"Weekly status"}]"#) }
+        let service = AgentService(context: ctx, claude: stub)
+        await service.sweep(vaultPath: "/Users/x/DL-Knowledge-Base")
+        await service.sweep(vaultPath: "/Users/x/Sandvik-Knowledge-Base")
+        let recs = try ctx.fetch(FetchDescriptor<Recommendation>())
+        XCTAssertEqual(recs.count, 2, "identical content in two KBs must NOT dedupe-collapse across projects")
+        XCTAssertEqual(Set(recs.map(\.project)).count, 2)
+    }
 }
