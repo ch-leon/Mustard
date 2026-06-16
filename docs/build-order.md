@@ -91,6 +91,23 @@ Intended for Linear later — kept here for now.
 - [ ] **I2 ⭐ Trust that earns itself** — track accept/revise/reject history per
       action type; surface the hit-rate ("vault notes: 9/10 accepted") and nudge to
       raise the trust level. Makes the trust ladder feel earned, not static.
+      *Design decided 2026-06-16 (ready to spec):*
+      - **Metric:** first-pass accept rate per action type (accepted with no revision
+        ÷ executed), derived from existing Recommendations/OutputCards — no schema
+        change. New pure `TrustCalibration` unit.
+      - **Two-stage graduation, user-confirmed + reversible:** Stage 1 = auto-run
+        (output still reviewed); Stage 2 = hands-off / auto-accept after a strong
+        track record *while* auto-running — but **always still produces an OutputCard**
+        (auto-marked accepted, never silent completion).
+      - **Guardrails:** min sample (~5) before any nudge; confidence floor still
+        applies at both stages; gated types (email/Slack/ticket) never graduate
+        (track-record shown but informational).
+      - **Symmetric pullback:** accept-rate slips below a floor → nudge to de-graduate.
+      - **Override:** a graduated type runs even under Manual/Supervised; the global
+        trust level is just the default for un-graduated types.
+      - **State:** per-type stage stored in settings, passed into the pure
+        `TrustPolicy`/`TrustCalibration` (kept testable).
+      - **Surfaced:** "agent track record" strip + nudge banner in the Agent console.
 - [ ] **I3 Multi-step agent plans** — agent proposes a stepwise plan, executes with
       checkpoints, one OutputCard per step. For larger delegations.
 - [ ] **I4 Diff view on vault edits** — OutputCard shows a before/after diff for note
