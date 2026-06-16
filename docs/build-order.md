@@ -71,6 +71,23 @@ Intended for Linear later — kept here for now.
       ("Ask agent to do this"); it enters the existing recommend → approve → execute
       → review pipeline. Completes the currently one-way (agent → you) loop — the
       core of the product thesis.
+      *Design decided 2026-06-16 (ready to spec):*
+      - **Trigger** is an explicit "Ask agent to do this" action (detail sheet +
+        Board/Today right-click) — *not* the assignee toggle.
+      - **Classify pass:** delegating fires one `claude -p` that reads the task
+        (+ vault) and proposes a Recommendation (`action_type`, draft, confidence,
+        reasoning) — same shape as a sweep. Keeps gating honest and yields a draft to
+        review/edit. The agent may **decline** ("this needs you") instead of faking output.
+      - **Assignee** (`owner`) flips to `.agent` on delegate, back to `.me` on
+        reject/discard; otherwise stays a manual label.
+      - **Run timing:** trust decides — Manual/Supervised queue the proposal for
+        approval; Trusted/Autonomous run immediately; email/Slack/ticket always gated.
+      - **Loop close:** execute → OutputCard → **Accept** marks the task done + saves
+        output to notes; **Revise** re-runs (F15 feedback loop); **Reject/Discard**
+        returns it to you.
+      - **Task status** shows *Agent working… → Awaiting review → done*, derived from
+        the linked recommendation.
+      - **New model bit:** a `MustardTask ↔ Recommendation` link.
 - [ ] **I2 ⭐ Trust that earns itself** — track accept/revise/reject history per
       action type; surface the hit-rate ("vault notes: 9/10 accepted") and nudge to
       raise the trust level. Makes the trust ladder feel earned, not static.
