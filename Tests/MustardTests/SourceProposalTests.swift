@@ -9,7 +9,7 @@ final class SourceProposalTests: XCTestCase {
             reasoning: "he asked", draft: "Hi Bob,"
         )
 
-        let sp = SourceProposal(vault: p)
+        let sp = SourceProposal(vault: p, project: "DL")
 
         XCTAssertEqual(sp.source, .vault)
         XCTAssertEqual(sp.title, "Email Bob")
@@ -18,7 +18,7 @@ final class SourceProposalTests: XCTestCase {
         XCTAssertEqual(sp.draft, "Hi Bob,")
         XCTAssertFalse(sp.sourceEventID.isEmpty, "vault proposals must carry a stable event id")
         // Deterministic across constructions — required for dedupe across repeated sweeps.
-        XCTAssertEqual(SourceProposal(vault: p).sourceEventID, sp.sourceEventID)
+        XCTAssertEqual(SourceProposal(vault: p, project: "DL").sourceEventID, sp.sourceEventID)
     }
 
     func test_vaultProposal_distinctContentGivesDistinctIdentity() {
@@ -26,7 +26,28 @@ final class SourceProposalTests: XCTestCase {
                                     confidence: 0.5, reasoning: "", draft: "")
         let b = VaultSweep.Proposal(title: "B", body: "two", actionType: "vault_note",
                                     confidence: 0.5, reasoning: "", draft: "")
-        XCTAssertNotEqual(SourceProposal(vault: a).sourceEventID,
-                          SourceProposal(vault: b).sourceEventID)
+        XCTAssertNotEqual(SourceProposal(vault: a, project: "DL").sourceEventID,
+                          SourceProposal(vault: b, project: "DL").sourceEventID)
+    }
+
+    // Multi-project isolation: the identity must be project-qualified so the same
+    // note text in two different KBs can never collide in dedupe.
+    func test_vaultProposal_sameContentDifferentProject_distinctIdentity() {
+        let p = VaultSweep.Proposal(title: "Status Dashboard", body: "weekly rollup",
+                                    actionType: "vault_note", confidence: 0.5, reasoning: "", draft: "x")
+        let dl = SourceProposal(vault: p, project: "DL")
+        let sandvik = SourceProposal(vault: p, project: "Sandvik")
+        XCTAssertEqual(dl.project, "DL")
+        XCTAssertEqual(sandvik.project, "Sandvik")
+        XCTAssertNotEqual(dl.sourceEventID, sandvik.sourceEventID,
+                          "identical note content in different KBs must not share identity")
+        XCTAssertNotEqual(dl.sourceItemID, sandvik.sourceItemID)
+    }
+
+    func test_vaultProposal_sameContentSameProject_stableIdentity() {
+        let p = VaultSweep.Proposal(title: "Status Dashboard", body: "weekly rollup",
+                                    actionType: "vault_note", confidence: 0.5, reasoning: "", draft: "x")
+        XCTAssertEqual(SourceProposal(vault: p, project: "DL").sourceEventID,
+                       SourceProposal(vault: p, project: "DL").sourceEventID)
     }
 }

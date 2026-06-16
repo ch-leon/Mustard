@@ -12,6 +12,10 @@ public enum SourceID: String, Codable, CaseIterable, Sendable {
 /// scout's `_inbox/` files (ingested Mac-side).
 public struct SourceProposal: Equatable, Sendable {
     public let source: SourceID
+    /// Which project / knowledge base this belongs to (the KB folder name). Keeps
+    /// dedupe and grounding isolated per project — identical note text in two KBs
+    /// gets distinct identity, so one project's note can never collapse into another.
+    public let project: String
     /// Durable parent object (email thread, or vault content hash).
     public let sourceItemID: String
     /// Triggering event (email message id, or deterministic vault content hash).
@@ -27,12 +31,13 @@ public struct SourceProposal: Equatable, Sendable {
     public let draft: String
 
     public init(
-        source: SourceID, sourceItemID: String, sourceEventID: String,
+        source: SourceID, project: String = "", sourceItemID: String, sourceEventID: String,
         sourceContext: String = "", sourceURL: String? = nil, occurredAt: Date? = nil,
         title: String, body: String = "", actionType: String = "vault_note",
         confidence: Double = 0.5, reasoning: String = "", draft: String = ""
     ) {
         self.source = source
+        self.project = project
         self.sourceItemID = sourceItemID
         self.sourceEventID = sourceEventID
         self.sourceContext = sourceContext
@@ -48,13 +53,14 @@ public struct SourceProposal: Equatable, Sendable {
 }
 
 public extension SourceProposal {
-    /// Map a vault sweep proposal into a `SourceProposal`, deriving a **stable**
-    /// content hash as its identity so repeated scheduled vault sweeps don't
-    /// duplicate unchanged suggestions.
-    init(vault p: VaultSweep.Proposal) {
-        let hash = SourceProposal.stableHash("\(p.title)\n\(p.body)\n\(p.actionType)\n\(p.draft)")
+    /// Map a vault sweep proposal into a `SourceProposal`, deriving a **stable,
+    /// project-qualified** content hash as its identity so (a) repeated scheduled
+    /// sweeps don't duplicate unchanged suggestions, and (b) identical note text in
+    /// two different KBs never collides in dedupe.
+    init(vault p: VaultSweep.Proposal, project: String) {
+        let hash = SourceProposal.stableHash("\(project)\n\(p.title)\n\(p.body)\n\(p.actionType)\n\(p.draft)")
         self.init(
-            source: .vault, sourceItemID: hash, sourceEventID: hash,
+            source: .vault, project: project, sourceItemID: hash, sourceEventID: hash,
             title: p.title, body: p.body, actionType: p.actionType,
             confidence: p.confidence, reasoning: p.reasoning, draft: p.draft
         )

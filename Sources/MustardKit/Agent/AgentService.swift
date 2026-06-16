@@ -36,7 +36,8 @@ public final class AgentService {
             lastError = "Sweep failed: \(result.text)"
             return
         }
-        let proposals = VaultSweep.parse(result.text).map(SourceProposal.init(vault:))
+        let project = URL(fileURLWithPath: vaultPath).lastPathComponent
+        let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: project) }
         if proposals.isEmpty {
             lastError = "Sweep returned no parseable recommendations"
             return
@@ -67,7 +68,8 @@ public final class AgentService {
 
             let result = await claude(VaultSweep.prompt, config.workingDirectory)
             if result.ok {
-                let proposals = VaultSweep.parse(result.text).map(SourceProposal.init(vault:))
+                let project = URL(fileURLWithPath: config.workingDirectory).lastPathComponent
+                let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: project) }
                 ingest(proposals, vaultPath: config.workingDirectory)
                 updated.upsertState(SourceState(id: config.id, lastSweptAt: now, lastError: nil))
                 didIngest = true
