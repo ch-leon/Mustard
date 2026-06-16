@@ -59,22 +59,22 @@ public final class AgentService {
         var updated = settings
         var didIngest = false
         for config in settings.sources where config.enabled {
-            let state = settings.state.first { $0.id == config.id }
+            // Only the vault source runs locally; Gmail discovery is the cloud scout (ADR-0007).
+            guard config.id == .vault else { continue }
+            // State is keyed per (source, project) so KBs never clobber each other.
+            let state = settings.state.first { $0.id == config.id && $0.project == config.project }
             guard SweepScheduler.isDue(
                 lastSweptAt: state?.lastSweptAt, intervalHours: config.intervalHours, now: now
             ) else { continue }
-            // Only the vault source runs locally; Gmail discovery is the cloud scout (ADR-0007).
-            guard config.id == .vault else { continue }
 
             let result = await claude(VaultSweep.prompt, config.workingDirectory)
             if result.ok {
-                let project = URL(fileURLWithPath: config.workingDirectory).lastPathComponent
-                let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: project) }
+                let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: config.project) }
                 ingest(proposals, vaultPath: config.workingDirectory)
-                updated.upsertState(SourceState(id: config.id, lastSweptAt: now, lastError: nil))
+                updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: now, lastError: nil))
                 didIngest = true
             } else {
-                updated.upsertState(SourceState(id: config.id, lastSweptAt: state?.lastSweptAt, lastError: result.text))
+                updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: state?.lastSweptAt, lastError: result.text))
             }
         }
         if didIngest { await applyTrust(Self.storedTrust()) }

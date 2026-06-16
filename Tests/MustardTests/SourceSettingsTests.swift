@@ -47,4 +47,13 @@ final class SourceSettingsTests: XCTestCase {
         defer { suite.removePersistentDomain(forName: name) }
         XCTAssertNil(SourceSettingsStore.load(suite))
     }
+
+    func test_upsertState_keyedByProject_notClobbered() {
+        var s = SourceSettings(sources: [], state: [SourceState(id: .vault, project: "DL", lastSweptAt: nil)])
+        s.upsertState(SourceState(id: .vault, project: "Sandvik", lastSweptAt: Date(timeIntervalSince1970: 100)))
+        XCTAssertEqual(s.state.count, 2, "a different project is a distinct state entry, not a clobber")
+        s.upsertState(SourceState(id: .vault, project: "DL", lastSweptAt: Date(timeIntervalSince1970: 200)))
+        XCTAssertEqual(s.state.count, 2, "same (id, project) updates in place")
+        XCTAssertEqual(s.state.first { $0.project == "DL" }?.lastSweptAt, Date(timeIntervalSince1970: 200))
+    }
 }

@@ -107,4 +107,25 @@ final class SourcePipelineTests: XCTestCase {
         XCTAssertEqual(recs.count, 2, "identical content in two KBs must NOT dedupe-collapse across projects")
         XCTAssertEqual(Set(recs.map(\.project)).count, 2)
     }
+
+    func test_sweepDueSources_multipleVaultProjects_isolatedAndPerProjectState() async throws {
+        let ctx = try makeContext()
+        var seenCwds: [String] = []
+        let stub: ClaudeRun = { _, cwd in seenCwds.append(cwd); return ClaudeResult(ok: true, text: #"[{"title":"Status"}]"#) }
+        let service = AgentService(context: ctx, claude: stub)
+        let settings = SourceSettings(
+            sources: [
+                SourceConfig(id: .vault, project: "DL", enabled: true, intervalHours: 4, workingDirectory: "/kb/DL"),
+                SourceConfig(id: .vault, project: "Sandvik", enabled: true, intervalHours: 4, workingDirectory: "/kb/Sandvik"),
+            ],
+            state: []
+        )
+        let updated = await service.sweepDueSources(settings, now: now)
+        let recs = try ctx.fetch(FetchDescriptor<Recommendation>())
+        XCTAssertEqual(recs.count, 2)
+        XCTAssertEqual(Set(recs.map(\.project)), ["DL", "Sandvik"])
+        XCTAssertEqual(Set(recs.map(\.vaultPath)), ["/kb/DL", "/kb/Sandvik"])
+        XCTAssertEqual(Set(seenCwds), ["/kb/DL", "/kb/Sandvik"], "each project sweeps in its own cwd")
+        XCTAssertEqual(updated.state.filter { $0.lastSweptAt == now }.count, 2, "per-project scheduling state advanced")
+    }
 }
