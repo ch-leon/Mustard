@@ -84,6 +84,16 @@ public final class AgentService {
     /// Single insert pipeline shared by manual + scheduled sweeps: dedupe each
     /// proposal against existing recommendations (and ones accepted earlier in this
     /// batch), then insert non-duplicates with source identity stamped.
+    /// Pull-and-ingest the cloud scout's grounded recs from a KB folder's `_recs/`,
+    /// through the shared dedupe + insert pipeline. (Caller does `git pull` first.)
+    /// vaultPath = the KB folder, so any later execution runs in the right project.
+    public func ingestInbox(workingDirectory: String) async {
+        let proposals = InboxIngest.readRecs(in: workingDirectory)
+        guard !proposals.isEmpty else { return }
+        ingest(proposals, vaultPath: workingDirectory)
+        await applyTrust(Self.storedTrust())
+    }
+
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
         let existing = (try? context.fetch(FetchDescriptor<Recommendation>())) ?? []
         var accepted: [Recommendation] = []
