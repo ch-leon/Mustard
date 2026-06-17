@@ -44,9 +44,9 @@ struct MustardApp: App {
                         notch = controller
                     }
                     // Scheduled multi-source sweeps: each minute, run every enabled +
-                    // due source (vault notes), and — throttled to ~10 min, independent
-                    // of the vault interval — pull each project's repo and ingest the
-                    // cloud scout's `_recs/` (email) into the same queue.
+                    // due source (vault notes), and — throttled to ~10 min — ingest each
+                    // project's local `_recs/` (email recs the local routine wrote) into
+                    // the same queue. All local; no git.
                     var lastInbox = Date.distantPast
                     while !Task.isCancelled {
                         if !agent.isSweeping, !agent.isExecuting {
@@ -55,7 +55,6 @@ struct MustardApp: App {
                             SourceSettingsStore.save(updated)
                             if Date.now.timeIntervalSince(lastInbox) >= 600 {
                                 for source in updated.sources where source.enabled && !source.workingDirectory.isEmpty {
-                                    await GitRunner.pull(cwd: source.workingDirectory)
                                     await agent.ingestInbox(workingDirectory: source.workingDirectory)
                                 }
                                 lastInbox = .now

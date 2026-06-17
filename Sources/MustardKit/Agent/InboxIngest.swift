@@ -1,9 +1,8 @@
 import Foundation
 
-/// Mac-side consumer of the cloud scout's output: reads grounded recommendation
-/// files (`<workingDirectory>/_recs/*.json`) written by a per-KB routine and decodes
-/// them into `SourceProposal`s for the shared insert pipeline. Pure file read —
-/// `git pull` (making the files current) happens upstream in the loop.
+/// Mac-side consumer of the local routine's output: reads grounded recommendation
+/// files (`<workingDirectory>/_recs/*.json`) the routine wrote locally and decodes them
+/// into `SourceProposal`s for the shared insert pipeline. Pure local file read.
 public enum InboxIngest {
     /// Decode every well-formed rec in `<workingDirectory>/_recs/*.json`. Skips
     /// non-JSON, malformed JSON, and any rec missing `sourceEventID` (can't dedupe it).
