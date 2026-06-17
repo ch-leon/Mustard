@@ -1,6 +1,6 @@
 # ADR-0007 — Email discovery via a cloud-routine "thin scout", not the local CLI
 
-**Status:** Accepted (2026-06-15)
+**Status:** **Superseded by ADR-0008** (2026-06-17) — the scout is local-only, not a cloud routine. (Originally Accepted 2026-06-15.)
 
 ## Context
 Multi-source sweep needs email. Two facts settled the transport:
