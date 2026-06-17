@@ -10,7 +10,7 @@ public enum SourceID: String, Codable, CaseIterable, Sendable {
 /// A source agent's output: a recommendation draft plus the provenance needed to
 /// dedupe it. Pure value type. Produced by `VaultSweep` (local) and the cloud
 /// scout's `_inbox/` files (ingested Mac-side).
-public struct SourceProposal: Equatable, Sendable {
+public struct SourceProposal: Equatable, Sendable, Codable {
     public let source: SourceID
     /// Which project / knowledge base this belongs to (the KB folder name). Keeps
     /// dedupe and grounding isolated per project — identical note text in two KBs
