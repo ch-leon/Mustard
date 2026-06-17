@@ -8,9 +8,6 @@ struct MustardApp: App {
     @State private var agent: AgentService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
-    @AppStorage("vaultPath") private var vaultPath = ""
-    @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
-    @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
 
     init() {
         let container = MustardContainer.make()
@@ -46,15 +43,13 @@ struct MustardApp: App {
                         controller.show()
                         notch = controller
                     }
-                    // Scheduled sweeps (spec decision #5): check every minute,
-                    // sweep when the interval has elapsed and the agent is idle.
+                    // Scheduled multi-source sweeps: each minute, run every enabled
+                    // + due source (one project per KB) and persist advanced state.
                     while !Task.isCancelled {
-                        if SweepScheduler.isDue(
-                            lastSweptAt: lastSweptAt > 0
-                                ? Date(timeIntervalSince1970: lastSweptAt) : nil,
-                            intervalHours: sweepIntervalHours
-                        ), !vaultPath.isEmpty, !agent.isSweeping, !agent.isExecuting {
-                            await agent.sweep(vaultPath: vaultPath)
+                        if !agent.isSweeping, !agent.isExecuting {
+                            let settings = SourceSettingsStore.loadOrMigrate()
+                            let updated = await agent.sweepDueSources(settings, now: .now)
+                            SourceSettingsStore.save(updated)
                         }
                         try? await Task.sleep(for: .seconds(60))
                     }
