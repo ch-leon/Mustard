@@ -1,6 +1,6 @@
 # Thin Cloud Scout — always-on discovery via a Git-synced vault inbox
 
-**Status:** Verified (2026-06-15) — both gate probes **PASSED** (Gmail callable
+**Status:** **SUPERSEDED by ADR-0008** — the scout is local-only (no cloud routine, no git); this doc is historical. Originally: Verified (2026-06-15) — both gate probes **PASSED** (Gmail callable
 from a routine: 55 threads/24h; private-repo push OK via BiggestFella/Mustard,
 PR #7, since cleaned up). Ready to build. Decision recorded in **ADR-0007**.
 **Relates to:** `docs/specs/2026-06-15-source-ingestion-foundation.md` (reuses

@@ -50,4 +50,32 @@ final class SourceProposalTests: XCTestCase {
         XCTAssertEqual(SourceProposal(vault: p, project: "DL").sourceEventID,
                        SourceProposal(vault: p, project: "DL").sourceEventID)
     }
+
+    // The cloud routine writes grounded recs as JSON into a `_recs/` folder; the Mac
+    // decodes them. This pins the on-disk contract between routine and InboxIngest.
+    func test_sourceProposal_decodesFromRoutineJSON() throws {
+        let json = """
+        {"source":"gmail","project":"DL","sourceItemID":"thread-1","sourceEventID":"msg-9",
+         "sourceContext":"Jira · PROJ-123","sourceURL":"https://x","occurredAt":"2026-06-17T02:10:00Z",
+         "title":"Reply to Alice","body":"she asked for the figures","actionType":"draft_email",
+         "confidence":0.8,"reasoning":"thread + DEF-123 note","draft":"Hi Alice,"}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let p = try decoder.decode(SourceProposal.self, from: Data(json.utf8))
+        XCTAssertEqual(p.source, .gmail)
+        XCTAssertEqual(p.project, "DL")
+        XCTAssertEqual(p.sourceEventID, "msg-9")
+        XCTAssertEqual(p.actionType, "draft_email")
+        XCTAssertEqual(p.confidence, 0.8, accuracy: 0.001)
+    }
+
+    func test_sourceProposal_codableRoundTrip() throws {
+        let p = SourceProposal(source: .gmail, project: "DL", sourceItemID: "t", sourceEventID: "e",
+                               sourceContext: "ctx", title: "x", actionType: "draft_email", confidence: 0.9)
+        let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
+        let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
+        let back = try dec.decode(SourceProposal.self, from: enc.encode(p))
+        XCTAssertEqual(p, back)
+    }
 }

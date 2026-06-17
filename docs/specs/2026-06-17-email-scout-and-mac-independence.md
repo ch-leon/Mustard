@@ -1,7 +1,8 @@
 # Email scout + Mac-independence — future direction (DEFERRED)
 
-**Status:** Captured for a later phase — **deferred**. This phase intentionally stays
-**Mac-on / Mac-local** (see *Decision* at the end).
+**Status:** Email scout = **BUILT, local-only** (see **ADR-0008**) — the cloud-routine
+specifics below are superseded by the local model. **Mac-independence** (act from phone
+with the Mac off) = still **deferred**; that part of this doc stands.
 **Date:** 2026-06-17
 **Related:** ADR-0007 (cloud scout for email), ADR-0003 (Mac-anchored subscription
 agent), ADR-0001 (SwiftData + CloudKit, no backend), `2026-06-15-thin-cloud-scout.md`.

@@ -43,13 +43,22 @@ struct MustardApp: App {
                         controller.show()
                         notch = controller
                     }
-                    // Scheduled multi-source sweeps: each minute, run every enabled
-                    // + due source (one project per KB) and persist advanced state.
+                    // Scheduled multi-source sweeps: each minute, run every enabled +
+                    // due source (vault notes), and — throttled to ~10 min — ingest each
+                    // project's local `_recs/` (email recs the local routine wrote) into
+                    // the same queue. All local; no git.
+                    var lastInbox = Date.distantPast
                     while !Task.isCancelled {
                         if !agent.isSweeping, !agent.isExecuting {
                             let settings = SourceSettingsStore.loadOrMigrate()
                             let updated = await agent.sweepDueSources(settings, now: .now)
                             SourceSettingsStore.save(updated)
+                            if Date.now.timeIntervalSince(lastInbox) >= 600 {
+                                for source in updated.sources where source.enabled && !source.workingDirectory.isEmpty {
+                                    await agent.ingestInbox(workingDirectory: source.workingDirectory)
+                                }
+                                lastInbox = .now
+                            }
                         }
                         try? await Task.sleep(for: .seconds(60))
                     }
