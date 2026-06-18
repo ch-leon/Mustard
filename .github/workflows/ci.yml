@@ -9,10 +9,15 @@ on:
 jobs:
   build-test:
     name: Build & test (macOS)
-    # GitHub-hosted macOS runners aren't available on this account (jobs fail in
-    # ~3s because no runner can be allocated), so CI runs on a self-hosted macOS
-    # runner — Leon's Mac. The custom "mustard" label ensures only that machine
-    # picks up these jobs. To register one, see docs/ci-self-hosted-runner.md.
+    # SECURITY: this repo is PUBLIC and CI runs on a self-hosted runner (Leon's
+    # Mac), so untrusted fork-PR code must never execute here. Gate to pushes and
+    # to PRs whose head branch lives in this same repo (branches Leon pushed) —
+    # fork PRs are skipped. See docs/ci-self-hosted-runner.md.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # GitHub-hosted macOS runners aren't available on this account, so CI runs on a
+    # self-hosted macOS runner — Leon's Mac. The custom "mustard" label ensures
+    # only that machine picks up these jobs. To register one, see
+    # docs/ci-self-hosted-runner.md.
     runs-on: [self-hosted, macOS, mustard]
     steps:
       - uses: actions/checkout@v4
