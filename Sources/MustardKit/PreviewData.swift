@@ -15,13 +15,23 @@ public enum PreviewData {
             cal.date(bySettingHour: h, minute: m, second: 0, of: .now)!
         }
         let work = Area(name: "Code Heroes", colorHex: "#2D7FF9")
-        ctx.insert(work)
+        let personal = Area(name: "Personal", colorHex: "#7F77DD")
+        let dev = TaskList(name: "DLA SDK", area: work)
+        let admin = TaskList(name: "Admin", area: work)
+        let errands = TaskList(name: "Errands", area: personal)
+        let reading = TaskList(name: "Reading") // area-less list
+        for model in [work, personal] { ctx.insert(model) }
+        for list in [dev, admin, errands, reading] { ctx.insert(list) }
+
         let standup = MustardTask(title: "Team standup", scheduledAt: today(9, 30))
         standup.estimateMinutes = 15
+        standup.list = admin
         let focus = MustardTask(title: "Draft DLA 5.2 release notes", scheduledAt: today(10, 0))
         focus.estimateMinutes = 90
+        focus.list = dev
         let sync = MustardTask(title: "Thales SDK sync", scheduledAt: today(11, 30))
-        let loose = MustardTask(title: "Reply to Kamil re: BLE issue")
+        sync.list = dev
+        let loose = MustardTask(title: "Reply to Kamil re: BLE issue") // stays unfiled
         for task in [standup, focus, sync, loose] { ctx.insert(task) }
 
         let meeting = CalendarEvent(

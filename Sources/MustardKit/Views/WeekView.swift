@@ -152,7 +152,7 @@ public struct WeekView: View {
                             .draggable(task.uid)
                             .contextMenu { menu(for: task) }
                     }
-                    QuickCaptureField(scheduleOnto: day)
+                    QuickCaptureField(scheduleOnto: day, placeholder: "Add…")
                 }
                 .frame(maxWidth: .infinity, minHeight: 280, alignment: .top)
             }

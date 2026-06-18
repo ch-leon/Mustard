@@ -9,8 +9,6 @@ public struct AgentConsoleView: View {
     @Environment(AgentService.self) private var agent
     @AppStorage("vaultPath") private var vaultPath = ""
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
-    @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
-    @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
     @AppStorage("trustLevel") private var trustRaw = TrustLevel.manual.rawValue
 
     private var trust: TrustLevel { TrustLevel(rawValue: trustRaw) ?? .manual }
@@ -35,6 +33,7 @@ public struct AgentConsoleView: View {
                 header
                 sourceRow
                 meetingSourceRow
+                SourceSettingsView()
                 if let error = agent.lastError {
                     Text(error)
                         .font(Theme.Fonts.meta)
@@ -148,16 +147,6 @@ public struct AgentConsoleView: View {
             .disabled(vaultPath.isEmpty || agent.isSweeping)
             .tint(Theme.Palette.accent)
 
-            Menu(autoLabel) {
-                Button("Off") { sweepIntervalHours = 0 }
-                Button("Every hour") { sweepIntervalHours = 1 }
-                Button("Every 4 hours") { sweepIntervalHours = 4 }
-                Button("Daily") { sweepIntervalHours = 24 }
-            }
-            .controlSize(.small)
-            .fixedSize()
-            .disabled(vaultPath.isEmpty)
-
             Menu("Trust: \(trust.label)") {
                 ForEach(TrustLevel.allCases) { level in
                     Button {
@@ -173,19 +162,6 @@ public struct AgentConsoleView: View {
             .help(trust.blurb)
         }
         .padding(.vertical, 10)
-    }
-
-    private var autoLabel: String {
-        let last = lastSweptAt > 0
-            ? " · last " + Date(timeIntervalSince1970: lastSweptAt)
-                .formatted(date: .omitted, time: .shortened)
-            : ""
-        switch sweepIntervalHours {
-        case 0: return "Auto: off"
-        case 1: return "Auto: hourly" + last
-        case 24: return "Auto: daily" + last
-        default: return "Auto: \(Int(sweepIntervalHours))h" + last
-        }
     }
 
     private func sectionLabel(_ title: String, count: Int) -> some View {
@@ -422,6 +398,15 @@ struct OutputCardRow: View {
     @Environment(AgentService.self) private var agent
     let card: OutputCard
     @State private var expanded = false
+    @State private var revising = false
+    @State private var feedbackText = ""
+
+    /// 1-based version of this card within its recommendation's output history.
+    private var version: Int {
+        guard let outputs = card.recommendation?.outputs else { return 1 }
+        let ordered = outputs.sorted { $0.createdAt < $1.createdAt }
+        return (ordered.firstIndex { $0 === card } ?? ordered.count - 1) + 1
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -432,6 +417,14 @@ struct OutputCardRow: View {
                 Text(card.recommendation?.title ?? "Output")
                     .font(Theme.Fonts.title)
                     .foregroundStyle(Theme.Palette.textPrimary)
+                if version > 1 {
+                    Text("v\(version)")
+                        .font(.system(size: 10, weight: .semibold)).tracking(0.04)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Theme.Palette.surface, in: Capsule())
+                        .help("Revision \(version) — earlier outputs are kept in history.")
+                }
                 Spacer()
                 Button(expanded ? "Less" : "More") { expanded.toggle() }
                     .buttonStyle(.plain)
@@ -449,15 +442,22 @@ struct OutputCardRow: View {
                     .tint(Theme.Palette.done)
                     .controlSize(.small)
                 Button("Revise") {
-                    card.review = .revised
-                    if let rec = card.recommendation {
-                        Task { await agent.execute(rec) }
-                    }
+                    revising.toggle()
+                    feedbackText = card.recommendation?.comment ?? ""
                 }
                 .controlSize(.small)
                 .disabled(agent.isExecuting)
                 Button("Discard", role: .destructive) { card.review = .discarded }
                     .controlSize(.small)
+            }
+            if revising {
+                TextField("What should change?", text: $feedbackText)
+                    .textFieldStyle(.roundedBorder).font(Theme.Fonts.meta)
+                    .onSubmit {
+                        let text = feedbackText
+                        revising = false
+                        Task { await agent.revise(card, feedback: text) }
+                    }
             }
         }
         .padding(.vertical, 10)

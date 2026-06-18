@@ -8,10 +8,7 @@ struct MustardApp: App {
     @State private var agent: AgentService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
-    @AppStorage("vaultPath") private var vaultPath = ""
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
-    @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
-    @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
 
     init() {
         let container = MustardContainer.make()
@@ -47,15 +44,22 @@ struct MustardApp: App {
                         controller.show()
                         notch = controller
                     }
-                    // Scheduled sweeps (spec decision #5): check every minute,
-                    // sweep when the interval has elapsed and the agent is idle.
+                    // Scheduled multi-source sweeps: each minute, run every enabled +
+                    // due source (vault notes), and — throttled to ~10 min — ingest each
+                    // project's local `_recs/` (email recs the local routine wrote) into
+                    // the same queue. All local; no git.
+                    var lastInbox = Date.distantPast
                     while !Task.isCancelled {
-                        if SweepScheduler.isDue(
-                            lastSweptAt: lastSweptAt > 0
-                                ? Date(timeIntervalSince1970: lastSweptAt) : nil,
-                            intervalHours: sweepIntervalHours
-                        ), !vaultPath.isEmpty, !agent.isSweeping, !agent.isExecuting {
-                            await agent.sweep(vaultPath: vaultPath)
+                        if !agent.isSweeping, !agent.isExecuting {
+                            let settings = SourceSettingsStore.loadOrMigrate()
+                            let updated = await agent.sweepDueSources(settings, now: .now)
+                            SourceSettingsStore.save(updated)
+                            if Date.now.timeIntervalSince(lastInbox) >= 600 {
+                                for source in updated.sources where source.enabled && !source.workingDirectory.isEmpty {
+                                    await agent.ingestInbox(workingDirectory: source.workingDirectory)
+                                }
+                                lastInbox = .now
+                            }
                         }
                         // Meeting-task harvest is cheap (no model call) — reconcile
                         // every tick, independent of the claude sweep interval.

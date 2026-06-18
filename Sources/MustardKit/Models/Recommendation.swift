@@ -22,8 +22,16 @@ public final class Recommendation {
     public var reasoning: String = ""
     public var draft: String = ""
     public var source: String = "vault"
+    /// Project / knowledge base (KB folder name) — isolates dedupe, grounding, and
+    /// UI per project (multi-project). Defaulted → CloudKit-compatible (ADR-0001).
+    public var project: String = ""
     public var sourceContext: String = ""
     public var sourceURL: String?
+    // Ingestion provenance (Plan 7): stable identity for dedupe + when it occurred.
+    // Optional → auto-nil default keeps the model CloudKit-compatible (ADR-0001).
+    public var sourceItemID: String?
+    public var sourceEventID: String?
+    public var occurredAt: Date?
     public var comment: String = ""
     public var snoozedUntil: Date?
     public var createdAt: Date = Date.now
@@ -57,6 +65,20 @@ public final class Recommendation {
         self.sourceContext = sourceContext
         self.sourceURL = sourceURL
         self.createdAt = .now
+    }
+
+    /// Build a recommendation from an ingested `SourceProposal`, stamping its
+    /// source identity (Plan 7). Used by the shared insert pipeline.
+    public convenience init(from p: SourceProposal, vaultPath: String) {
+        self.init(
+            title: p.title, body: p.body, actionType: p.actionType, vaultPath: vaultPath,
+            confidence: p.confidence, reasoning: p.reasoning, draft: p.draft,
+            source: p.source.rawValue, sourceContext: p.sourceContext, sourceURL: p.sourceURL
+        )
+        self.project = p.project
+        self.sourceItemID = p.sourceItemID
+        self.sourceEventID = p.sourceEventID
+        self.occurredAt = p.occurredAt
     }
 
     public var action: RecommendationAction {
