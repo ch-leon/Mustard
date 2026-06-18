@@ -1,0 +1,165 @@
+import XCTest
+import SwiftData
+@testable import MustardKit
+
+/// In-memory vault: a path→contents map that records writes + snapshots so the
+/// write-back path can be asserted without touching disk.
+final class FakeVaultIO: MeetingVaultIO {
+    var files: [String: String]
+    private(set) var snapshots: [String: String] = [:]
+    init(_ files: [String: String]) { self.files = files }
+
+    func meetingNotePaths() -> [String] { files.keys.sorted() }
+    func read(_ path: String) -> String? { files[path] }
+    func write(_ path: String, _ contents: String) throws { files[path] = contents }
+    func snapshot(_ path: String, _ contents: String) throws { snapshots[path] = contents }
+}
+
+@MainActor
+final class MeetingTaskSyncTests: XCTestCase {
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Area.self, TaskList.self, MustardTask.self,
+            Recommendation.self, OutputCard.self, CalendarEvent.self,
+            configurations: config
+        )
+        return ModelContext(container)
+    }
+
+    private func at(_ iso: String) -> Date { ISO8601DateFormatter().date(from: iso)! }
+
+    private func note(_ tasks: String) -> String {
+        "# Weekly sync 2026-06-16\n\n## Code Heroes tasks\n\(tasks)\n"
+    }
+
+    private func tasks(_ ctx: ModelContext) throws -> [MustardTask] {
+        try ctx.fetch(FetchDescriptor<MustardTask>())
+    }
+
+    func test_import_createsInboxTasks_withProvenance() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO([
+            "DL/meetings/sync.md": note("- [ ] Email Kamil the SDK spec 📅 2026-06-20")
+        ])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        let digest = sync.importTasks()
+
+        let all = try tasks(ctx)
+        XCTAssertEqual(all.count, 1)
+        let t = all[0]
+        XCTAssertEqual(t.title, "Email Kamil the SDK spec")
+        XCTAssertEqual(t.status, .inbox)
+        XCTAssertEqual(t.owner, .me)
+        XCTAssertEqual(t.source, "meeting")
+        XCTAssertEqual(t.sourceURL, "DL/meetings/sync.md")
+        XCTAssertEqual(t.dueAt, at("2026-06-20T00:00:00Z"))
+        XCTAssertNotNil(t.originKey)
+        XCTAssertEqual(digest.imported, 1)
+    }
+
+    func test_import_isIdempotent_dedupByOriginKey() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO(["DL/meetings/sync.md": note("- [ ] Do the thing")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        _ = sync.importTasks()
+        let second = sync.importTasks()
+
+        XCTAssertEqual(try tasks(ctx).count, 1)
+        XCTAssertEqual(second.imported, 0)
+    }
+
+    func test_import_assignsAreaByVaultRoot() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO([
+            "DL/meetings/a.md": note("- [ ] DL task"),
+            "Sandvik/meetings/b.md": note("- [ ] Sandvik task"),
+        ])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        _ = sync.importTasks()
+
+        let byTitle = Dictionary(uniqueKeysWithValues: try tasks(ctx).map { ($0.title, $0) })
+        XCTAssertEqual(byTitle["DL task"]?.list?.area?.name, "Digital Licence")
+        XCTAssertEqual(byTitle["Sandvik task"]?.list?.area?.name, "Sandvik")
+        // Areas are created once and reused.
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Area>()).count, 2)
+    }
+
+    func test_import_alreadyCheckedLine_importedAsDone_notResurrected() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO(["DL/meetings/a.md": note("- [x] Already finished ✅ 2026-06-15")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        _ = sync.importTasks()
+
+        let t = try XCTUnwrap(try tasks(ctx).first)
+        XCTAssertEqual(t.status, .done)
+    }
+
+    func test_import_vaultWonTheRace_completesOpenTask() throws {
+        let ctx = try makeContext()
+        let open = note("- [ ] Ship it")
+        let io = FakeVaultIO(["DL/meetings/a.md": open])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        _ = sync.importTasks()
+        XCTAssertEqual(try tasks(ctx).first?.status, .inbox)
+
+        // The line gets ticked in the vault out-of-band; next sweep should complete it.
+        io.files["DL/meetings/a.md"] = note("- [x] Ship it ✅ 2026-06-17")
+        let digest = sync.importTasks()
+
+        XCTAssertEqual(try tasks(ctx).count, 1)
+        XCTAssertEqual(try tasks(ctx).first?.status, .done)
+        XCTAssertEqual(digest.completedFromVault, 1)
+    }
+
+    func test_writeBack_snapshotsThenTicksOnlyMatchedLine() throws {
+        let ctx = try makeContext()
+        let body = note("- [ ] First task\n- [ ] Second task")
+        let io = FakeVaultIO(["DL/meetings/a.md": body])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        _ = sync.importTasks()
+        let first = try XCTUnwrap(try tasks(ctx).first { $0.title == "First task" })
+
+        let ok = sync.completeInVault(first, now: at("2026-06-18T09:00:00Z"))
+
+        XCTAssertTrue(ok)
+        // Snapshot taken before the edit, holding the pre-edit contents.
+        XCTAssertEqual(io.snapshots["DL/meetings/a.md"], body)
+        let updated = try XCTUnwrap(io.files["DL/meetings/a.md"])
+        XCTAssertTrue(updated.contains("- [x] First task ✅ 2026-06-18"))
+        XCTAssertTrue(updated.contains("- [ ] Second task"))  // untouched
+    }
+
+    func test_writeBack_unmatchedLine_skipsAndFlags() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO(["DL/meetings/a.md": note("- [ ] Original task")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        _ = sync.importTasks()
+        let t = try XCTUnwrap(try tasks(ctx).first)
+
+        // Note edited out from under us — the line no longer exists.
+        io.files["DL/meetings/a.md"] = note("- [ ] A completely different line")
+        let ok = sync.completeInVault(t, now: at("2026-06-18T09:00:00Z"))
+
+        XCTAssertFalse(ok)
+        XCTAssertNil(io.snapshots["DL/meetings/a.md"])  // no snapshot, no write
+        XCTAssertEqual(io.files["DL/meetings/a.md"], note("- [ ] A completely different line"))
+    }
+
+    func test_writeBack_preservesBlockId() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO(["DL/meetings/a.md": note("- [ ] Task with id ^xy7")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        _ = sync.importTasks()
+        let t = try XCTUnwrap(try tasks(ctx).first)
+
+        _ = sync.completeInVault(t, now: at("2026-06-18T09:00:00Z"))
+
+        let updated = try XCTUnwrap(io.files["DL/meetings/a.md"])
+        XCTAssertTrue(updated.contains("- [x] Task with id ✅ 2026-06-18 ^xy7"))
+    }
+}
