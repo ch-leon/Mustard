@@ -116,6 +116,22 @@ final class MeetingTaskSyncTests: XCTestCase {
         XCTAssertEqual(digest.completedFromVault, 1)
     }
 
+    func test_import_writesBackTasksCompletedInMustard() throws {
+        let ctx = try makeContext()
+        let io = FakeVaultIO(["DL/meetings/a.md": note("- [ ] Finish me")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        _ = sync.importTasks()
+        let t = try XCTUnwrap(try tasks(ctx).first)
+        t.markDone(now: at("2026-06-18T09:00:00Z"))  // completed in Mustard
+
+        let digest = sync.importTasks()  // next sweep reconciles back to the vault
+
+        XCTAssertEqual(digest.syncedToVault, 1)
+        XCTAssertTrue(try XCTUnwrap(io.files["DL/meetings/a.md"]).contains("- [x] Finish me ✅ 2026-06-18"))
+        // Reconciled — a further sweep is a no-op (no duplicate, no re-tick).
+        XCTAssertEqual(sync.importTasks().syncedToVault, 0)
+    }
+
     func test_writeBack_snapshotsThenTicksOnlyMatchedLine() throws {
         let ctx = try makeContext()
         let body = note("- [ ] First task\n- [ ] Second task")

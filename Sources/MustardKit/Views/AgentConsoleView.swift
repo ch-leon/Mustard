@@ -8,6 +8,7 @@ public struct AgentConsoleView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
     @AppStorage("vaultPath") private var vaultPath = ""
+    @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
     @AppStorage("sweepIntervalHours") private var sweepIntervalHours = 0.0
     @AppStorage("lastSweptAt") private var lastSweptAt = 0.0
     @AppStorage("trustLevel") private var trustRaw = TrustLevel.manual.rawValue
@@ -33,6 +34,7 @@ public struct AgentConsoleView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 sourceRow
+                meetingSourceRow
                 if let error = agent.lastError {
                     Text(error)
                         .font(Theme.Fonts.meta)
@@ -80,6 +82,36 @@ public struct AgentConsoleView: View {
             Spacer()
         }
         .padding(.bottom, 12)
+    }
+
+    /// Picker for the meeting-notes vault (Leon's "Codeheroes work/" root). Tasks
+    /// harvest automatically on the 60s loop; the last digest shows here.
+    private var meetingSourceRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.2.wave.2")
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Text(meetingVaultPath.isEmpty ? "Choose your meeting-notes vault…" : meetingVaultPath)
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(meetingVaultPath.isEmpty ? Theme.Palette.textTertiary : Theme.Palette.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Button("Choose…") {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                if panel.runModal() == .OK, let url = panel.url {
+                    meetingVaultPath = url.path
+                }
+            }
+            .controlSize(.small)
+            Spacer()
+            if let summary = agent.lastMeetingSummary {
+                Text(summary)
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+        }
+        .padding(.bottom, 4)
     }
 
     private var sourceRow: some View {

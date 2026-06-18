@@ -16,6 +16,7 @@ public protocol MeetingVaultIO {
 public struct ImportDigest: Equatable {
     public var imported = 0
     public var completedFromVault = 0
+    public var syncedToVault = 0
     public var clients: Set<String> = []
 
     public var summary: String {
@@ -67,12 +68,17 @@ public final class MeetingTaskSync {
             let subtitle = meetingSubtitle(text: text, path: path)
             for parsed in MeetingTaskParser.parse(text, notePath: path) {
                 if let task = byKey[parsed.originKey] {
-                    // exists + line now done while task still open → vault won the race.
                     if parsed.isDone && task.status.isOpen {
+                        // Line ticked in the vault while the task was open → vault won.
                         task.markDone(now: now)
                         digest.completedFromVault += 1
+                    } else if !parsed.isDone && task.status == .done {
+                        // Completed in Mustard but the note line is still open → write back.
+                        if completeInVault(task, now: task.completedAt ?? now) {
+                            digest.syncedToVault += 1
+                        }
                     }
-                    // exists + open, or already reconciled → dedup no-op.
+                    // otherwise already reconciled → dedup no-op.
                 } else {
                     let task = makeTask(parsed, subtitle: subtitle, now: now)
                     context.insert(task)
