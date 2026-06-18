@@ -23,7 +23,7 @@ On the Mac that will run CI:
    # use the download URL + token GitHub shows you on the "New runner" page
    curl -o actions-runner-osx.tar.gz -L <url-from-github>
    tar xzf actions-runner-osx.tar.gz
-   ./config.sh --url https://github.com/BiggestFella/Mustard \
+   ./config.sh --url https://github.com/ch-leon/Mustard \
      --token <token-from-github> \
      --labels mustard
    ```
@@ -38,7 +38,16 @@ job (or push a commit) and it will build + test on the Mac.
 
 ## Security note
 
-A self-hosted runner executes workflow code from PRs. This repo is single-user and
-private, so that's acceptable here. If it ever takes outside contributions, restrict
-the runner to trusted branches or move back to hosted runners — never run untrusted
-PR workflows on a personal machine.
+A self-hosted runner executes workflow code from pull requests, and **this repo is
+public** — so without guards any PR could run arbitrary code on Leon's Mac. Two
+mitigations are in place:
+
+- `ci.yml` gates the job with
+  `if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository`,
+  so it runs only on pushes and on PRs from branches in this repo (ones Leon
+  pushed). Fork PRs are skipped and never reach the runner.
+- Keep GitHub's fork-PR approval on as defense-in-depth: Settings → Actions →
+  General → "Require approval for all external contributors".
+
+If the repo ever takes real outside contributions, prefer moving back to hosted
+runners over running untrusted PR workflows on a personal machine.
