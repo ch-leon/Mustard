@@ -8,6 +8,7 @@ struct MustardApp: App {
     @State private var agent: AgentService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
+    @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
 
     init() {
         let container = MustardContainer.make()
@@ -59,6 +60,11 @@ struct MustardApp: App {
                                 }
                                 lastInbox = .now
                             }
+                        }
+                        // Meeting-task harvest is cheap (no model call) — reconcile
+                        // every tick, independent of the claude sweep interval.
+                        if !meetingVaultPath.isEmpty, !agent.isSweeping, !agent.isExecuting {
+                            agent.importMeetingTasks(vaultRoot: meetingVaultPath)
                         }
                         try? await Task.sleep(for: .seconds(60))
                     }

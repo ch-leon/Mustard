@@ -13,6 +13,8 @@ public final class AgentService {
     public private(set) var lastError: String?
     /// Title of the recommendation currently executing (drives the hover panel).
     public private(set) var currentTitle: String?
+    /// Digest of the last meeting-task import (e.g. "imported 3 meeting tasks (2 clients)").
+    public private(set) var lastMeetingSummary: String?
 
     private let context: ModelContext
     private let claude: ClaudeRun
@@ -45,6 +47,18 @@ public final class AgentService {
         ingest(proposals, vaultPath: vaultPath)
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
         await applyTrust(Self.storedTrust())
+    }
+
+    /// Harvest meeting tasks from the curated notes under `vaultRoot` and reflect
+    /// completions back (bidirectional, idempotent — see `MeetingTaskSync`). Cheap
+    /// file I/O + parsing, no model call, so the 60s loop can call it every tick.
+    public func importMeetingTasks(vaultRoot: String) {
+        guard !vaultRoot.isEmpty else { return }
+        let sync = MeetingTaskSync(context: context, io: FileVaultIO(rootPath: vaultRoot))
+        let digest = sync.importTasks()
+        if digest.imported > 0 || digest.completedFromVault > 0 || digest.syncedToVault > 0 {
+            lastMeetingSummary = digest.summary
+        }
     }
 
     /// Scheduled multi-source sweep: run each enabled + due source serially through
