@@ -28,6 +28,17 @@ public final class MustardTask {
     @Relationship(deleteRule: .nullify, inverse: \MustardTask.parent)
     public var subtasks: [MustardTask]? = []
 
+    // Provenance — set when a task is harvested from an external source (e.g. a
+    // meeting note). All defaulted/optional so the CloudKit schema stays additive.
+    /// `"manual"` for user-created, `"meeting"` for harvested meeting tasks.
+    public var source: String = "manual"
+    /// Source location — for meeting tasks, the note path relative to the vault root.
+    public var sourceURL: String?
+    /// Human subtitle for the row (e.g. the meeting title + date).
+    public var sourceContext: String = ""
+    /// Stable identity from `MeetingTaskParser.originKey` — dedup + line locator.
+    public var originKey: String?
+
     public var status: TaskStatus {
         get { TaskStatus(rawValue: statusRaw) ?? .inbox }
         set { statusRaw = newValue.rawValue }
