@@ -54,6 +54,11 @@ final class VaultSweepParserTests: XCTestCase {
 }
 
 final class VaultSweepPromptTests: XCTestCase {
+    func test_prompt_ignoresAppInternalFolders() {
+        XCTAssertTrue(VaultSweep.prompt.contains("_filed/"))
+        XCTAssertTrue(VaultSweep.prompt.contains("_recs/"))
+    }
+
     func test_executePrompt_includesDraftAsStartingPoint() {
         let p = VaultSweep.executePrompt(
             title: "Reply to Kamil", body: "He asked for the figures.",

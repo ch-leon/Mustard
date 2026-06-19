@@ -5,6 +5,8 @@ public enum VaultSweep {
     public static let prompt = """
     You are reviewing a personal Obsidian knowledge base to recommend actionable tasks.
     Look at the notes in this directory: recent changes, stale items, open loops, gaps.
+    Ignore these app-internal folders entirely — never read or propose from them:
+    `_filed/` (your own filed log), `_recs/` (the email scout's drop folder), `.obsidian/`.
     Recommend up to 5 concrete, actionable tasks that would move this knowledge base's
     owner forward.
 
