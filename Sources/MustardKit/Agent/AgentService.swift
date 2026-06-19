@@ -135,6 +135,21 @@ public final class AgentService {
         rec.comment = text
     }
 
+    /// Keep an FYI: append it to the project's curated rolling log and clear it from the
+    /// queue. No claude run, no OutputCard — filing is a direct local write.
+    public func keep(_ rec: Recommendation) {
+        let entry = InboxLog.entry(
+            title: rec.title, body: rec.originalSource ?? rec.body,
+            source: rec.source, sourceURL: rec.sourceURL, now: .now
+        )
+        let url = InboxLog.logURL(workingDirectory: rec.vaultPath)
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        try? (existing + entry).write(to: url, atomically: true, encoding: .utf8)
+        rec.decision = .approved
+    }
+
     /// Hide a recommendation until `until`; it reappears in the queue after.
     public func snooze(_ rec: Recommendation, until: Date) {
         rec.snoozedUntil = until
@@ -144,9 +159,9 @@ public final class AgentService {
     /// comment as feedback for the agent on this first run.
     public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
         rec.decision = decision
-        if decision == .approved {
-            _ = await execute(rec, feedback: rec.comment)
-        }
+        guard decision == .approved else { return }
+        if rec.action == .fyi { return }   // acknowledging an FYI runs nothing
+        _ = await execute(rec, feedback: rec.comment)
     }
 
     /// Re-run a reviewed output with the user's feedback and the prior output as

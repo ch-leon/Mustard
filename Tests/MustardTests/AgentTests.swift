@@ -340,4 +340,54 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertFalse(called)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
     }
+
+    func test_decide_approved_fyi_doesNotExecute() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "FYI", actionType: "fyi", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.decide(rec, .approved)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
+    func test_keep_fyi_appendsLog_noClaude_noCard() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let rec = Recommendation(title: "Standup moved", body: "now 9:30", actionType: "fyi", vaultPath: dir.path)
+        ctx.insert(rec)
+
+        service.keep(rec)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+        XCTAssertEqual(rec.decision, .approved)
+        let log = try String(contentsOf: InboxLog.logURL(workingDirectory: dir.path), encoding: .utf8)
+        XCTAssertTrue(log.contains("Standup moved"))
+        XCTAssertTrue(log.contains("now 9:30"))
+    }
+
+    func test_keep_appends_doesNotClobberExisting() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let a = Recommendation(title: "First", actionType: "fyi", vaultPath: dir.path)
+        let b = Recommendation(title: "Second", actionType: "fyi", vaultPath: dir.path)
+        ctx.insert(a); ctx.insert(b)
+
+        service.keep(a); service.keep(b)
+
+        let log = try String(contentsOf: InboxLog.logURL(workingDirectory: dir.path), encoding: .utf8)
+        XCTAssertTrue(log.contains("First"))
+        XCTAssertTrue(log.contains("Second"))
+    }
 }
