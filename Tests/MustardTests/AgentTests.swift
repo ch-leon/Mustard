@@ -395,4 +395,50 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("First"))
         XCTAssertTrue(log.contains("Second"))
     }
+
+    func test_approve_createTask_insertsInboxTask_noClaude_noCard() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Find Ruby's error screens", actionType: "create_task",
+                                 vaultPath: "/v", draft: "Locate in Figma; answer Liam's Qs")
+        ctx.insert(rec)
+
+        await service.decide(rec, .approved)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
+        XCTAssertEqual(tasks.count, 1)
+        XCTAssertEqual(tasks.first?.title, "Find Ruby's error screens")
+        XCTAssertEqual(tasks.first?.notes, "Locate in Figma; answer Liam's Qs")
+        XCTAssertEqual(tasks.first?.status, .inbox)
+    }
+
+    func test_applyTrust_createTask_insertsTask_notCard() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Do the thing", actionType: "create_task", vaultPath: "/v", confidence: 0.9)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<MustardTask>()).count, 1)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
+    func test_applyTrust_skipsFyi() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Heads up", actionType: "fyi", vaultPath: "/v", confidence: 0.9)
+        ctx.insert(rec)
+
+        await service.applyTrust(.autonomous)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(rec.decision, .pending)
+    }
 }

@@ -117,10 +117,12 @@ public final class AgentService {
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
             .filter { $0.decision == .pending } ?? []
         for rec in pending {
+            if rec.action == .fyi { continue }   // awareness items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) else { continue }
             rec.decision = .approved
+            if rec.action == .createTask { materializeTask(from: rec); continue }
             let card = await execute(rec)
             if let card, TrustPolicy.shouldAutoAccept(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
@@ -155,12 +157,22 @@ public final class AgentService {
         rec.snoozedUntil = until
     }
 
+    /// Approving a create_task lands a real task in the inbox — no claude run, no
+    /// OutputCard. The task appearing is the confirmation (mirrors the "I'll do it" button).
+    private func materializeTask(from rec: Recommendation) {
+        let task = MustardTask(title: rec.title)
+        task.notes = rec.draft.isEmpty ? rec.body : rec.draft
+        task.status = .inbox
+        context.insert(task)
+    }
+
     /// Record a decision. Approval triggers execution, honouring any triage
     /// comment as feedback for the agent on this first run.
     public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
         rec.decision = decision
         guard decision == .approved else { return }
         if rec.action == .fyi { return }   // acknowledging an FYI runs nothing
+        if rec.action == .createTask { materializeTask(from: rec); return }
         _ = await execute(rec, feedback: rec.comment)
     }
 
