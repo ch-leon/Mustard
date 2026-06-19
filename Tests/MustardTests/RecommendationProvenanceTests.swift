@@ -19,6 +19,20 @@ final class RecommendationProvenanceTests: XCTestCase {
         XCTAssertNil(rec.occurredAt)
     }
 
+    func test_originalSource_defaultNil() {
+        XCTAssertNil(Recommendation(title: "x").originalSource)
+    }
+
+    func test_originalSource_roundTrip() throws {
+        let ctx = try makeContext()
+        let rec = Recommendation(title: "From email", source: "gmail")
+        rec.originalSource = "Hi Leon — for Monday's workshop…"
+        ctx.insert(rec)
+        try ctx.save()
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).first?.originalSource,
+                       "Hi Leon — for Monday's workshop…")
+    }
+
     func test_provenanceFields_roundTrip() throws {
         let ctx = try makeContext()
         let when = Date(timeIntervalSince1970: 1_750_000_000)
