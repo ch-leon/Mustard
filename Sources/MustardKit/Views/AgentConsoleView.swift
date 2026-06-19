@@ -43,9 +43,17 @@ public struct AgentConsoleView: View {
                 if pending.isEmpty {
                     emptyLine("Nothing waiting on you. Run a sweep.")
                 }
-                ForEach(pending) { rec in
-                    RecommendationRow(rec: rec)
-                    Divider().overlay(Theme.Palette.hairline)
+                ForEach(SourceGrouping.grouped(pending)) { group in
+                    if group.isMultiSource {
+                        SourceGroupHeader(rec: group.header)
+                        ForEach(group.members) { rec in
+                            RecommendationRow(rec: rec, inGroup: true)
+                            Divider().overlay(Theme.Palette.hairline)
+                        }
+                    } else {
+                        RecommendationRow(rec: group.header, inGroup: false)
+                        Divider().overlay(Theme.Palette.hairline)
+                    }
                 }
 
                 sectionLabel("REVIEW", count: reviewQueue.count)
@@ -161,9 +169,15 @@ struct RecommendationRow: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
     let rec: Recommendation
+    let inGroup: Bool
     @State private var expanded = false
     @State private var commenting = false
     @State private var commentText = ""
+
+    init(rec: Recommendation, inGroup: Bool = false) {
+        self.rec = rec
+        self.inGroup = inGroup
+    }
 
     private var confidenceSegments: Int { Int((rec.confidence * 5).rounded(.down)) }
     private var confidenceColor: Color {
@@ -173,7 +187,7 @@ struct RecommendationRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            provenanceLine
+            if !inGroup { provenanceLine }
             HStack(spacing: 6) {
                 Image(systemName: "sparkles").font(.system(size: 12)).foregroundStyle(Theme.Palette.agent)
                 Text(rec.title).font(Theme.Fonts.title).foregroundStyle(Theme.Palette.textPrimary)
@@ -207,18 +221,7 @@ struct RecommendationRow: View {
     }
 
     @ViewBuilder private var provenanceLine: some View {
-        HStack(spacing: 6) {
-            Text(rec.source.uppercased())
-                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
-            if !rec.sourceContext.isEmpty {
-                Text("· \(rec.sourceContext)").font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary).lineLimit(1)
-            }
-            Spacer()
-            if let urlStr = rec.sourceURL, let url = URL(string: urlStr) {
-                Link("Open ↗", destination: url).font(.system(size: 11)).foregroundStyle(Theme.Palette.textTertiary)
-            }
-        }
+        ProvenancePill(rec: rec)
     }
 
     private var actionAndConfidence: some View {
@@ -250,6 +253,16 @@ struct RecommendationRow: View {
             FlowChips(selected: rec.action) { rec.action = $0 }
         }
         .padding(.top, 4)
+
+        if let original = rec.originalSource, !original.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ORIGINAL EMAIL").font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                Text(original).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                    .textSelection(.enabled)
+            }
+            .padding(.top, 4)
+        }
 
         // Editable draft
         VStack(alignment: .leading, spacing: 6) {
@@ -347,6 +360,62 @@ struct RecommendationRow: View {
         let cal = Calendar.current
         let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) ?? .now
         return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+    }
+}
+
+/// Provenance pill shown above each recommendation (or group header).
+struct ProvenancePill: View {
+    let rec: Recommendation
+    var body: some View {
+        let badge = SourceBadge.badge(forRaw: rec.source)
+        HStack(spacing: 6) {
+            if badge.isQuiet {
+                Text(badge.label.uppercased())
+                    .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            } else {
+                Label(badge.label, systemImage: badge.symbol)
+                    .labelStyle(.titleAndIcon).font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(hex: "#A32D2D"))
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Color(hex: "#FCEBEB"), in: Capsule())
+            }
+            if !rec.sourceContext.isEmpty {
+                Text("· \(rec.sourceContext)").font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textTertiary).lineLimit(1)
+            }
+            Spacer()
+            if let s = rec.sourceURL, let url = URL(string: s) {
+                Link("Open ↗", destination: url).font(.system(size: 11))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+        }
+    }
+}
+
+/// Header for a multi-source fan-out group: shows the provenance pill and,
+/// if available, an expand/collapse toggle for the original email body.
+struct SourceGroupHeader: View {
+    let rec: Recommendation
+    @State private var showEmail = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ProvenancePill(rec: rec)
+            if let original = rec.originalSource, !original.isEmpty {
+                Button { withAnimation(.snappy(duration: 0.15)) { showEmail.toggle() } } label: {
+                    Label(showEmail ? "Hide original" : "Original email",
+                          systemImage: showEmail ? "chevron.down" : "chevron.right")
+                        .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary)
+                }.buttonStyle(.plain)
+                if showEmail {
+                    Text(original).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                        .textSelection(.enabled)
+                        .padding(.leading, 10)
+                        .overlay(alignment: .leading) { Rectangle().fill(Theme.Palette.hairline).frame(width: 1) }
+                }
+            }
+        }
+        .padding(.top, 6).padding(.bottom, 2)
     }
 }
 
