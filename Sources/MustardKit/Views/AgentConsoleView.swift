@@ -278,47 +278,62 @@ struct RecommendationRow: View {
 
     private var outcomes: some View {
         HStack(spacing: 8) {
-            Button("Approve") { Task { await agent.decide(rec, .approved) } }
-                .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
-                .controlSize(.small).disabled(agent.isExecuting)
-
-            if !expanded {
-                Button("Review") { withAnimation(.snappy(duration: 0.15)) { expanded = true } }
+            if rec.action == .fyi {
+                Button("Keep") { agent.keep(rec) }
+                    .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
                     .controlSize(.small)
-            } else {
-                Button("Comment") { commenting.toggle(); commentText = rec.comment }
-                    .controlSize(.small)
-            }
-
-            Menu("Snooze") {
-                Button("1 hour") { agent.snooze(rec, until: .now.addingTimeInterval(3600)) }
-                Button("This evening") { agent.snooze(rec, until: eveningOrSoon()) }
-                Button("Tomorrow") { agent.snooze(rec, until: tomorrow9()) }
-            }
-            .controlSize(.small).fixedSize()
-
-            Button("Schedule") {
-                rec.decision = .scheduled
-                let task = MustardTask(title: rec.title); task.notes = draftOrBody
-                let cal = Calendar.current
-                if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {
-                    task.scheduledAt = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
-                    task.status = .planned
+                    .help("File this to your knowledge base log, then clear it.")
+                Button(expanded ? "Hide" : "Review") {
+                    withAnimation(.snappy(duration: 0.15)) { expanded.toggle() }
                 }
-                context.insert(task)
-            }
-            .controlSize(.small)
-
-            Button("I'll do it") {
-                rec.decision = .selfExecute
-                let task = MustardTask(title: rec.title); task.notes = draftOrBody
-                context.insert(task)
-            }
-            .controlSize(.small)
-
-            Spacer()
-            Button("Reject", role: .destructive) { rec.decision = .denied }
                 .controlSize(.small)
+                Spacer()
+                Button("Dismiss", role: .destructive) { rec.decision = .denied }
+                    .controlSize(.small)
+                    .help("You've seen it — remove it. Nothing is stored.")
+            } else {
+                Button("Approve") { Task { await agent.decide(rec, .approved) } }
+                    .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
+                    .controlSize(.small).disabled(agent.isExecuting)
+
+                if !expanded {
+                    Button("Review") { withAnimation(.snappy(duration: 0.15)) { expanded = true } }
+                        .controlSize(.small)
+                } else {
+                    Button("Comment") { commenting.toggle(); commentText = rec.comment }
+                        .controlSize(.small)
+                }
+
+                Menu("Snooze") {
+                    Button("1 hour") { agent.snooze(rec, until: .now.addingTimeInterval(3600)) }
+                    Button("This evening") { agent.snooze(rec, until: eveningOrSoon()) }
+                    Button("Tomorrow") { agent.snooze(rec, until: tomorrow9()) }
+                }
+                .controlSize(.small).fixedSize()
+
+                Button("Schedule") {
+                    rec.decision = .scheduled
+                    let task = MustardTask(title: rec.title); task.notes = draftOrBody
+                    let cal = Calendar.current
+                    if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {
+                        task.scheduledAt = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
+                        task.status = .planned
+                    }
+                    context.insert(task)
+                }
+                .controlSize(.small)
+
+                Button("I'll do it") {
+                    rec.decision = .selfExecute
+                    let task = MustardTask(title: rec.title); task.notes = draftOrBody
+                    context.insert(task)
+                }
+                .controlSize(.small)
+
+                Spacer()
+                Button("Reject", role: .destructive) { rec.decision = .denied }
+                    .controlSize(.small)
+            }
         }
     }
 
