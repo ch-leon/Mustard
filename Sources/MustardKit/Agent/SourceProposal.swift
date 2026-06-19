@@ -22,6 +22,7 @@ public struct SourceProposal: Equatable, Sendable, Codable {
     public let sourceEventID: String
     public let sourceContext: String
     public let sourceURL: String?
+    public let originalSource: String?
     public let occurredAt: Date?
     public let title: String
     public let body: String
@@ -34,6 +35,7 @@ public struct SourceProposal: Equatable, Sendable, Codable {
         source: SourceID, project: String = "", sourceItemID: String, sourceEventID: String,
         sourceContext: String = "", sourceURL: String? = nil, occurredAt: Date? = nil,
         title: String, body: String = "", actionType: String = "vault_note",
+        originalSource: String? = nil,
         confidence: Double = 0.5, reasoning: String = "", draft: String = ""
     ) {
         self.source = source
@@ -42,6 +44,7 @@ public struct SourceProposal: Equatable, Sendable, Codable {
         self.sourceEventID = sourceEventID
         self.sourceContext = sourceContext
         self.sourceURL = sourceURL
+        self.originalSource = originalSource
         self.occurredAt = occurredAt
         self.title = title
         self.body = body

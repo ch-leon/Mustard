@@ -70,6 +70,22 @@ final class SourceProposalTests: XCTestCase {
         XCTAssertEqual(p.confidence, 0.8, accuracy: 0.001)
     }
 
+    func test_sourceProposal_carriesOriginalSource_roundTrip() throws {
+        let p = SourceProposal(source: .gmail, project: "DL", sourceItemID: "t", sourceEventID: "e",
+                               title: "x", actionType: "fyi", originalSource: "raw email body")
+        let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
+        let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
+        let back = try dec.decode(SourceProposal.self, from: enc.encode(p))
+        XCTAssertEqual(back.originalSource, "raw email body")
+        XCTAssertEqual(p, back)
+    }
+
+    func test_sourceProposal_decodesWhenOriginalSourceAbsent() throws {
+        let json = #"{"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"e","sourceContext":"","title":"x","body":"","actionType":"fyi","confidence":0.5,"reasoning":"","draft":""}"#
+        let p = try JSONDecoder().decode(SourceProposal.self, from: Data(json.utf8))
+        XCTAssertNil(p.originalSource)
+    }
+
     func test_sourceProposal_codableRoundTrip() throws {
         let p = SourceProposal(source: .gmail, project: "DL", sourceItemID: "t", sourceEventID: "e",
                                sourceContext: "ctx", title: "x", actionType: "draft_email", confidence: 0.9)

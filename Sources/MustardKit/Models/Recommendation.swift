@@ -27,6 +27,9 @@ public final class Recommendation {
     public var project: String = ""
     public var sourceContext: String = ""
     public var sourceURL: String?
+    /// Raw source content (e.g. the original email body) so it can be read before the
+    /// proposed draft. Optional → CloudKit-safe default (ADR-0001); vault recs leave it nil.
+    public var originalSource: String?
     // Ingestion provenance (Plan 7): stable identity for dedupe + when it occurred.
     // Optional → auto-nil default keeps the model CloudKit-compatible (ADR-0001).
     public var sourceItemID: String?
@@ -79,6 +82,7 @@ public final class Recommendation {
         self.sourceItemID = p.sourceItemID
         self.sourceEventID = p.sourceEventID
         self.occurredAt = p.occurredAt
+        self.originalSource = p.originalSource
     }
 
     public var action: RecommendationAction {
