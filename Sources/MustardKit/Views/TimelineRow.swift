@@ -1,6 +1,18 @@
 import SwiftUI
 
+struct DelegationBadge: View {
+    let task: MustardTask
+    var body: some View {
+        if let label = DelegationPhase.of(task).label {
+            Label(label, systemImage: "cpu")
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(Theme.Palette.agent)
+        }
+    }
+}
+
 public struct TimelineRow: View {
+    @Environment(AgentService.self) private var agent
     let task: MustardTask
     var onToggleDone: () -> Void
     var onOpen: () -> Void
@@ -44,6 +56,7 @@ public struct TimelineRow: View {
                             Label("Agent", systemImage: "cpu")
                                 .foregroundStyle(Theme.Palette.agent)
                         }
+                        DelegationBadge(task: task)
                         if let list = task.list {
                             ListBadge(list: list)
                         }
@@ -60,5 +73,12 @@ public struct TimelineRow: View {
         .padding(.vertical, 9)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
+        .contextMenu {
+            if task.owner == .me && task.delegation == nil && task.status != .done {
+                Button { Task { await agent.delegate(task) } } label: {
+                    Label("Ask agent to do this", systemImage: "cpu")
+                }
+            }
+        }
     }
 }
