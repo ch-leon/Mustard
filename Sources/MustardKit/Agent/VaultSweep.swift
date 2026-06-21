@@ -103,6 +103,30 @@ public enum VaultSweep {
         return parts.joined(separator: "\n\n")
     }
 
+    /// Classify prompt for delegation ("Ask agent to do this"): read the task + the
+    /// KB in the current directory and propose ONE way to action it — or decline. The
+    /// agent never invents work; if the task needs you, it returns action_type "ignore"
+    /// with a one-line reason. Output shape matches `parse` (a 1-element JSON array).
+    public static func classifyPrompt(title: String, notes: String, areaName: String) -> String {
+        """
+        You are being asked to take on a task for the knowledge base in the current directory (project: \(areaName)).
+        Read the relevant notes, then decide how YOU would action this task.
+
+        Task: \(title)
+
+        \(notes.isEmpty ? "(no extra detail)" : notes)
+
+        Choose ONE action_type: vault_note, draft_email, draft_slack, ticket_write, or ignore.
+        Use "ignore" to DECLINE — if this genuinely needs the human (a judgement call, missing
+        access, or not something you can do well). Declining honestly is better than faking output.
+
+        Respond with ONLY a JSON array containing exactly ONE object, no prose, in this exact shape:
+        [{"title": "short imperative title", "body": "1-2 sentences: what you'll do and why",
+          "action_type": "vault_note", "confidence": 0.0-1.0, "reasoning": "one sentence",
+          "draft": "your proposed deliverable (or, if ignoring, why this needs the human)"}]
+        """
+    }
+
     /// Per-action instruction. Gated actions (email/Slack/ticket) stay draft-only —
     /// execution produces text for review, it never sends or files anything.
     private static func directive(for action: RecommendationAction) -> String {

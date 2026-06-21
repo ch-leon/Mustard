@@ -103,6 +103,26 @@ final class VaultSweepPromptTests: XCTestCase {
         )
         XCTAssertTrue(p.contains("The body text."))
     }
+
+    func test_classifyPrompt_includesTaskAndDeclineOption() {
+        let p = VaultSweep.classifyPrompt(
+            title: "Find Ruby's error screens",
+            notes: "Liam asked where they live in Figma.",
+            areaName: "Digital Licence")
+        XCTAssertTrue(p.contains("Find Ruby's error screens"))
+        XCTAssertTrue(p.contains("Liam asked"))
+        XCTAssertTrue(p.contains("Digital Licence"))
+        XCTAssertTrue(p.contains("\"ignore\""))      // decline path is offered
+        XCTAssertTrue(p.contains("JSON array"))       // reuses VaultSweep.parse shape
+    }
+
+    func test_classifyPrompt_parsesBackThroughVaultSweepParse() {
+        // The shape the prompt asks for must round-trip through the existing parser.
+        let modelOutput = #"[{"title":"Locate error screens","body":"Search Figma","action_type":"vault_note","confidence":0.8,"reasoning":"clear ask","draft":"Steps: ..."}]"#
+        let proposal = VaultSweep.parse(modelOutput).first
+        XCTAssertEqual(proposal?.actionType, "vault_note")
+        XCTAssertEqual(proposal?.title, "Locate error screens")
+    }
 }
 
 @MainActor
