@@ -74,6 +74,7 @@ public struct BoardView: View {
 }
 
 struct BoardCard: View {
+    @Environment(AgentService.self) private var agent
     let task: MustardTask
 
     var body: some View {
@@ -109,6 +110,7 @@ struct BoardCard: View {
                                 Text("\(task.estimateMinutes)m")
                                     .foregroundStyle(Theme.Palette.textTertiary)
                             }
+                            DelegationBadge(task: task)
                         }
                         .lineLimit(1)
                     }
@@ -120,6 +122,13 @@ struct BoardCard: View {
         .padding(10)
         .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
+        .contextMenu {
+            if task.owner == .me && task.delegation == nil && task.status != .done {
+                Button { Task { await agent.delegate(task) } } label: {
+                    Label("Ask agent to do this", systemImage: "cpu")
+                }
+            }
+        }
     }
 }
 

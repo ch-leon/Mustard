@@ -27,6 +27,11 @@ public final class MustardTask {
     public var parent: MustardTask?
     @Relationship(deleteRule: .nullify, inverse: \MustardTask.parent)
     public var subtasks: [MustardTask]? = []
+    /// The agent recommendation produced when this task was delegated ("Ask agent to
+    /// do this"). Nullify: deleting the task clears the link but keeps the rec (and its
+    /// output history). Optional → CloudKit-safe default (ADR-0001).
+    @Relationship(deleteRule: .nullify, inverse: \Recommendation.task)
+    public var delegation: Recommendation?
 
     // Provenance — set when a task is harvested from an external source (e.g. a
     // meeting note). All defaulted/optional so the CloudKit schema stays additive.

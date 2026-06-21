@@ -8,6 +8,7 @@ import SwiftData
 /// 9:00 default); drag a day block back to the rail to unschedule.
 public struct WeekView: View {
     @Environment(\.modelContext) private var context
+    @Environment(AgentService.self) private var agent
     @Query private var allTasks: [MustardTask]
     @Query private var events: [CalendarEvent]
     @State private var weekOffset = 0
@@ -215,6 +216,12 @@ public struct WeekView: View {
     // MARK: - Mutations
 
     @ViewBuilder private func menu(for task: MustardTask) -> some View {
+        if task.owner == .me && task.delegation == nil && task.status != .done {
+            Button { Task { await agent.delegate(task) } } label: {
+                Label("Ask agent to do this", systemImage: "cpu")
+            }
+            Divider()
+        }
         if task.status == .done {
             Button("Reopen") { task.status = .planned; task.completedAt = nil }
         } else {
@@ -249,6 +256,7 @@ struct WeekChip: View {
             }
             Text(task.title).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
             Spacer(minLength: 0)
+            DelegationBadge(task: task)
             if overdue, let when = task.scheduledAt {
                 Text(when.formatted(.dateTime.day().month()))
                     .font(.system(size: 9)).foregroundStyle(Theme.Palette.warning)

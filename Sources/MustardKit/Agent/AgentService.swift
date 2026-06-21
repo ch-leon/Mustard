@@ -129,7 +129,7 @@ public final class AgentService {
     public func applyTrust(_ trust: TrustLevel) async {
         guard trust != .manual else { return }
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
-            .filter { $0.decision == .pending } ?? []
+            .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs gate themselves in delegate()
         for rec in pending {
             if rec.action == .fyi { continue }   // awareness items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
@@ -141,7 +141,7 @@ public final class AgentService {
             if let card, TrustPolicy.shouldAutoAccept(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) {
-                card.review = .accepted
+                accept(card)
             }
         }
     }
@@ -181,13 +181,114 @@ public final class AgentService {
     }
 
     /// Record a decision. Approval triggers execution, honouring any triage
-    /// comment as feedback for the agent on this first run.
+    /// comment as feedback for the agent on this first run. Denying a delegated
+    /// recommendation returns the task to you.
     public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
         rec.decision = decision
+        if decision == .denied, let task = rec.task { task.owner = .me }
         guard decision == .approved else { return }
         if rec.action == .fyi { return }   // acknowledging an FYI runs nothing
         if rec.action == .createTask { materializeTask(from: rec); return }
         _ = await execute(rec, feedback: rec.comment)
+    }
+
+    /// Delegate a task to the agent ("Ask agent to do this"). Routes the agent's
+    /// working directory by the task's client Area (Leon's choice, 2026-06-22), runs a
+    /// classify pass, and either queues the proposal (Manual/Supervised) or runs it now
+    /// (Trusted+). The agent may decline — then the task stays with you, with a note.
+    /// `workVaultRoot`/`sources` default to live settings; tests inject them.
+    public func delegate(
+        _ task: MustardTask,
+        workVaultRoot: String? = nil,
+        sources: [SourceConfig]? = nil
+    ) async {
+        guard !isSweeping, !isExecuting else { return }
+        let root = workVaultRoot ?? UserDefaults.standard.string(forKey: "meetingVaultPath") ?? ""
+        let configs = sources ?? SourceSettingsStore.loadOrMigrate().sources
+        let areaName = task.list?.area?.name
+
+        guard let cwd = AreaRouter.workingDirectory(
+            forArea: areaName, sources: configs, workVaultRoot: root
+        ) else {
+            lastError = "Can't delegate \"\(task.title)\": file it under a client area (Digital Licence, Sales Buddi, Sandvik, Code Heroes) with a configured KB first."
+            return
+        }
+
+        lastError = nil
+        // Hold the serial "one claude at a time" guard across the classify call — the
+        // scheduler loop checks isExecuting before sweeping (ADR-0003). Reset right
+        // after, before any execute() (which manages isExecuting itself).
+        isExecuting = true
+        let result = await claude(
+            VaultSweep.classifyPrompt(title: task.title, notes: task.notes, areaName: areaName ?? ""),
+            cwd
+        )
+        isExecuting = false
+
+        // A claude failure is NOT a decline — surface it like `sweep` does, never fake "passed".
+        guard result.ok else {
+            lastError = "Delegation failed: \(result.text)"
+            return
+        }
+        let proposals = VaultSweep.parse(result.text)
+        guard let proposal = proposals.first,
+              RecommendationAction.from(proposal.actionType) != .ignore else {
+            // The agent declined ("ignore") or returned nothing parseable: leave the
+            // task with you, with a note. (Unrecognized action types map to vault_note
+            // via RecommendationAction.from, so only a literal "ignore" declines.)
+            let reason = proposals.first?.draft ?? ""
+            task.notes += "\n\n🤖 Agent passed on this" + (reason.isEmpty ? "." : ": \(reason)")
+            return
+        }
+
+        let rec = Recommendation(
+            title: proposal.title, body: proposal.body, actionType: proposal.actionType,
+            vaultPath: cwd, confidence: proposal.confidence, reasoning: proposal.reasoning,
+            draft: proposal.draft, source: "delegated",
+            sourceContext: "Delegated: \(task.title)"
+        )
+        rec.project = areaName ?? ""
+        rec.task = task
+        task.delegation = rec
+        task.owner = .agent          // flip to agent only once the proposal is real
+        context.insert(rec)
+
+        let trust = Self.storedTrust()
+        if TrustPolicy.shouldAutoRunDelegation(
+            actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
+        ) {
+            rec.decision = .approved
+            let card = await execute(rec)
+            // Only auto-accept a SUCCESSFUL run — never silently complete on failure.
+            // A failed run leaves its error card pending in the review queue for you.
+            if let card, card.kind != "error", TrustPolicy.shouldAutoAccept(
+                actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
+            ) {
+                accept(card)
+            }
+        }
+        // else: stays .pending → appears in the Agent console queue for approval.
+    }
+
+    /// Accept an output. For a delegated task this closes the loop: mark the task done
+    /// and append the agent's output to its Notes (Leon's choice, 2026-06-22). Non-
+    /// delegated cards just flip to accepted (sweep/inbox behaviour unchanged).
+    public func accept(_ card: OutputCard) {
+        // Never complete a task on a failed run (no silent completion); an error card
+        // should be Discarded or Revised, not Accepted.
+        guard card.kind != "error" else { return }
+        card.review = .accepted
+        guard let task = card.recommendation?.task else { return }
+        if !card.content.isEmpty {
+            task.notes += (task.notes.isEmpty ? "" : "\n\n") + "🤖 Agent output:\n\(card.content)"
+        }
+        task.markDone()
+    }
+
+    /// Discard an output. For a delegated task, hand it back to you.
+    public func discard(_ card: OutputCard) {
+        card.review = .discarded
+        if let task = card.recommendation?.task { task.owner = .me }
     }
 
     /// Re-run a reviewed output with the user's feedback and the prior output as

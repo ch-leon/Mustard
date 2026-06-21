@@ -65,4 +65,15 @@ public enum TrustPolicy {
             && trust.rank >= TrustLevel.trusted.rank
             && confidence >= autoConfidenceThreshold
     }
+
+    /// May a *delegated* task run immediately (vs. queue for your approval)?
+    /// Stricter than `shouldAutoApprove`: delegation only auto-runs at Trusted+ —
+    /// Manual and Supervised both queue the proposal. Gated + confidence floor still apply.
+    public static func shouldAutoRunDelegation(
+        actionType: String, trust: TrustLevel, confidence: Double = 1.0
+    ) -> Bool {
+        !isGated(actionType: actionType)
+            && trust.rank >= TrustLevel.trusted.rank
+            && confidence >= autoConfidenceThreshold
+    }
 }
