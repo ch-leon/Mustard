@@ -44,6 +44,27 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       inline create/rename/delete, **nullify** deletes (organising never loses
       tasks), area-grouped List picker in the detail sheet, list badges on rows.
       Pure `AreaOrganizer` logic.
+- [x] **F17 Meeting task ingest** (was B1) — harvest curated `- [ ]` lines from the
+      Meeting Sync vault notes into the inbox; two-way completion (tick → note
+      checkbox, snapshot-first); vault→Area mapping. Pure `MeetingTaskParser` +
+      `MeetingTaskSync` + `FileVaultIO`; provenance fields on `MustardTask`; wired into
+      the 60s loop + `meetingVaultPath` Setting. Plan:
+      `docs/plans/2026-06-16-meeting-task-ingest.md`.
+- [x] **F18 Source-ingestion foundation + triage provenance** — per-source/project
+      `SourceSettings`, `InboxIngest` (local `_recs/`), `SourceDedupe`; inert FYI +
+      curated-KB `InboxLog`, `originalSource` provenance, `SourceBadge` pill,
+      `SourceGrouping` fan-out, `create_task` → real inbox task (PR #13). Specs:
+      `docs/specs/2026-06-15-source-ingestion-foundation.md`,
+      `docs/specs/2026-06-19-triage-provenance-fyi-and-fanout-design.md`.
+      *(The cloud email **scout** that feeds this remains deferred — see N3 / the
+      mac-independence spec.)*
+- [x] **F19 You → agent delegation** (was I1 ⭐) — "Ask agent to do this" (detail
+      sheet + Today/Board/Week context menu) → classify `claude -p` routed by client
+      Area (`AreaRouter`) → linked `Recommendation` (`MustardTask.delegation`); trust
+      gates run-now (Trusted+) vs queue (`TrustPolicy.shouldAutoRunDelegation`); Accept
+      → task done + output appended to Notes; agent may decline; `DelegationPhase`
+      status badge. Plan: `docs/plans/2026-06-22-you-agent-delegation.md`.
+      *On `feat/you-agent-delegation` — pending merge + Leon's eye-check of the surfaces.*
 
 ## Next — needs Leon ⛔
 
@@ -59,13 +80,9 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢
 
-- [ ] **B1 Meeting task ingest** — harvest the curated `- [ ]` lines from the
-      meeting notes Leon's Sync pipeline writes into his Code Heroes vaults, into
-      Mustard's inbox; two-way completion (tick the note's checkbox, snapshot-first).
-      Pure `MeetingTaskParser` + `MeetingTaskSync`; vault → Area mapping; new
-      provenance fields on `MustardTask`. Spec-ready — design locked 2026-06-16.
-      See `docs/plans/2026-06-16-meeting-task-ingest.md`. *Supersedes the "meetings"
-      half of N3 — vault-harvest, no MCP needed.*
+*(Cleared — B1 shipped as **F17**, the multi-source foundation as **F18**, and I1
+delegation as **F19**. Next unblocked candidate: **I2 Trust that earns itself** —
+design locked 2026-06-16, still needs a plan.)*
 
 ## Later — autonomous, unblocked 🔓
 
@@ -78,7 +95,7 @@ Captured from a brainstorm; each needs its own spec + plan before building.
 Intended for Linear later — kept here for now.
 
 **A. Deepen the agent loop**
-- [ ] **I1 ⭐ You → agent delegation** — hand a task to the agent from Board/Today
+- [x] **I1 ⭐ You → agent delegation** *(✅ BUILT — shipped as F19, see Done)* — hand a task to the agent from Board/Today
       ("Ask agent to do this"); it enters the existing recommend → approve → execute
       → review pipeline. Completes the currently one-way (agent → you) loop — the
       core of the product thesis.
