@@ -195,7 +195,7 @@ public final class AgentService {
     /// Delegate a task to the agent ("Ask agent to do this"). Routes the agent's
     /// working directory by the task's client Area (Leon's choice, 2026-06-22), runs a
     /// classify pass, and either queues the proposal (Manual/Supervised) or runs it now
-    /// (Trusted+). The agent may decline — then the task returns to you with a note.
+    /// (Trusted+). The agent may decline — then the task stays with you, with a note.
     /// `workVaultRoot`/`sources` default to live settings; tests inject them.
     public func delegate(
         _ task: MustardTask,
@@ -215,16 +215,28 @@ public final class AgentService {
         }
 
         lastError = nil
-        task.owner = .agent
+        // Hold the serial "one claude at a time" guard across the classify call — the
+        // scheduler loop checks isExecuting before sweeping (ADR-0003). Reset right
+        // after, before any execute() (which manages isExecuting itself).
+        isExecuting = true
         let result = await claude(
             VaultSweep.classifyPrompt(title: task.title, notes: task.notes, areaName: areaName ?? ""),
             cwd
         )
-        guard result.ok, let proposal = VaultSweep.parse(result.text).first,
+        isExecuting = false
+
+        // A claude failure is NOT a decline — surface it like `sweep` does, never fake "passed".
+        guard result.ok else {
+            lastError = "Delegation failed: \(result.text)"
+            return
+        }
+        let proposals = VaultSweep.parse(result.text)
+        guard let proposal = proposals.first,
               RecommendationAction.from(proposal.actionType) != .ignore else {
-            // Decline (or unparseable / failed): return the task to you, with a note.
-            task.owner = .me
-            let reason = VaultSweep.parse(result.text).first?.draft ?? ""
+            // The agent declined ("ignore") or returned nothing parseable: leave the
+            // task with you, with a note. (Unrecognized action types map to vault_note
+            // via RecommendationAction.from, so only a literal "ignore" declines.)
+            let reason = proposals.first?.draft ?? ""
             task.notes += "\n\n🤖 Agent passed on this" + (reason.isEmpty ? "." : ": \(reason)")
             return
         }
@@ -238,6 +250,7 @@ public final class AgentService {
         rec.project = areaName ?? ""
         rec.task = task
         task.delegation = rec
+        task.owner = .agent          // flip to agent only once the proposal is real
         context.insert(rec)
 
         let trust = Self.storedTrust()
@@ -246,7 +259,9 @@ public final class AgentService {
         ) {
             rec.decision = .approved
             let card = await execute(rec)
-            if let card, TrustPolicy.shouldAutoAccept(
+            // Only auto-accept a SUCCESSFUL run — never silently complete on failure.
+            // A failed run leaves its error card pending in the review queue for you.
+            if let card, card.kind != "error", TrustPolicy.shouldAutoAccept(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) {
                 accept(card)
@@ -259,6 +274,9 @@ public final class AgentService {
     /// and append the agent's output to its Notes (Leon's choice, 2026-06-22). Non-
     /// delegated cards just flip to accepted (sweep/inbox behaviour unchanged).
     public func accept(_ card: OutputCard) {
+        // Never complete a task on a failed run (no silent completion); an error card
+        // should be Discarded or Revised, not Accepted.
+        guard card.kind != "error" else { return }
         card.review = .accepted
         guard let task = card.recommendation?.task else { return }
         if !card.content.isEmpty {

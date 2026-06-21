@@ -509,6 +509,60 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(calls, 2)                 // classify + execute
         XCTAssertEqual(task.delegation?.decision, .approved)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 1)
+        XCTAssertEqual(task.status, .done)                    // successful run completes the task
+        let savedCard = try ctx.fetch(FetchDescriptor<OutputCard>()).first
+        XCTAssertEqual(savedCard?.review, .accepted)
+    }
+
+    func test_delegate_claudeFailure_setsError_noFakeDecline() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: false, text: "401 unauthorized") })
+        let task = delegatableTask(ctx)
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertNil(task.delegation)
+        XCTAssertEqual(task.owner, .me)                       // never flipped to agent
+        XCTAssertEqual(service.lastError, "Delegation failed: 401 unauthorized")
+        XCTAssertFalse(task.notes.contains("passed on this")) // a failure is not a decline
+    }
+
+    func test_delegate_trusted_executionFails_doesNotCompleteTask() async throws {
+        UserDefaults.standard.set("trusted", forKey: "trustLevel")
+        defer { UserDefaults.standard.removeObject(forKey: "trustLevel") }
+        let ctx = try makeContext()
+        var calls = 0
+        let service = AgentService(context: ctx, claude: { _, _ in
+            calls += 1
+            if calls == 1 {   // classify succeeds
+                return ClaudeResult(ok: true, text: #"[{"title":"Do it","action_type":"vault_note","confidence":0.9,"reasoning":"x","draft":"d"}]"#)
+            }
+            return ClaudeResult(ok: false, text: "boom")   // execute fails
+        })
+        let task = delegatableTask(ctx)
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertEqual(calls, 2)
+        XCTAssertNotEqual(task.status, .done)                 // failed run never completes the task
+        let card = try ctx.fetch(FetchDescriptor<OutputCard>()).first
+        XCTAssertEqual(card?.kind, "error")
+        XCTAssertNotEqual(card?.review, .accepted)            // not auto-accepted
+    }
+
+    func test_accept_errorCard_doesNotCompleteTask() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "T", owner: .agent)
+        let rec = Recommendation(title: "R", actionType: "vault_note")
+        rec.task = task; task.delegation = rec
+        let card = OutputCard(content: "Execution failed: boom", kind: "error", recommendation: rec)
+        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
+
+        service.accept(card)
+
+        XCTAssertNotEqual(task.status, .done)
+        XCTAssertNotEqual(card.review, .accepted)             // inert on an error card
     }
 
     func test_delegate_decline_revertsOwner_appendsNote_noRec() async throws {
