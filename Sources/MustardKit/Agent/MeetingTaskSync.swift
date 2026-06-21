@@ -30,8 +30,9 @@ public struct ImportDigest: Equatable {
 /// `originKey`); write-back snapshots before editing and touches only the one line.
 @MainActor
 public final class MeetingTaskSync {
-    /// vault-root folder → Mustard Area name.
-    public static let defaultAreaMap: [String: String] = [
+    /// vault-root folder → Mustard Area name. `nonisolated` so pure helpers
+    /// (e.g. `AreaRouter`) can read this immutable map without main-actor isolation.
+    public nonisolated static let defaultAreaMap: [String: String] = [
         "DL": "Digital Licence",
         "SB": "Sales Buddi",
         "Sandvik": "Sandvik",
