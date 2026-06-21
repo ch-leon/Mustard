@@ -39,4 +39,19 @@ final class TrustPolicyTests: XCTestCase {
         XCTAssertFalse(TrustPolicy.shouldAutoApprove(actionType: "draft_email", trust: .autonomous))
         XCTAssertFalse(TrustPolicy.shouldAutoAccept(actionType: "draft_email", trust: .autonomous))
     }
+
+    func test_delegation_runsAtTrustedPlus_notSupervised() {
+        XCTAssertFalse(TrustPolicy.shouldAutoRunDelegation(actionType: "vault_note", trust: .manual, confidence: 0.9))
+        XCTAssertFalse(TrustPolicy.shouldAutoRunDelegation(actionType: "vault_note", trust: .supervised, confidence: 0.9))
+        XCTAssertTrue(TrustPolicy.shouldAutoRunDelegation(actionType: "vault_note", trust: .trusted, confidence: 0.9))
+        XCTAssertTrue(TrustPolicy.shouldAutoRunDelegation(actionType: "vault_note", trust: .autonomous, confidence: 0.9))
+    }
+
+    func test_delegation_gatedNeverAutoRuns() {
+        XCTAssertFalse(TrustPolicy.shouldAutoRunDelegation(actionType: "draft_email", trust: .autonomous, confidence: 1.0))
+    }
+
+    func test_delegation_respectsConfidenceFloor() {
+        XCTAssertFalse(TrustPolicy.shouldAutoRunDelegation(actionType: "vault_note", trust: .trusted, confidence: 0.5))
+    }
 }
