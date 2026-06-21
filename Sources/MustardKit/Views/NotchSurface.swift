@@ -269,17 +269,32 @@ public struct NotchView: View {
                             .foregroundStyle(.white.opacity(0.9))
                             .lineLimit(1)
                         Spacer()
-                        Button("Approve") {
-                            Task { await agent.decide(rec, .approved) }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color(hex: "#6E9FFF"))
-                        .disabled(agent.isExecuting)
-                        Button("Deny") { rec.decision = .denied }
+                        if rec.action == .fyi {
+                            // FYI is inert on approve (no claude run, no card), so a generic
+                            // "Approve" here would clear it with nothing filed. Acknowledging an
+                            // FYI must file it to the KB log like the console's Keep — Keep = file,
+                            // Dismiss = drop. keep() is a synchronous local write (no executor).
+                            Button("Keep") { agent.keep(rec) }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color(hex: "#6E9FFF"))
+                            Button("Dismiss") { rec.decision = .denied }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.5))
+                        } else {
+                            Button("Approve") {
+                                Task { await agent.decide(rec, .approved) }
+                            }
                             .buttonStyle(.plain)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color(hex: "#6E9FFF"))
+                            .disabled(agent.isExecuting)
+                            Button("Deny") { rec.decision = .denied }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
                     }
                 }
             }
