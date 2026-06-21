@@ -521,7 +521,7 @@ struct OutputCardRow: View {
                 .lineLimit(expanded ? nil : 3)
                 .textSelection(.enabled)
             HStack(spacing: 8) {
-                Button("Accept") { card.review = .accepted }
+                Button("Accept") { agent.accept(card) }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.Palette.done)
                     .controlSize(.small)
@@ -531,7 +531,7 @@ struct OutputCardRow: View {
                 }
                 .controlSize(.small)
                 .disabled(agent.isExecuting)
-                Button("Discard", role: .destructive) { card.review = .discarded }
+                Button("Discard", role: .destructive) { agent.discard(card) }
                     .controlSize(.small)
             }
             if revising {
