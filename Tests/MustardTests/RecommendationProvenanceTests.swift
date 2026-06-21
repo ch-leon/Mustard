@@ -49,4 +49,23 @@ final class RecommendationProvenanceTests: XCTestCase {
         XCTAssertEqual(fetched.first?.sourceEventID, "msg-9")
         XCTAssertEqual(fetched.first?.occurredAt, when)
     }
+
+    func test_taskDelegationLink_roundTrips() throws {
+        let ctx = try makeContext()
+        let task = MustardTask(title: "Find Ruby's error screens")
+        let rec = Recommendation(title: "Locate error screens in Figma", actionType: "vault_note")
+        task.delegation = rec
+        ctx.insert(task); ctx.insert(rec)
+        try ctx.save()
+
+        let savedTask = try ctx.fetch(FetchDescriptor<MustardTask>()).first
+        XCTAssertEqual(savedTask?.delegation?.title, "Locate error screens in Figma")
+        // Inverse is maintained by SwiftData.
+        XCTAssertEqual(rec.task?.title, "Find Ruby's error screens")
+    }
+
+    func test_taskDelegation_defaultsNil() {
+        XCTAssertNil(MustardTask(title: "x").delegation)
+        XCTAssertNil(Recommendation(title: "x").task)
+    }
 }

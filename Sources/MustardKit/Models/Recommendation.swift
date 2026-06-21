@@ -40,6 +40,10 @@ public final class Recommendation {
     public var createdAt: Date = Date.now
     @Relationship(deleteRule: .cascade, inverse: \OutputCard.recommendation)
     public var outputs: [OutputCard]? = []
+    /// The task this recommendation was created to action (set when you delegate a
+    /// task to the agent). Nil for sweep/inbox recs. Inverse of `MustardTask.delegation`.
+    /// Optional → CloudKit-safe default (ADR-0001).
+    public var task: MustardTask?
 
     public var decision: RecommendationDecision {
         get { RecommendationDecision(rawValue: decisionRaw) ?? .pending }
