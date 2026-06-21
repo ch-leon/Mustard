@@ -6,6 +6,7 @@ import SwiftData
 public struct TaskDetailSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(AgentService.self) private var agent
     @Bindable var task: MustardTask
     @Query private var areas: [Area]
     @Query private var lists: [TaskList]
@@ -169,6 +170,16 @@ public struct TaskDetailSheet: View {
                 Label("Delete task", systemImage: "trash")
             }
             .controlSize(.small)
+            if task.owner == .me && task.delegation == nil && task.status != .done {
+                Button {
+                    Task { await agent.delegate(task) }
+                } label: {
+                    Label("Ask agent to do this", systemImage: "cpu")
+                }
+                .tint(Theme.Palette.agent)
+                .controlSize(.small)
+                .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
+            }
             Spacer()
             if task.status != .done {
                 Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
