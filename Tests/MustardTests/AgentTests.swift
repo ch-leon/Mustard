@@ -461,4 +461,138 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertFalse(called)
         XCTAssertEqual(rec.decision, .pending)
     }
+
+    // MARK: - delegate / accept / discard (Tasks 6 & 7)
+
+    private func delegatableTask(_ ctx: ModelContext, area: String = "Digital Licence") -> MustardTask {
+        let a = Area(name: area)
+        let list = TaskList(name: area, area: a)
+        let task = MustardTask(title: "Find Ruby's error screens")
+        task.notes = "Liam asked where they live."
+        task.list = list
+        ctx.insert(a); ctx.insert(list); ctx.insert(task)
+        return task
+    }
+
+    func test_delegate_manual_queuesProposal_setsOwnerAgent_noExecute() async throws {
+        let ctx = try makeContext()
+        var calls = 0
+        let service = AgentService(context: ctx, claude: { _, _ in
+            calls += 1
+            return ClaudeResult(ok: true, text: #"[{"title":"Locate screens","action_type":"vault_note","confidence":0.9,"reasoning":"clear","draft":"steps"}]"#)
+        })
+        let task = delegatableTask(ctx)
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertEqual(calls, 1)                 // classify ran once; no execute under Manual
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertNotNil(task.delegation)
+        XCTAssertEqual(task.delegation?.decision, .pending)
+        XCTAssertEqual(task.delegation?.vaultPath, "/work/DL")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
+    func test_delegate_trusted_runsImmediately_producesCard() async throws {
+        UserDefaults.standard.set("trusted", forKey: "trustLevel")
+        defer { UserDefaults.standard.removeObject(forKey: "trustLevel") }
+        let ctx = try makeContext()
+        var calls = 0
+        let service = AgentService(context: ctx, claude: { _, _ in
+            calls += 1
+            return ClaudeResult(ok: true, text: #"[{"title":"Locate screens","action_type":"vault_note","confidence":0.9,"reasoning":"clear","draft":"steps"}]"#)
+        })
+        let task = delegatableTask(ctx)
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertEqual(calls, 2)                 // classify + execute
+        XCTAssertEqual(task.delegation?.decision, .approved)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 1)
+    }
+
+    func test_delegate_decline_revertsOwner_appendsNote_noRec() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in
+            ClaudeResult(ok: true, text: #"[{"title":"x","action_type":"ignore","reasoning":"needs your judgement","draft":"needs your judgement"}]"#)
+        })
+        let task = delegatableTask(ctx)
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertEqual(task.owner, .me)          // returned to you
+        XCTAssertNil(task.delegation)
+        XCTAssertTrue(task.notes.contains("needs your judgement"))
+    }
+
+    func test_delegate_unresolvedArea_setsError_doesNotChangeOwner() async throws {
+        let ctx = try makeContext()
+        var calls = 0
+        let service = AgentService(context: ctx, claude: { _, _ in calls += 1; return ClaudeResult(ok: true, text: "[]") })
+        let task = delegatableTask(ctx, area: "Personal Errands")   // unmapped → no KB
+
+        await service.delegate(task, workVaultRoot: "/work", sources: [])
+
+        XCTAssertEqual(calls, 0)                 // never called claude
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertNil(task.delegation)
+        XCTAssertNotNil(service.lastError)
+    }
+
+    func test_accept_delegatedCard_marksTaskDone_appendsOutputToNotes() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "Write the summary"); task.notes = "context"
+        let rec = Recommendation(title: "Write summary", actionType: "vault_note")
+        rec.task = task; task.delegation = rec
+        let card = OutputCard(content: "Here is the finished summary.", recommendation: rec)
+        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
+
+        service.accept(card)
+
+        XCTAssertEqual(card.review, .accepted)
+        XCTAssertEqual(task.status, .done)
+        XCTAssertNotNil(task.completedAt)
+        XCTAssertTrue(task.notes.contains("Here is the finished summary."))
+    }
+
+    func test_accept_nonDelegatedCard_justAccepts() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Sweep rec", actionType: "vault_note")  // no task link
+        let card = OutputCard(content: "done", recommendation: rec)
+        ctx.insert(rec); ctx.insert(card)
+
+        service.accept(card)
+
+        XCTAssertEqual(card.review, .accepted)
+    }
+
+    func test_discard_delegatedCard_returnsTaskToYou() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "T", owner: .agent)
+        let rec = Recommendation(title: "R", actionType: "vault_note")
+        rec.task = task; task.delegation = rec
+        let card = OutputCard(content: "draft", recommendation: rec)
+        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
+
+        service.discard(card)
+
+        XCTAssertEqual(card.review, .discarded)
+        XCTAssertEqual(task.owner, .me)
+    }
+
+    func test_decide_denyDelegatedRec_returnsTaskToYou() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "T", owner: .agent)
+        let rec = Recommendation(title: "R", actionType: "vault_note")
+        rec.task = task; task.delegation = rec
+        ctx.insert(task); ctx.insert(rec)
+
+        await service.decide(rec, .denied)
+
+        XCTAssertEqual(task.owner, .me)
+    }
 }
