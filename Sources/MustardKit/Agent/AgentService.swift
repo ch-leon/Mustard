@@ -129,7 +129,7 @@ public final class AgentService {
     public func applyTrust(_ trust: TrustLevel) async {
         guard trust != .manual else { return }
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
-            .filter { $0.decision == .pending } ?? []
+            .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs gate themselves in delegate()
         for rec in pending {
             if rec.action == .fyi { continue }   // awareness items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
@@ -141,7 +141,7 @@ public final class AgentService {
             if let card, TrustPolicy.shouldAutoAccept(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) {
-                card.review = .accepted
+                accept(card)
             }
         }
     }

@@ -649,4 +649,21 @@ final class AgentServiceTests: XCTestCase {
 
         XCTAssertEqual(task.owner, .me)
     }
+
+    func test_applyTrust_skipsDelegatedRecs_supervisedQueuesThem() async throws {
+        let ctx = try makeContext()
+        var calls = 0
+        let service = AgentService(context: ctx, claude: { _, _ in calls += 1; return ClaudeResult(ok: true, text: "x") })
+        // A queued delegated rec: pending, non-gated, high confidence, WITH a task link.
+        let task = MustardTask(title: "Delegated work", owner: .agent)
+        let rec = Recommendation(title: "Do it", actionType: "vault_note", confidence: 0.9)
+        rec.task = task; task.delegation = rec
+        ctx.insert(task); ctx.insert(rec)
+
+        await service.applyTrust(.supervised)
+
+        XCTAssertEqual(calls, 0)                       // delegation queues at Supervised — not auto-run by trust sweep
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
 }
