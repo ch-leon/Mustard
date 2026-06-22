@@ -16,6 +16,17 @@ public enum VaultSweep {
     - reasoning: one sentence on why you propose it
     - draft: the proposed content (the note text, the email body, etc.) — what you'd actually produce
 
+    Rules:
+    - Channel: pick draft_slack ONLY for the internal CodeHeroes team; external partners (TMR,
+      CDSB, Thales, clients) get draft_email, never Slack; if the right channel is unclear, use
+      create_task (a reminder to chase) instead of guessing.
+    - Multi-item actions: if one task covers several items (e.g. raising stories for several
+      defects/Jiras), make the draft a scannable list — one line per item with its id + a short
+      summary — not a paragraph.
+    - Blocked on others: if an item is waiting on an external party (e.g. awaiting a client's
+      design/Figma/approval), propose fyi ("still waiting on X — no action yet") or skip it; do
+      NOT raise a confident ticket you can't act on yet.
+
     Respond with ONLY a JSON array, no prose, in this exact shape:
     [{"title": "short imperative title", "body": "1-3 sentences: what and why",
       "action_type": "vault_note", "confidence": 0.8, "reasoning": "why", "draft": "proposed content"}]

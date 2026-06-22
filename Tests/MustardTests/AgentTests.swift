@@ -59,6 +59,19 @@ final class VaultSweepPromptTests: XCTestCase {
         XCTAssertTrue(VaultSweep.prompt.contains("_recs/"))
     }
 
+    func test_prompt_hasChannelRoutingRule() {
+        XCTAssertTrue(VaultSweep.prompt.contains("external partners"))
+        XCTAssertTrue(VaultSweep.prompt.contains("never Slack"))
+    }
+
+    func test_prompt_enumeratesMultiItemDrafts() {
+        XCTAssertTrue(VaultSweep.prompt.contains("one line per item"))
+    }
+
+    func test_prompt_demotesExternallyBlocked() {
+        XCTAssertTrue(VaultSweep.prompt.contains("waiting on"))
+    }
+
     func test_executePrompt_includesDraftAsStartingPoint() {
         let p = VaultSweep.executePrompt(
             title: "Reply to Kamil", body: "He asked for the figures.",

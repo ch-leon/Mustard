@@ -19,11 +19,18 @@ public struct FileVaultIO: MeetingVaultIO {
     }
 
     public func meetingNotePaths() -> [String] {
+        // Subtrees never worth descending into — pruning keeps the 60s harvest cheap
+        // even when a KB embeds a built site (node_modules can be tens of thousands of
+        // files; `Codeheroes work` is ~92% node_modules). Results are unchanged — the
+        // `meetings/` filter already excludes them — this just avoids walking them.
+        let prune: Set<String> = ["node_modules", ".git", ".build", "_artifacts"]
         guard let walker = fileManager.enumerator(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         ) else { return [] }
         var paths: [String] = []
-        for case let url as URL in walker where url.pathExtension == "md" {
+        for case let url as URL in walker {
+            if prune.contains(url.lastPathComponent) { walker.skipDescendants(); continue }
+            guard url.pathExtension == "md" else { continue }
             let rel = relativePath(of: url)
             let components = rel.split(separator: "/").map(String.init)
             // Only curated meeting notes; never our own snapshots / hub scratch.
