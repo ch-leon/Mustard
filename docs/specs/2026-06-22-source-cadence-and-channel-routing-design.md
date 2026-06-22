@@ -10,7 +10,7 @@ Leon wants **email / Jira / Shortcut** and **meeting tasks** flowing in frequent
 
 - `meetingVaultPath` is **unset** → the meeting-task harvest is gated off → no meeting tasks flow.
 - The `inbox-sweep` scout (`~/.claude/scheduled-tasks/inbox-sweep`) is **"Manual only"** → no email/Jira/Shortcut recs since its one manual run on 2026-06-18.
-- The vault sweep has **no interval configured** → it auto-sweeps the DL KB aggressively → it's the source of the large pile of VAULT cards (the thing wanted *least* is loudest).
+- The vault sweep source migrated with **interval 0 = off** (`SweepScheduler.isDue` returns false for `intervalHours == 0`), so it only runs on a manual ⌘K. (The VAULT card pile seen in testing came from *manual* sweeps, not auto-flooding.) This already matches "rare/manual" — no change needed.
 
 Separately, testing surfaced three recommendation-quality gaps (seen on VAULT cards): wrong channel (a Slack draft for a non-Slack external party), prose-wall drafts for multi-item actions, and confident "create a ticket" recs for items blocked on an external party.
 
@@ -18,9 +18,9 @@ Separately, testing surfaced three recommendation-quality gaps (seen on VAULT ca
 
 ### A. Cadence — config only, no code
 
-1. **`inbox-sweep` → hourly, ~7am–7pm, weekdays.** Give the existing routine a cron (it's currently Manual only). It's idempotent (skips already-seen Gmail message ids) and runs locally, so frequent re-runs are cheap; new email/Jira/Shortcut recs reach the app within ≤1h + the existing ~10-min `_recs/` ingest loop. Jira/Shortcut remain **notification-led** (scope A) — direct API sweeps deferred.
-2. **Meeting tasks → set `meetingVaultPath` = `…/Codeheroes work`** (the parent of the sub-vaults). Mustard already reconciles meeting-note tasks every 60s once the path is set; pointing at the parent harvests DL + SB + Sandvik + CH.
-3. **Vault sweep → rare/manual.** Set the vault source interval high (e.g. 24h) so it stops flooding; trigger on demand via ⌘K.
+1. **`inbox-sweep` → hourly, ~6am–5pm, weekdays** (cron `0 6-17 * * 1-5`). Give the existing routine a cron (it's currently Manual only). It's idempotent (skips already-seen Gmail message ids) and runs locally, so frequent re-runs are cheap; new email/Jira/Shortcut recs reach the app within ≤1h + the existing ~10-min `_recs/` ingest loop. Jira/Shortcut remain **notification-led** (scope A) — direct API sweeps deferred.
+2. **Meeting tasks → set `meetingVaultPath` = `…/Codeheroes work`** (the parent of the sub-vaults). Mustard already reconciles meeting-note tasks **every 60s in-app** once the path is set (a free local file-parse, no model call) — this is *more* frequent than hourly and is the only action needed; no throttle is added. Pointing at the parent harvests DL + SB + Sandvik + CH.
+3. **Vault sweep → already off; no change.** The DL vault source migrated with `intervalHours == 0`, which `SweepScheduler` treats as off — so auto-sweep is already disabled and it only runs on a manual ⌘K. Leave it. (The Source Settings panel offers Off / Hourly / 4h / Daily if a schedule is ever wanted.)
 
 ### B. Channel routing rule — applies to both prompts
 
