@@ -1,0 +1,64 @@
+# Source Cadence + Channel Routing — Design
+
+**Date:** 2026-06-22
+**Status:** Approved (brainstormed with Leon 2026-06-22)
+**Related:** ADR-0008 (local-only email scout — this *switches it on*), `docs/scout-routine-prompt.md`, F17 (meeting ingest), F18 (source-ingestion foundation).
+
+## Problem
+
+Leon wants **email / Jira / Shortcut** and **meeting tasks** flowing in frequently, and the **vault sweep** only occasionally. The current setup is inverted:
+
+- `meetingVaultPath` is **unset** → the meeting-task harvest is gated off → no meeting tasks flow.
+- The `inbox-sweep` scout (`~/.claude/scheduled-tasks/inbox-sweep`) is **"Manual only"** → no email/Jira/Shortcut recs since its one manual run on 2026-06-18.
+- The vault sweep has **no interval configured** → it auto-sweeps the DL KB aggressively → it's the source of the large pile of VAULT cards (the thing wanted *least* is loudest).
+
+Separately, testing surfaced three recommendation-quality gaps (seen on VAULT cards): wrong channel (a Slack draft for a non-Slack external party), prose-wall drafts for multi-item actions, and confident "create a ticket" recs for items blocked on an external party.
+
+## Decisions
+
+### A. Cadence — config only, no code
+
+1. **`inbox-sweep` → hourly, ~7am–7pm, weekdays.** Give the existing routine a cron (it's currently Manual only). It's idempotent (skips already-seen Gmail message ids) and runs locally, so frequent re-runs are cheap; new email/Jira/Shortcut recs reach the app within ≤1h + the existing ~10-min `_recs/` ingest loop. Jira/Shortcut remain **notification-led** (scope A) — direct API sweeps deferred.
+2. **Meeting tasks → set `meetingVaultPath` = `…/Codeheroes work`** (the parent of the sub-vaults). Mustard already reconciles meeting-note tasks every 60s once the path is set; pointing at the parent harvests DL + SB + Sandvik + CH.
+3. **Vault sweep → rare/manual.** Set the vault source interval high (e.g. 24h) so it stops flooding; trigger on demand via ⌘K.
+
+### B. Channel routing rule — applies to both prompts
+
+When proposing an outbound action: **internal team → Slack; external partners (TMR / CDSB / Thales / etc.) → email; channel unknown → a task for Leon to chase.** Consult the project's `people/` / `partners/` notes for the channel; never default to Slack for an external party.
+
+### C. `VaultSweep.prompt` quality fixes — the only Mustard code change
+
+1. **Channel rule** (B) folded into the recommendation prompt's action-type/draft guidance.
+2. **Multi-item drafts → enumerate.** When one action covers several items (e.g. "raise stories for these defects"), the draft must be a scannable list — one line per item with its id + summary — not a prose paragraph.
+3. **Externally-blocked items → demote.** If a notes item is blocked / awaiting an external party, propose `fyi` ("still waiting on X — no action") or skip it; do not raise a confident ticket.
+
+### D. Scout `SKILL.md` prompt
+
+Add the channel rule (B) to `inbox-sweep`'s draft guidance (same rule, so its `draft_email` vs `draft_slack` choices come out right).
+
+## Out of scope (YAGNI / deferred)
+
+- **Direct Jira/Shortcut API sweep sources** (scope B) — deferred; revisit only if notification-led intake proves to miss things.
+- **Cloud routine / git sync** — ADR-0008 stands: local-only.
+- **Mac-independence / mobile** — deferred.
+- Multi-item draft *structure* changes to the scout (it's mostly 1-email→1-rec); the enumerate rule (C2) is for the vault sweep where multi-item actions arise.
+
+## Mechanics — who changes what
+
+| Change | Where | In the Mustard repo? |
+|---|---|---|
+| `inbox-sweep` cron (hourly, weekdays) | `~/.claude/scheduled-tasks/inbox-sweep` | no — Leon's Claude routine config |
+| `inbox-sweep` prompt: channel rule | `inbox-sweep/SKILL.md` | no |
+| `meetingVaultPath` + vault interval | Mustard Settings (UserDefaults) | no — app settings |
+| `VaultSweep.prompt` fixes (C) | `Sources/MustardKit/Agent/VaultSweep.swift` | **yes — the only code change** |
+
+The non-repo changes (cron, SKILL prompt, app settings) are reversible config; diffs/values shown to Leon before applying. Scheduling `inbox-sweep` means it begins reading Gmail on a timer — an outward, ongoing effect — so it's enabled only on Leon's explicit go-ahead.
+
+## Testing
+
+- `VaultSweep.prompt` is substring-tested (`VaultSweepPromptTests`). Add assertions (TDD) that the prompt contains the channel-rule, enumerate-multi-item, and demote-blocked guidance. (This verifies the *instruction* is present — actual recommendation quality is judged by Leon's live testing, per the project's build+eye rule for prompts.)
+- Config changes verified operationally: `inbox-sweep` `lastRunAt` advancing hourly; meeting tasks appearing in the Inbox; the vault sweep no longer auto-firing between manual runs.
+
+## Note
+
+This realizes the local scout described in ADR-0008 (accepted 2026-06-17) — that ADR decided the *architecture*; this turns it on with a schedule and tunes routing. The earlier "mac-independence deferred" stance is unchanged (still Mac-on, local-only).
