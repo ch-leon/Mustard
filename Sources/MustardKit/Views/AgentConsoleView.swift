@@ -228,6 +228,7 @@ struct RecommendationRow: View {
                         .help("Email, Slack, and ticket actions are always gated regardless of trust.")
                 }
                 Spacer()
+                SourceLinkButton(rec: rec)
                 Button(expanded ? "Hide" : "Review") {
                     withAnimation(.snappy(duration: 0.15)) { expanded.toggle() }
                 }
@@ -508,6 +509,7 @@ struct OutputCardRow: View {
                         .help("Revision \(version) — earlier outputs are kept in history.")
                 }
                 Spacer()
+                SourceLinkButton(card: card)
                 Button(expanded ? "Less" : "More") { expanded.toggle() }
                     .buttonStyle(.plain)
                     .font(Theme.Fonts.meta)
