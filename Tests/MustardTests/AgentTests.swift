@@ -72,6 +72,11 @@ final class VaultSweepPromptTests: XCTestCase {
         XCTAssertTrue(VaultSweep.prompt.contains("waiting on"))
     }
 
+    func test_prompt_distinguishesTicketWriteFromCreateTask() {
+        XCTAssertTrue(VaultSweep.prompt.contains("DRAFTING A NEW ticket"))
+        XCTAssertTrue(VaultSweep.prompt.contains("EXISTING ticket"))
+    }
+
     func test_executePrompt_includesDraftAsStartingPoint() {
         let p = VaultSweep.executePrompt(
             title: "Reply to Kamil", body: "He asked for the figures.",

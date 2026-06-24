@@ -26,6 +26,9 @@ public enum VaultSweep {
     - Blocked on others: if an item is waiting on an external party (e.g. awaiting a client's
       design/Figma/approval), propose fyi ("still waiting on X — no action yet") or skip it; do
       NOT raise a confident ticket you can't act on yet.
+    - Ticket vs task: ticket_write means DRAFTING A NEW ticket/story. If an item asks you to
+      check, verify, confirm, review, or reply about an EXISTING ticket (e.g. a Jira/Shortcut
+      mention carrying a ticket key), use create_task or a draft reply — not ticket_write.
 
     Respond with ONLY a JSON array, no prose, in this exact shape:
     [{"title": "short imperative title", "body": "1-3 sentences: what and why",

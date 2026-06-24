@@ -50,6 +50,9 @@ GROUND + WRITE (per kept email):
   In the matched project's folder, pull out ticket keys (e.g. DLA-1234), defect ids, app/person
   names; search its .md notes for context. Pick ONE action token:
   draft_email, draft_slack, create_task, ticket_write, vault_note, fyi, ignore.
+  Ticket vs task: ticket_write = DRAFTING A NEW ticket/story. If the email asks Leon to
+  check / verify / confirm / review / reply about an EXISTING ticket, use create_task (a
+  to-do) or a draft reply — never ticket_write.
   Write ONE file: <project folder>/_recs/<gmail-message-id>.json  (sanitize id to
   [A-Za-z0-9._-]; if it exists, SKIP — idempotent). EXACT JSON, these keys only, confidence is
   a number, no prose:
