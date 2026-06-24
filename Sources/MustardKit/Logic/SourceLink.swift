@@ -1,0 +1,64 @@
+import Foundation
+
+/// Pure resolver: turns an item's stored `sourceURL` (+ source string) into an
+/// openable web link, or `nil`. The scheme allow-list (`http`/`https`) is a
+/// security boundary — a `sourceURL` can come from the agent or an external
+/// source, so we never let a `file:`/`javascript:`/other-scheme string drive a
+/// load. Vault note paths (meeting tasks) have no scheme and are rejected.
+public struct SourceLink: Equatable {
+    public let url: URL
+    /// The item's title — shown as the panel header text.
+    public let label: String
+    /// Lowercased raw source string (e.g. "shortcut", "jira", "gmail", "vault").
+    public let sourceKind: String
+
+    public init?(sourceURL: String?, source: String, title: String) {
+        guard
+            let raw = sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+            let url = URL(string: raw),
+            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https"
+        else { return nil }
+        self.url = url
+        self.label = title
+        self.sourceKind = source.lowercased()
+    }
+
+    /// SF Symbol for the source glyph. Mirrors `SourceBadge` for gmail/vault and
+    /// adds ticket-ish symbols for jira/shortcut (which `SourceBadge` can't map yet).
+    public var symbol: String {
+        switch sourceKind {
+        case "shortcut": "checklist"
+        case "jira": "ticket"
+        case "gmail": "envelope.fill"
+        case "vault": "books.vertical"
+        default: "link"
+        }
+    }
+
+    /// Friendly source name (header tooltip / accessibility).
+    public var sourceName: String {
+        switch sourceKind {
+        case "shortcut": "Shortcut"
+        case "jira": "Jira"
+        case "gmail": "Gmail"
+        case "vault": "Vault"
+        default: "Source"
+        }
+    }
+}
+
+public extension SourceLink {
+    init?(from rec: Recommendation) {
+        self.init(sourceURL: rec.sourceURL, source: rec.source, title: rec.title)
+    }
+
+    init?(from task: MustardTask) {
+        self.init(sourceURL: task.sourceURL, source: task.source, title: task.title)
+    }
+
+    /// Output cards have no URL of their own — resolve via the parent recommendation.
+    init?(from card: OutputCard) {
+        guard let rec = card.recommendation else { return nil }
+        self.init(from: rec)
+    }
+}

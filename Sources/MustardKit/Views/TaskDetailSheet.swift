@@ -156,6 +156,7 @@ public struct TaskDetailSheet: View {
         HStack {
             Text("Task").font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)
             Spacer()
+            SourceLinkButton(task: task)
             Button("Done") { dismiss() }.controlSize(.small)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
