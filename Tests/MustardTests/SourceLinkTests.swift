@@ -15,6 +15,12 @@ final class SourceLinkTests: XCTestCase {
         XCTAssertNotNil(SourceLink(sourceURL: "http://example.com/x", source: "jira", title: "T"))
     }
 
+    func test_uppercaseScheme_resolves() {
+        // Scheme comparison is case-insensitive — the boundary must let HTTPS/HTTP through.
+        XCTAssertNotNil(SourceLink(sourceURL: "HTTPS://example.com/x", source: "jira", title: "T"))
+        XCTAssertNotNil(SourceLink(sourceURL: "HTTP://example.com/x", source: "jira", title: "T"))
+    }
+
     func test_fileScheme_rejected() {
         XCTAssertNil(SourceLink(sourceURL: "file:///etc/passwd", source: "vault", title: "T"))
     }
@@ -51,6 +57,14 @@ final class SourceLinkTests: XCTestCase {
         XCTAssertEqual(SourceLink(sourceURL: "https://a.co", source: "shortcut", title: "T")?.sourceName, "Shortcut")
         XCTAssertEqual(SourceLink(sourceURL: "https://a.co", source: "jira", title: "T")?.sourceName, "Jira")
         XCTAssertEqual(SourceLink(sourceURL: "https://a.co", source: "carrier-pigeon", title: "T")?.sourceName, "Source")
+    }
+
+    func test_mixedCaseSource_normalizesKind() {
+        // Agent / ingest output may arrive with mixed case; sourceKind is lowercased.
+        let link = SourceLink(sourceURL: "https://a.co", source: "ShortCut", title: "T")
+        XCTAssertEqual(link?.sourceKind, "shortcut")
+        XCTAssertEqual(link?.symbol, "checklist")
+        XCTAssertEqual(link?.sourceName, "Shortcut")
     }
 
     // MARK: model resolvers

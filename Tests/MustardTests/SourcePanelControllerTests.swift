@@ -13,4 +13,14 @@ final class SourcePanelControllerTests: XCTestCase {
         XCTAssertEqual(controller.current, link)
         XCTAssertTrue(controller.isPresented)
     }
+
+    func test_open_replacesCurrent() {
+        let controller = SourcePanelController()
+        let a = SourceLink(sourceURL: "https://a.com", source: "jira", title: "A")!
+        let b = SourceLink(sourceURL: "https://b.com", source: "shortcut", title: "B")!
+        controller.open(a)
+        controller.open(b)
+        XCTAssertEqual(controller.current, b)
+        XCTAssertTrue(controller.isPresented)
+    }
 }
