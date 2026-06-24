@@ -178,6 +178,26 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
     }
 
+    func test_archiveStaleMeetingTasks_completesOld_retagsSource_leavesRecent() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+        let old = MustardTask(title: "old"); old.source = "meeting"
+        old.sourceURL = "DL/meetings/2026/05/2026-05-01-planning.md"
+        let recent = MustardTask(title: "recent"); recent.source = "meeting"
+        recent.sourceURL = "DL/meetings/2026/06/2026-06-23-standup.md"
+        ctx.insert(old); ctx.insert(recent)
+
+        let count = service.archiveStaleMeetingTasks(
+            now: ISO8601DateFormatter().date(from: "2026-06-24T00:00:00Z")!
+        )
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(old.status, .done)
+        XCTAssertEqual(old.source, "meeting:archived")
+        XCTAssertEqual(recent.status, .inbox, "recent meeting task is untouched")
+        XCTAssertEqual(recent.source, "meeting")
+    }
+
     func test_approve_executesAndProducesExactlyOneCard() async throws {
         let ctx = try makeContext()
         let stub: ClaudeRun = { prompt, _ in
