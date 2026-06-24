@@ -21,7 +21,7 @@ struct SourcePanelView: View {
             }
         }
         .background(Theme.Palette.bg)
-        .onChange(of: panel.current?.url) { _, _ in
+        .onChange(of: panel.current) { _, _ in
             web.loadFailed = false
             web.isLoading = true
         }

@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 
 /// Loading / navigation state for the embedded web view, observed by the panel.
+@MainActor
 @Observable
 final class WebViewModel {
     var isLoading = false
@@ -33,6 +34,7 @@ struct WebView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: WKWebView, context: Context) {
+        model.webView = view
         guard context.coordinator.lastRequested != url else { return }
         context.coordinator.lastRequested = url
         view.load(URLRequest(url: url))
@@ -40,6 +42,7 @@ struct WebView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(model) }
 
+    @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         let model: WebViewModel
         var lastRequested: URL?
