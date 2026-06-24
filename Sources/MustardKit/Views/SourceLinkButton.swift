@@ -16,19 +16,28 @@ struct SourceLinkButton: View {
 }
 
 private struct SourceLinkButtonInner: View {
-    @Environment(SourcePanelController.self) private var panel
+    // Optional: present in the main window (RootView injects it), absent in a
+    // modal sheet's hosting context. Optional avoids a fatal @Environment trap.
+    @Environment(SourcePanelController.self) private var panel: SourcePanelController?
     @Environment(\.openURL) private var openURL
     let link: SourceLink
 
+    /// Open in the inspector when the controller is reachable; otherwise fall back
+    /// to the external browser — e.g. from a modal sheet, where the inspector would
+    /// be hidden behind the sheet anyway, so the browser is the better destination.
+    private func open() {
+        if let panel { panel.open(link) } else { openURL(link.url) }
+    }
+
     var body: some View {
-        Button { panel.open(link) } label: {
+        Button { open() } label: {
             Image(systemName: link.symbol).font(.system(size: 12))
                 .foregroundStyle(Theme.Palette.agent)
         }
         .buttonStyle(.plain)
-        .help("Open source in panel — \(link.sourceName)")
+        .help("Open source — \(link.sourceName)")
         .contextMenu {
-            Button("Open in panel") { panel.open(link) }
+            Button("Open in panel") { open() }
             Button("Open in browser") { openURL(link.url) }
             Button("Copy link") {
                 NSPasteboard.general.clearContents()
