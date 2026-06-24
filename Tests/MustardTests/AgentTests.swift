@@ -663,6 +663,23 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(task.owner, .me)
     }
 
+    func test_applyTrust_neverAutoExecutesIgnoreRecs() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let stub: ClaudeRun = { _, _ in called = true; return ClaudeResult(ok: true, text: "x") }
+        let service = AgentService(context: ctx, claude: stub)
+        // Non-gated + high confidence would normally auto-run at Trusted.
+        let rec = Recommendation(title: "PO Review", actionType: "ignore",
+                                 vaultPath: "/tmp/vault", confidence: 0.95)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called, "ignore recs must never auto-execute")
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
     func test_applyTrust_skipsDelegatedRecs_supervisedQueuesThem() async throws {
         let ctx = try makeContext()
         var calls = 0

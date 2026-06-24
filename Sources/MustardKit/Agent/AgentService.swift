@@ -111,7 +111,11 @@ public final class AgentService {
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
         let existing = (try? context.fetch(FetchDescriptor<Recommendation>())) ?? []
         var accepted: [Recommendation] = []
-        for p in proposals where SourceDedupe.shouldInsert(p, against: existing + accepted) {
+        for raw in proposals {
+            // Deterministic Mac-side normalization (logical source + PO-review→ignore)
+            // BEFORE dedupe, so dedupe keys on the stable post-normalization source.
+            let p = IngestNormalizer.normalize(raw)
+            guard SourceDedupe.shouldInsert(p, against: existing + accepted) else { continue }
             let rec = Recommendation(from: p, vaultPath: vaultPath)
             context.insert(rec)
             accepted.append(rec)
@@ -131,7 +135,7 @@ public final class AgentService {
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
             .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs gate themselves in delegate()
         for rec in pending {
-            if rec.action == .fyi { continue }   // awareness items are never auto-actioned
+            if rec.action == .fyi || rec.action == .ignore { continue }   // awareness/ignored items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) else { continue }
