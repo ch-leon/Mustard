@@ -72,6 +72,11 @@ final class VaultSweepPromptTests: XCTestCase {
         XCTAssertTrue(VaultSweep.prompt.contains("waiting on"))
     }
 
+    func test_prompt_distinguishesTicketWriteFromCreateTask() {
+        XCTAssertTrue(VaultSweep.prompt.contains("DRAFTING A NEW ticket"))
+        XCTAssertTrue(VaultSweep.prompt.contains("EXISTING ticket"))
+    }
+
     func test_executePrompt_includesDraftAsStartingPoint() {
         let p = VaultSweep.executePrompt(
             title: "Reply to Kamil", body: "He asked for the figures.",
@@ -171,6 +176,26 @@ final class AgentServiceTests: XCTestCase {
 
         XCTAssertNotNil(service.lastError)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+    }
+
+    func test_archiveStaleMeetingTasks_completesOld_retagsSource_leavesRecent() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+        let old = MustardTask(title: "old"); old.source = "meeting"
+        old.sourceURL = "DL/meetings/2026/05/2026-05-01-planning.md"
+        let recent = MustardTask(title: "recent"); recent.source = "meeting"
+        recent.sourceURL = "DL/meetings/2026/06/2026-06-23-standup.md"
+        ctx.insert(old); ctx.insert(recent)
+
+        let count = service.archiveStaleMeetingTasks(
+            now: ISO8601DateFormatter().date(from: "2026-06-24T00:00:00Z")!
+        )
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(old.status, .done)
+        XCTAssertEqual(old.source, "meeting:archived")
+        XCTAssertEqual(recent.status, .inbox, "recent meeting task is untouched")
+        XCTAssertEqual(recent.source, "meeting")
     }
 
     func test_approve_executesAndProducesExactlyOneCard() async throws {
@@ -663,6 +688,23 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(task.owner, .me)
     }
 
+    func test_applyTrust_neverAutoExecutesIgnoreRecs() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let stub: ClaudeRun = { _, _ in called = true; return ClaudeResult(ok: true, text: "x") }
+        let service = AgentService(context: ctx, claude: stub)
+        // Non-gated + high confidence would normally auto-run at Trusted.
+        let rec = Recommendation(title: "PO Review", actionType: "ignore",
+                                 vaultPath: "/tmp/vault", confidence: 0.95)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called, "ignore recs must never auto-execute")
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
     func test_applyTrust_skipsDelegatedRecs_supervisedQueuesThem() async throws {
         let ctx = try makeContext()
         var calls = 0
@@ -678,5 +720,22 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(calls, 0)                       // delegation queues at Supervised — not auto-run by trust sweep
         XCTAssertEqual(rec.decision, .pending)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+    }
+
+    func test_ingestInbox_reclassifiesGmailJiraNotificationToJiraSource() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let json = #"{"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"e1","sourceContext":"Jira · DLA-5280 · mentioned","title":"Confirm DLA-5280 status","body":"b","actionType":"ticket_write","confidence":0.8,"reasoning":"r","draft":"d"}"#
+        try json.write(toFile: recs + "/e1.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        let stored = try ctx.fetch(FetchDescriptor<Recommendation>())
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored.first?.source, "jira", "a Gmail-delivered Jira notification should be stored as source=jira")
     }
 }

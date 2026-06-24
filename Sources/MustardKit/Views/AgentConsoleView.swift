@@ -18,9 +18,7 @@ public struct AgentConsoleView: View {
     public init() {}
 
     private var pending: [Recommendation] {
-        recommendations.filter {
-            $0.decision == .pending && ($0.snoozedUntil == nil || $0.snoozedUntil! <= .now)
-        }
+        RecommendationQueue.pending(recommendations, now: .now)
     }
 
     private var reviewQueue: [OutputCard] {
@@ -408,9 +406,9 @@ struct ProvenancePill: View {
             } else {
                 Label(badge.label, systemImage: badge.symbol)
                     .labelStyle(.titleAndIcon).font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(hex: "#A32D2D"))
+                    .foregroundStyle(Color(hex: badge.fgHex))
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color(hex: "#FCEBEB"), in: Capsule())
+                    .background(Color(hex: badge.bgHex), in: Capsule())
             }
             if !rec.sourceContext.isEmpty {
                 Text("· \(rec.sourceContext)").font(Theme.Fonts.meta)

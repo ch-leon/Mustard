@@ -61,6 +61,14 @@ struct MustardApp: App {
                                 lastInbox = .now
                             }
                         }
+                        // One-time backlog prune (2026-06-24 spec): retire the pre-filter
+                        // flood of teammates' meeting tasks — mark anything from a meeting
+                        // older than a week done (Mustard-only; never touches the vault).
+                        if !meetingVaultPath.isEmpty,
+                           !UserDefaults.standard.bool(forKey: "didArchiveStaleMeetingTasks") {
+                            agent.archiveStaleMeetingTasks()
+                            UserDefaults.standard.set(true, forKey: "didArchiveStaleMeetingTasks")
+                        }
                         // Meeting-task harvest is cheap (no model call) — reconcile
                         // every tick, independent of the claude sweep interval.
                         if !meetingVaultPath.isEmpty, !agent.isSweeping, !agent.isExecuting {
