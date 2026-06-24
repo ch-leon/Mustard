@@ -46,6 +46,7 @@ public struct RootView: View {
     @State private var screen: MustardScreen = .today
     @State private var selectedScope: ListScope?
     @State private var showCommandBar = false
+    @State private var sourcePanel = SourcePanelController()
     @Query private var cards: [OutputCard]
     @Query private var recommendations: [Recommendation]
 
@@ -84,11 +85,21 @@ public struct RootView: View {
             }
         }
         .background {
-            // Hidden trigger: ⌘K opens the command bar while the window is key.
-            Button("") { showCommandBar.toggle() }
-                .keyboardShortcut("k", modifiers: .command)
-                .opacity(0)
+            Group {
+                // Hidden trigger: ⌘K opens the command bar while the window is key.
+                Button("") { showCommandBar.toggle() }
+                    .keyboardShortcut("k", modifiers: .command)
+                // Hidden trigger: ⌘⇧S toggles the source inspector.
+                Button("") { sourcePanel.isPresented.toggle() }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+            }
+            .opacity(0)
         }
+        .inspector(isPresented: $sourcePanel.isPresented) {
+            SourcePanelView()
+                .inspectorColumnWidth(min: 280, ideal: 360, max: 560)
+        }
+        .environment(sourcePanel)
         // Locked light design (ADR-0005); pin appearance so native controls
         // (TextEditor, DatePicker, pickers) don't render dark under macOS dark mode.
         // The notch is a separate panel with its own explicit dark colors — unaffected.
