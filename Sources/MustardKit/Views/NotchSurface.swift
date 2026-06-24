@@ -118,7 +118,7 @@ public struct NotchView: View {
     }
 
     private var pending: [Recommendation] {
-        recommendations.filter { $0.decision == .pending }
+        RecommendationQueue.pending(recommendations, now: .now)
     }
 
     private var waitingCount: Int {
