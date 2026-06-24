@@ -64,7 +64,7 @@ public struct HoverPanelView: View {
     }
 
     private var waitingCount: Int {
-        recommendations.filter { $0.decision == .pending }.count
+        RecommendationQueue.pending(recommendations, now: .now).count
             + cards.filter { $0.review == .pending }.count
     }
 

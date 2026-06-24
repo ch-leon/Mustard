@@ -71,6 +71,26 @@ final class MeetingTaskSyncTests: XCTestCase {
         XCTAssertEqual(second.imported, 0)
     }
 
+    func test_archivedMeetingTask_notReimported_andNotWrittenBack() throws {
+        let ctx = try makeContext()
+        let path = "DL/meetings/old-sync.md"
+        let io = FakeVaultIO([path: note("- [ ] Old team task")])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+        XCTAssertEqual(sync.importTasks().imported, 1)
+
+        // The one-time backlog prune marks the task done and retags its source.
+        let t = try XCTUnwrap(try tasks(ctx).first { $0.source == "meeting" })
+        t.markDone()
+        t.source = "meeting:archived"
+        let beforeReimport = io.files[path]
+
+        let again = sync.importTasks()
+
+        XCTAssertEqual(again.imported, 0, "sentinel must still dedupe — no re-flood")
+        XCTAssertEqual(try tasks(ctx).count, 1, "no duplicate created")
+        XCTAssertEqual(io.files[path], beforeReimport, "archived task must not write ✅ back to the vault")
+    }
+
     func test_import_assignsAreaByVaultRoot() throws {
         let ctx = try makeContext()
         let io = FakeVaultIO([

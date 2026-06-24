@@ -61,6 +61,23 @@ public final class AgentService {
         }
     }
 
+    /// One-time backlog prune (2026-06-24 spec): the meeting importer historically
+    /// lifted the whole team's action items in as Leon's tasks. Mark every meeting
+    /// task whose meeting is older than `days` as done and retag its source to
+    /// `meeting:archived` — which keeps it deduping (so the stale lines don't
+    /// re-import) while the write-back guard skips it (so the vault notes stay
+    /// untouched). Run-once is the caller's responsibility. Returns the count archived.
+    @discardableResult
+    public func archiveStaleMeetingTasks(now: Date = .now, olderThanDays days: Int = 7) -> Int {
+        let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
+        let stale = MeetingTaskCleanup.tasksToArchive(all, now: now, olderThanDays: days)
+        for task in stale {
+            task.markDone(now: now)
+            task.source = "meeting:archived"
+        }
+        return stale.count
+    }
+
     /// Scheduled multi-source sweep: run each enabled + due source serially through
     /// the shared pipeline, advance per-source scheduling state only on success, and
     /// run trust once at the end. Returns updated settings for the caller to persist.
@@ -111,7 +128,11 @@ public final class AgentService {
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
         let existing = (try? context.fetch(FetchDescriptor<Recommendation>())) ?? []
         var accepted: [Recommendation] = []
-        for p in proposals where SourceDedupe.shouldInsert(p, against: existing + accepted) {
+        for raw in proposals {
+            // Deterministic Mac-side normalization (logical source + PO-review→ignore)
+            // BEFORE dedupe, so dedupe keys on the stable post-normalization source.
+            let p = IngestNormalizer.normalize(raw)
+            guard SourceDedupe.shouldInsert(p, against: existing + accepted) else { continue }
             let rec = Recommendation(from: p, vaultPath: vaultPath)
             context.insert(rec)
             accepted.append(rec)
@@ -131,7 +152,7 @@ public final class AgentService {
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
             .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs gate themselves in delegate()
         for rec in pending {
-            if rec.action == .fyi { continue }   // awareness items are never auto-actioned
+            if rec.action == .fyi || rec.action == .ignore { continue }   // awareness/ignored items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) else { continue }

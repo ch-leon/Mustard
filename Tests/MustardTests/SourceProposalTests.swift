@@ -94,4 +94,32 @@ final class SourceProposalTests: XCTestCase {
         let back = try dec.decode(SourceProposal.self, from: enc.encode(p))
         XCTAssertEqual(p, back)
     }
+
+    func test_sourceID_jiraAndShortcut_rawValues() {
+        XCTAssertEqual(SourceID(rawValue: "jira"), .jira)
+        XCTAssertEqual(SourceID(rawValue: "shortcut"), .shortcut)
+    }
+
+    func test_reclassified_overridesSourceAndAction_preservesEverythingElse() {
+        let p = SourceProposal(
+            source: .gmail, project: "DL", sourceItemID: "t1", sourceEventID: "e1",
+            sourceContext: "Jira · DLA-5280", sourceURL: "https://x", title: "T", body: "B",
+            actionType: "ticket_write", originalSource: "raw", confidence: 0.8,
+            reasoning: "r", draft: "d"
+        )
+        let out = p.reclassified(source: .jira, actionType: "create_task")
+        XCTAssertEqual(out.source, .jira)
+        XCTAssertEqual(out.actionType, "create_task")
+        XCTAssertEqual(out.project, "DL")
+        XCTAssertEqual(out.sourceItemID, "t1")
+        XCTAssertEqual(out.sourceEventID, "e1")
+        XCTAssertEqual(out.sourceContext, "Jira · DLA-5280")
+        XCTAssertEqual(out.sourceURL, "https://x")
+        XCTAssertEqual(out.title, "T")
+        XCTAssertEqual(out.body, "B")
+        XCTAssertEqual(out.originalSource, "raw")
+        XCTAssertEqual(out.confidence, 0.8, accuracy: 0.001)
+        XCTAssertEqual(out.reasoning, "r")
+        XCTAssertEqual(out.draft, "d")
+    }
 }

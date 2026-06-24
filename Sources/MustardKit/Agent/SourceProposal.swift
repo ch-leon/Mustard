@@ -5,6 +5,8 @@ import Foundation
 public enum SourceID: String, Codable, CaseIterable, Sendable {
     case gmail
     case vault
+    case jira
+    case shortcut
 }
 
 /// A source agent's output: a recommendation draft plus the provenance needed to
@@ -66,6 +68,17 @@ public extension SourceProposal {
             source: .vault, project: project, sourceItemID: hash, sourceEventID: hash,
             title: p.title, body: p.body, actionType: p.actionType,
             confidence: p.confidence, reasoning: p.reasoning, draft: p.draft
+        )
+    }
+
+    /// A copy with the logical source and/or action overridden, everything else
+    /// preserved. Used by `IngestNormalizer` to re-stamp the immutable proposal.
+    func reclassified(source: SourceID, actionType: String) -> SourceProposal {
+        SourceProposal(
+            source: source, project: project, sourceItemID: sourceItemID,
+            sourceEventID: sourceEventID, sourceContext: sourceContext, sourceURL: sourceURL,
+            occurredAt: occurredAt, title: title, body: body, actionType: actionType,
+            originalSource: originalSource, confidence: confidence, reasoning: reasoning, draft: draft
         )
     }
 
