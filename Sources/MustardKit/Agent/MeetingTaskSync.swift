@@ -153,7 +153,11 @@ public final class MeetingTaskSync {
     private func existingMeetingTasksByKey() -> [String: MustardTask] {
         let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
         var byKey: [String: MustardTask] = [:]
-        for t in all where t.source == "meeting" {
+        // `hasPrefix` so backlog-pruned tasks (source `meeting:archived`) keep
+        // suppressing re-import of their now-stale lines — without them the old
+        // lines would re-flood as fresh tasks. Write-back stays gated on the exact
+        // `"meeting"` source below, so archived tasks never tick the vault.
+        for t in all where t.source.hasPrefix("meeting") {
             if let k = t.originKey { byKey[k] = t }
         }
         return byKey
