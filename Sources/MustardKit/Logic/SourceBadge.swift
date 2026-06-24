@@ -9,8 +9,10 @@ public struct SourceBadge: Equatable {
 
     public static func badge(for source: SourceID) -> SourceBadge {
         switch source {
-        case .gmail: SourceBadge(symbol: "envelope.fill", label: "Gmail", isQuiet: false)
-        case .vault: SourceBadge(symbol: "books.vertical", label: "Vault", isQuiet: true)
+        case .gmail:    SourceBadge(symbol: "envelope.fill",      label: "Gmail",    isQuiet: false)
+        case .vault:    SourceBadge(symbol: "books.vertical",     label: "Vault",    isQuiet: true)
+        case .jira:     SourceBadge(symbol: "ticket",             label: "Jira",     isQuiet: false)
+        case .shortcut: SourceBadge(symbol: "lasso",              label: "Shortcut", isQuiet: false)
         }
     }
 
