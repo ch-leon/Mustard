@@ -701,4 +701,21 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(rec.decision, .pending)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
     }
+
+    func test_ingestInbox_reclassifiesGmailJiraNotificationToJiraSource() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let json = #"{"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"e1","sourceContext":"Jira · DLA-5280 · mentioned","title":"Confirm DLA-5280 status","body":"b","actionType":"ticket_write","confidence":0.8,"reasoning":"r","draft":"d"}"#
+        try json.write(toFile: recs + "/e1.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        let stored = try ctx.fetch(FetchDescriptor<Recommendation>())
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored.first?.source, "jira", "a Gmail-delivered Jira notification should be stored as source=jira")
+    }
 }
