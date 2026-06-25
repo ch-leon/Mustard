@@ -28,6 +28,8 @@ public enum Theme {
         public static let agent = Color(hex: "#7F77DD")
         public static let done = Color(hex: "#1D9E75")
         public static let warning = Color(hex: "#D98A29") // overdue / needs-attention amber
+        public static let warningSoft = Color(hex: "#FAEEDA") // amber pill background (needs-you badge)
+        public static let warningDeep = Color(hex: "#633806") // amber pill text (needs-you badge)
     }
 
     public enum Fonts {
