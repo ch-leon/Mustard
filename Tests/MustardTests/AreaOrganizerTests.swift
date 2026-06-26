@@ -77,6 +77,29 @@ final class AreaOrganizerTests: XCTestCase {
         XCTAssertEqual(AreaOrganizer.unfiledCount(tasks), 1)
     }
 
+    func test_active_excludesDone_preservesOrder() {
+        let dev = list("Dev")
+        let a = task("a", list: dev, created: 1)
+        let b = task("b", list: dev, status: .done, created: 2)
+        let c = task("c", list: dev, status: .inProgress, created: 3)
+        let d = task("d", list: dev, status: .someday, created: 4)
+
+        let scoped = AreaOrganizer.tasks(in: dev, from: [a, b, c, d])
+        XCTAssertEqual(AreaOrganizer.active(scoped).map(\.title), ["a", "c", "d"])
+    }
+
+    func test_completed_onlyDone_newestCompletionFirst() {
+        let dev = list("Dev")
+        let a = task("a", list: dev, created: 1)
+        let oldDone = task("old", list: dev, status: .done, created: 2)
+        oldDone.completedAt = Date(timeIntervalSince1970: 100)
+        let newDone = task("new", list: dev, status: .done, created: 3)
+        newDone.completedAt = Date(timeIntervalSince1970: 200)
+
+        let scoped = AreaOrganizer.tasks(in: dev, from: [a, oldDone, newDone])
+        XCTAssertEqual(AreaOrganizer.completed(scoped).map(\.title), ["new", "old"])
+    }
+
     func test_sortedAreas_byNameCaseInsensitive_thenCreatedAt() {
         let zeta = Area(name: "Zeta")
         let alpha = Area(name: "alpha")
