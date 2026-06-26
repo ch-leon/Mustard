@@ -36,4 +36,25 @@ final class DelegationPhaseTests: XCTestCase {
                                     decision: .approved, latestReview: .accepted, taskDone: true),
             .done)
     }
+
+    func test_tone_none_isNil() {
+        XCTAssertNil(DelegationPhase.none.tone)
+    }
+
+    func test_tone_proposedAndAwaitingReview_areNeedsYou() {
+        XCTAssertEqual(DelegationPhase.proposed.tone, .needsYou)
+        XCTAssertEqual(DelegationPhase.awaitingReview.tone, .needsYou)
+    }
+
+    func test_tone_working_isAgentHasIt() {
+        XCTAssertEqual(DelegationPhase.working.tone, .agentHasIt)
+    }
+
+    func test_tone_done_isDoneByAgent() {
+        XCTAssertEqual(DelegationPhase.done.tone, .doneByAgent)
+    }
+
+    func test_awaitingReviewLabel_isYourTurn() {
+        XCTAssertEqual(DelegationPhase.awaitingReview.label, "Your turn")
+    }
 }

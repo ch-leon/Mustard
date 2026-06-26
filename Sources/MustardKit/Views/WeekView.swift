@@ -251,9 +251,6 @@ struct WeekChip: View {
     var overdue = false
     var body: some View {
         HStack(spacing: 6) {
-            if task.owner == .agent {
-                Image(systemName: "cpu").font(.system(size: 10)).foregroundStyle(Theme.Palette.agent)
-            }
             Text(task.title).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
             Spacer(minLength: 0)
             DelegationBadge(task: task)
