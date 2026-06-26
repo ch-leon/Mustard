@@ -16,9 +16,11 @@ public struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                ForEach(scheduled) { task in
-                    TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
-                    Divider().overlay(Theme.Palette.hairline)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(scheduled) { task in
+                        TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
+                        Divider().overlay(Theme.Palette.hairline)
+                    }
                 }
                 if scheduled.isEmpty {
                     Text("Nothing scheduled yet")
@@ -34,9 +36,11 @@ public struct TodayView: View {
                         .foregroundStyle(Theme.Palette.textTertiary)
                         .padding(.top, 24)
                         .padding(.bottom, 4)
-                    ForEach(unscheduled) { task in
-                        TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
-                        Divider().overlay(Theme.Palette.hairline)
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(unscheduled) { task in
+                            TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
+                            Divider().overlay(Theme.Palette.hairline)
+                        }
                     }
                 }
             }

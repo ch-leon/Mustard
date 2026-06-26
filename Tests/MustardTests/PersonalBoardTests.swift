@@ -33,4 +33,33 @@ final class PersonalBoardTests: XCTestCase {
     func test_columns_orderedInboxToSomeday() {
         XCTAssertEqual(PersonalBoard.columns, [.inbox, .planned, .inProgress, .done, .someday])
     }
+
+    func test_recentDone_capsByCount_newestFirst_mineOnly() {
+        func done(_ title: String, at ts: TimeInterval, owner: TaskOwner = .me) -> MustardTask {
+            let t = MustardTask(title: title, owner: owner)
+            t.markDone(now: Date(timeIntervalSince1970: ts))
+            return t
+        }
+        let d1 = done("d1", at: 100)
+        let d2 = done("d2", at: 200)
+        let d3 = done("d3", at: 300)
+        let agent = done("agent", at: 999, owner: .agent)
+        let open = MustardTask(title: "open"); open.status = .planned
+
+        // limit 2 → the two newest of mine, agent excluded
+        let result = PersonalBoard.recentDone([d1, d3, d2, agent, open], limit: 2)
+        XCTAssertEqual(result.map(\.title), ["d3", "d2"])
+    }
+
+    func test_olderDoneCount_isMineDoneBeyondLimit() {
+        func done(_ title: String, at ts: TimeInterval) -> MustardTask {
+            let t = MustardTask(title: title)
+            t.markDone(now: Date(timeIntervalSince1970: ts))
+            return t
+        }
+        let tasks = [done("a", at: 1), done("b", at: 2), done("c", at: 3), done("d", at: 4)]
+        XCTAssertEqual(PersonalBoard.olderDoneCount(tasks, limit: 2), 2)
+        // fewer done than the limit → nothing older
+        XCTAssertEqual(PersonalBoard.olderDoneCount([done("x", at: 1)], limit: 2), 0)
+    }
 }

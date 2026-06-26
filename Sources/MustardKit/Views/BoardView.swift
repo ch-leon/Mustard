@@ -27,7 +27,9 @@ public struct BoardView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
+                .frame(maxHeight: .infinity, alignment: .top)
             }
+            .frame(maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
@@ -35,29 +37,50 @@ public struct BoardView: View {
     }
 
     private func column(_ status: TaskStatus) -> some View {
-        let tasks = PersonalBoard.tasks(allTasks, status: status)
+        // The Done column shows only recent completions; older ones collapse into
+        // a "+N older" footer so 280+ done tasks can't flood the board.
+        let tasks = status == .done
+            ? PersonalBoard.recentDone(allTasks)
+            : PersonalBoard.tasks(allTasks, status: status)
+        let olderDone = status == .done ? PersonalBoard.olderDoneCount(allTasks) : 0
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(status.label.uppercased())
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.Palette.textTertiary)
-                Text("\(tasks.count)")
+                Text("\(tasks.count + olderDone)")
                     .font(Theme.Fonts.meta)
                     .foregroundStyle(Theme.Palette.textTertiary)
                 Spacer()
             }
             .padding(.horizontal, 4)
 
-            ForEach(tasks) { task in
-                BoardCard(task: task)
-                    .draggable(task.uid)
-                    .onTapGesture { selectedTask = task }
+            // Cards scroll within the column so a tall column never grows the
+            // whole board past the window (which would push the sidebar nav
+            // off-screen). LazyVStack keeps a long column cheap to render.
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(tasks) { task in
+                        BoardCard(task: task)
+                            .draggable(task.uid)
+                            .onTapGesture { selectedTask = task }
+                    }
+
+                    if olderDone > 0 {
+                        Text("+\(olderDone) older completed")
+                            .font(Theme.Fonts.meta)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                            .padding(.horizontal, 4)
+                            .padding(.top, 2)
+                    }
+                }
             }
 
             QuickColumnAdd(status: status)
         }
         .padding(10)
         .frame(width: 220, alignment: .top)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.Palette.surface.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
         .dropDestination(for: String.self) { uids, _ in
             guard let uid = uids.first,
