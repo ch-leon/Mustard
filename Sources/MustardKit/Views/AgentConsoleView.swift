@@ -2,14 +2,17 @@ import SwiftUI
 import SwiftData
 import AppKit
 
-/// The agent console: vault source row, Recommendations queue (decide),
-/// Review queue (accept/revise/discard). Things-3-calm throughout.
+/// The agent console: vault source row, Recommendations queue (master-detail
+/// list │ detail), Review queue (accept/revise/discard). Things-3-calm throughout.
 public struct AgentConsoleView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
     @AppStorage("vaultPath") private var vaultPath = ""
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
     @AppStorage("trustLevel") private var trustRaw = TrustLevel.manual.rawValue
+    @AppStorage("autoOpenSourceOnSelect") private var autoOpenSource = true
+    @Environment(SourcePanelController.self) private var sourcePanel
+    @State private var selected: Recommendation?
 
     private var trust: TrustLevel { TrustLevel(rawValue: trustRaw) ?? .manual }
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
@@ -26,6 +29,25 @@ public struct AgentConsoleView: View {
     }
 
     public var body: some View {
+        HSplitView {
+            masterColumn
+                .frame(minWidth: 360, idealWidth: 480)
+            detailColumn
+                .frame(minWidth: 320, idealWidth: 420)
+        }
+        .background(Theme.Palette.bg)
+        .onAppear {
+            if selected == nil {
+                selected = RecommendationSelection.nextSelection(current: nil, pending: pending)
+            }
+        }
+        .onChange(of: pending.map(\.persistentModelID)) { _, _ in
+            let next = RecommendationSelection.nextSelection(current: selected, pending: pending)
+            if next !== selected { selected = next }
+        }
+    }
+
+    private var masterColumn: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
@@ -47,11 +69,15 @@ public struct AgentConsoleView: View {
                     if group.isMultiSource {
                         SourceGroupHeader(rec: group.header)
                         ForEach(group.members) { rec in
-                            RecommendationRow(rec: rec, inGroup: true)
+                            RecommendationRow(rec: rec, inGroup: true,
+                                              isSelected: selected === rec,
+                                              onSelect: { select(rec) })
                             Divider().overlay(Theme.Palette.hairline)
                         }
                     } else {
-                        RecommendationRow(rec: group.header, inGroup: false)
+                        RecommendationRow(rec: group.header, inGroup: false,
+                                          isSelected: selected === group.header,
+                                          onSelect: { select(group.header) })
                         Divider().overlay(Theme.Palette.hairline)
                     }
                 }
@@ -65,12 +91,42 @@ public struct AgentConsoleView: View {
                     Divider().overlay(Theme.Palette.hairline)
                 }
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 20)
             .padding(.vertical, 20)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private var detailColumn: some View {
+        Group {
+            if let selected {
+                ScrollView { RecommendationDetailView(rec: selected).padding(20) }
+            } else {
+                detailEmpty
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.Palette.bg)
+    }
+
+    private var detailEmpty: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "sparkles").font(.system(size: 26)).foregroundStyle(Theme.Palette.textTertiary)
+            Text(pending.isEmpty ? "Nothing waiting on you." : "Select a recommendation.")
+                .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
+    }
+
+    /// Select a recommendation and, only on this explicit selection, auto-open its
+    /// source if the setting is on and it has a web source. Programmatic re-selection
+    /// (arrival / queue churn) does not auto-open — avoids surprise page loads.
+    private func select(_ rec: Recommendation?) {
+        selected = rec
+        guard let rec,
+              RecommendationSelection.shouldAutoOpenSource(settingOn: autoOpenSource, rec: rec),
+              let link = SourceLink(from: rec) else { return }
+        sourcePanel.open(link)
     }
 
     private var header: some View {
@@ -85,6 +141,11 @@ public struct AgentConsoleView: View {
                     .foregroundStyle(Theme.Palette.textSecondary)
             }
             Spacer()
+            Toggle(isOn: $autoOpenSource) {
+                Text("Auto-open source").font(Theme.Fonts.meta)
+            }
+            .toggleStyle(.switch).controlSize(.mini)
+            .help("When on, selecting a recommendation that has a source also opens it in the side panel.")
         }
         .padding(.bottom, 12)
     }
@@ -193,20 +254,19 @@ public struct AgentConsoleView: View {
     }
 }
 
-/// Rich triage card: collapsed summary that expands into a review drawer
-/// (re-bucket, editable draft, comment), with the old tool's outcome verbs.
+/// Compact, selectable summary row for the recommendations master list. The full
+/// triage workspace lives in `RecommendationDetailView` (the detail pane).
 struct RecommendationRow: View {
-    @Environment(\.modelContext) private var context
-    @Environment(AgentService.self) private var agent
     let rec: Recommendation
     let inGroup: Bool
-    @State private var expanded = false
-    @State private var commenting = false
-    @State private var commentText = ""
+    let isSelected: Bool
+    let onSelect: () -> Void
 
-    init(rec: Recommendation, inGroup: Bool = false) {
+    init(rec: Recommendation, inGroup: Bool = false, isSelected: Bool = false, onSelect: @escaping () -> Void = {}) {
         self.rec = rec
         self.inGroup = inGroup
+        self.isSelected = isSelected
+        self.onSelect = onSelect
     }
 
     private var confidenceSegments: Int { Int((rec.confidence * 5).rounded(.down)) }
@@ -216,181 +276,39 @@ struct RecommendationRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if !inGroup { provenanceLine }
+        VStack(alignment: .leading, spacing: 6) {
+            if !inGroup { ProvenancePill(rec: rec) }
             HStack(spacing: 6) {
                 Image(systemName: "sparkles").font(.system(size: 12)).foregroundStyle(Theme.Palette.agent)
                 Text(rec.title).font(Theme.Fonts.title).foregroundStyle(Theme.Palette.textPrimary)
+                    .lineLimit(2)
                 if rec.action.isGated {
-                    Label("Always needs you", systemImage: "lock")
-                        .labelStyle(.titleAndIcon).font(.system(size: 11))
-                        .foregroundStyle(Theme.Palette.textTertiary)
+                    Image(systemName: "lock").font(.system(size: 10)).foregroundStyle(Theme.Palette.textTertiary)
                         .help("Email, Slack, and ticket actions are always gated regardless of trust.")
                 }
                 Spacer()
                 SourceLinkButton(rec: rec)
-                Button(expanded ? "Hide" : "Review") {
-                    withAnimation(.snappy(duration: 0.15)) { expanded.toggle() }
-                }
-                .buttonStyle(.plain).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.accent)
             }
-
-            actionAndConfidence
-
-            if !rec.reasoning.isEmpty {
-                (Text("Why · ").foregroundStyle(Theme.Palette.textTertiary)
-                    + Text(rec.reasoning).foregroundStyle(Theme.Palette.textSecondary))
-                    .font(Theme.Fonts.meta)
-                    .lineLimit(expanded ? nil : 1)
-            }
-
-            if expanded { drawer }
-
-            outcomes
-        }
-        .padding(.vertical, 10)
-    }
-
-    @ViewBuilder private var provenanceLine: some View {
-        ProvenancePill(rec: rec)
-    }
-
-    private var actionAndConfidence: some View {
-        HStack(spacing: 8) {
-            Text(rec.action.label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(hex: "#534AB7"))
-                .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(Theme.Palette.agent.opacity(0.14), in: Capsule())
-            Spacer()
-            Text("confidence").font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary)
-            Text(String(format: "%.2f", rec.confidence))
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(confidenceColor)
-            HStack(spacing: 2) {
-                ForEach(0..<5, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(i < confidenceSegments ? confidenceColor : Theme.Palette.surface)
-                        .frame(width: 16, height: 5)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private var drawer: some View {
-        // Re-bucket chips
-        VStack(alignment: .leading, spacing: 6) {
-            Text("RE-BUCKET").font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
-            FlowChips(selected: rec.action) { rec.action = $0 }
-        }
-        .padding(.top, 4)
-
-        if let original = rec.originalSource, !original.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("ORIGINAL EMAIL").font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                    .foregroundStyle(Theme.Palette.textTertiary)
-                Text(original).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
-                    .textSelection(.enabled)
-            }
-            .padding(.top, 4)
-        }
-
-        // Editable draft
-        VStack(alignment: .leading, spacing: 6) {
-            Text("PROPOSED DRAFT").font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
-            TextEditor(text: Binding(get: { rec.draft }, set: { rec.draft = $0 }))
-                .font(Theme.Fonts.meta)
-                .frame(minHeight: 70, maxHeight: 160)
-                .padding(6)
-                .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
-        }
-        .padding(.top, 6)
-
-        if commenting {
-            TextField("Feedback to the agent…", text: $commentText)
-                .textFieldStyle(.roundedBorder).font(Theme.Fonts.meta)
-                .onSubmit { agent.comment(rec, commentText); commenting = false }
-                .padding(.top, 4)
-        } else if !rec.comment.isEmpty {
-            (Text("Comment · ").foregroundStyle(Theme.Palette.textTertiary)
-                + Text(rec.comment).foregroundStyle(Theme.Palette.textSecondary))
-                .font(Theme.Fonts.meta).padding(.top, 4)
-        }
-    }
-
-    private var outcomes: some View {
-        HStack(spacing: 8) {
-            if rec.action == .fyi {
-                Button("Keep") { agent.keep(rec) }
-                    .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
-                    .controlSize(.small)
-                    .help("File this to your knowledge base log, then clear it.")
-                Button(expanded ? "Hide" : "Review") {
-                    withAnimation(.snappy(duration: 0.15)) { expanded.toggle() }
-                }
-                .controlSize(.small)
-                Spacer()
-                Button("Dismiss", role: .destructive) { rec.decision = .denied }
-                    .controlSize(.small)
-                    .help("You've seen it — remove it. Nothing is stored.")
-            } else {
-                Button("Approve") { Task { await agent.decide(rec, .approved) } }
-                    .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
-                    .controlSize(.small).disabled(agent.isExecuting)
-
-                if !expanded {
-                    Button("Review") { withAnimation(.snappy(duration: 0.15)) { expanded = true } }
-                        .controlSize(.small)
-                } else {
-                    Button("Comment") { commenting.toggle(); commentText = rec.comment }
-                        .controlSize(.small)
-                }
-
-                Menu("Snooze") {
-                    Button("1 hour") { agent.snooze(rec, until: .now.addingTimeInterval(3600)) }
-                    Button("This evening") { agent.snooze(rec, until: eveningOrSoon()) }
-                    Button("Tomorrow") { agent.snooze(rec, until: tomorrow9()) }
-                }
-                .controlSize(.small).fixedSize()
-
-                Button("Schedule") {
-                    rec.decision = .scheduled
-                    let task = MustardTask(title: rec.title); task.notes = draftOrBody
-                    let cal = Calendar.current
-                    if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {
-                        task.scheduledAt = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
-                        task.status = .planned
+            HStack(spacing: 6) {
+                Text(String(format: "%.2f", rec.confidence))
+                    .font(.system(size: 11, weight: .medium)).foregroundStyle(confidenceColor)
+                HStack(spacing: 2) {
+                    ForEach(0..<5, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(i < confidenceSegments ? confidenceColor : Theme.Palette.surface)
+                            .frame(width: 14, height: 4)
                     }
-                    context.insert(task)
                 }
-                .controlSize(.small)
-
-                Button("I'll do it") {
-                    rec.decision = .selfExecute
-                    let task = MustardTask(title: rec.title); task.notes = draftOrBody
-                    context.insert(task)
-                }
-                .controlSize(.small)
-
                 Spacer()
-                Button("Reject", role: .destructive) { rec.decision = .denied }
-                    .controlSize(.small)
             }
         }
-    }
-
-    private var draftOrBody: String { rec.draft.isEmpty ? rec.body : rec.draft }
-
-    private func eveningOrSoon() -> Date {
-        let target = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
-        return max(target, .now.addingTimeInterval(60))
-    }
-    private func tomorrow9() -> Date {
-        let cal = Calendar.current
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) ?? .now
-        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+        .padding(.vertical, 9).padding(.horizontal, 11)
+        .background(isSelected ? Theme.Palette.accent.opacity(0.07) : .clear)
+        .overlay(alignment: .leading) {
+            if isSelected { Rectangle().fill(Theme.Palette.accent).frame(width: 2) }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onSelect() }
     }
 }
 
