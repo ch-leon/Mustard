@@ -115,4 +115,46 @@ final class WeekPlannerTests: XCTestCase {
         XCTAssertEqual(
             WeekPlanner.minutesSinceDayStart(sevenAM, dayStartHour: 8, calendar: cal), -60)
     }
+
+    // MARK: - Axis overlap columns
+
+    private func span(_ id: String, _ start: Int, _ end: Int) -> WeekPlanner.AxisSpan {
+        WeekPlanner.AxisSpan(id: id, startMinute: start, endMinute: end)
+    }
+
+    func test_axisColumns_nonOverlapping_allSingleColumn() {
+        let cols = WeekPlanner.axisColumns([span("a", 0, 30), span("b", 60, 90)])
+        XCTAssertEqual(cols["a"], .init(column: 0, columnCount: 1))
+        XCTAssertEqual(cols["b"], .init(column: 0, columnCount: 1))
+    }
+
+    func test_axisColumns_sameTime_splitsSideBySide() {
+        let cols = WeekPlanner.axisColumns([span("a", 60, 120), span("b", 60, 120)])
+        XCTAssertEqual(cols["a"]?.columnCount, 2)
+        XCTAssertEqual(cols["b"]?.columnCount, 2)
+        XCTAssertEqual(Set([cols["a"]!.column, cols["b"]!.column]), [0, 1])
+    }
+
+    func test_axisColumns_threeConcurrent_threeColumns() {
+        let cols = WeekPlanner.axisColumns([span("a", 0, 60), span("b", 0, 60), span("c", 0, 60)])
+        XCTAssertEqual(Set([cols["a"]!.column, cols["b"]!.column, cols["c"]!.column]), [0, 1, 2])
+        XCTAssertTrue([cols["a"], cols["b"], cols["c"]].allSatisfy { $0?.columnCount == 3 })
+    }
+
+    func test_axisColumns_chain_reusesFreedColumn() {
+        // a[0-30] b[20-50] c[40-70]: a&b overlap, b&c overlap, a&c don't.
+        // c can reuse a's column → cluster width 2.
+        let cols = WeekPlanner.axisColumns([span("a", 0, 30), span("b", 20, 50), span("c", 40, 70)])
+        XCTAssertEqual(cols["a"], .init(column: 0, columnCount: 2))
+        XCTAssertEqual(cols["b"], .init(column: 1, columnCount: 2))
+        XCTAssertEqual(cols["c"], .init(column: 0, columnCount: 2))
+    }
+
+    func test_axisColumns_separateClusters_resetColumnCount() {
+        // a&b overlap (cluster 1, width 2); c alone (cluster 2, width 1).
+        let cols = WeekPlanner.axisColumns([span("a", 0, 60), span("b", 30, 90), span("c", 120, 150)])
+        XCTAssertEqual(cols["a"]?.columnCount, 2)
+        XCTAssertEqual(cols["b"]?.columnCount, 2)
+        XCTAssertEqual(cols["c"], .init(column: 0, columnCount: 1))
+    }
 }

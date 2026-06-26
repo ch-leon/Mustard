@@ -171,33 +171,70 @@ public struct WeekView: View {
     }
 
     /// The time axis: faint 30-min hairlines with meetings and timed tasks
-    /// positioned by start and sized by duration.
+    /// positioned by start, sized by duration, and split into side-by-side
+    /// columns when they overlap in time (so concurrent items stay legible).
     private func axis(events: [CalendarEvent], tasks: [MustardTask]) -> some View {
-        ZStack(alignment: .topLeading) {
-            // Hour / half-hour gridlines.
-            ForEach(0...((axisEndHour - axisStartHour) * 2), id: \.self) { half in
-                let onHour = half % 2 == 0
-                Rectangle()
-                    .fill(Theme.Palette.hairline.opacity(onHour ? 1 : 0.4))
-                    .frame(height: 1)
-                    .offset(y: CGFloat(half) * (hourHeight / 2))
-            }
-            ForEach(events) { event in
-                AxisMeetingBlock(event: event, height: blockHeight(minutes: durationMinutes(event)))
-                    .offset(y: yOffset(for: event.start))
-            }
-            ForEach(tasks) { task in
-                AxisTaskBlock(task: task,
-                              perMinute: perMinute,
-                              height: blockHeight(minutes: task.estimateMinutes),
-                              onOpen: { selectedTask = task },
-                              onToggle: { toggle(task) })
-                    .draggable(task.uid)
-                    .contextMenu { menu(for: task) }
-                    .offset(y: yOffset(for: task.scheduledAt ?? Date()))
-            }
+        // Build minute spans (events first, then tasks) and lay out columns once.
+        let eventSpans = events.enumerated().map { i, e in
+            WeekPlanner.AxisSpan(
+                id: "e\(i)",
+                startMinute: WeekPlanner.minutesSinceDayStart(e.start, dayStartHour: axisStartHour, calendar: cal),
+                endMinute: WeekPlanner.minutesSinceDayStart(e.start, dayStartHour: axisStartHour, calendar: cal)
+                    + durationMinutes(e))
         }
-        .frame(maxWidth: .infinity, minHeight: axisHeight, alignment: .topLeading)
+        let taskSpans = tasks.enumerated().map { i, t in
+            WeekPlanner.AxisSpan(
+                id: "t\(i)",
+                startMinute: WeekPlanner.minutesSinceDayStart(t.scheduledAt ?? .now, dayStartHour: axisStartHour, calendar: cal),
+                endMinute: WeekPlanner.minutesSinceDayStart(t.scheduledAt ?? .now, dayStartHour: axisStartHour, calendar: cal)
+                    + t.estimateMinutes)
+        }
+        let placements = WeekPlanner.axisColumns(eventSpans + taskSpans)
+
+        return GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                // Hour / half-hour gridlines.
+                ForEach(0...((axisEndHour - axisStartHour) * 2), id: \.self) { half in
+                    let onHour = half % 2 == 0
+                    Rectangle()
+                        .fill(Theme.Palette.hairline.opacity(onHour ? 1 : 0.4))
+                        .frame(height: 1)
+                        .offset(y: CGFloat(half) * (hourHeight / 2))
+                }
+                ForEach(Array(events.enumerated()), id: \.offset) { i, event in
+                    let p = placements["e\(i)"] ?? .init(column: 0, columnCount: 1)
+                    AxisMeetingBlock(event: event, height: blockHeight(minutes: durationMinutes(event)))
+                        .frame(width: columnWidth(geo.size.width, p))
+                        .offset(x: columnX(geo.size.width, p), y: yOffset(for: event.start))
+                }
+                ForEach(Array(tasks.enumerated()), id: \.offset) { i, task in
+                    let p = placements["t\(i)"] ?? .init(column: 0, columnCount: 1)
+                    AxisTaskBlock(task: task,
+                                  perMinute: perMinute,
+                                  height: blockHeight(minutes: task.estimateMinutes),
+                                  onOpen: { selectedTask = task },
+                                  onToggle: { toggle(task) })
+                        .draggable(task.uid)
+                        .contextMenu { menu(for: task) }
+                        .frame(width: columnWidth(geo.size.width, p))
+                        .offset(x: columnX(geo.size.width, p), y: yOffset(for: task.scheduledAt ?? Date()))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .frame(height: axisHeight)
+    }
+
+    /// Gap between side-by-side overlapping blocks.
+    private let columnGap: CGFloat = 3
+
+    private func columnWidth(_ total: CGFloat, _ p: WeekPlanner.AxisPlacement) -> CGFloat {
+        let slot = total / CGFloat(p.columnCount)
+        return max(0, slot - (p.column < p.columnCount - 1 ? columnGap : 0))
+    }
+
+    private func columnX(_ total: CGFloat, _ p: WeekPlanner.AxisPlacement) -> CGFloat {
+        (total / CGFloat(p.columnCount)) * CGFloat(p.column)
     }
 
     private func yOffset(for date: Date) -> CGFloat {

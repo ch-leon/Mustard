@@ -65,6 +65,82 @@ public enum WeekPlanner {
         return Swift.max(floor, snapped)
     }
 
+    // MARK: - Axis overlap layout
+
+    /// A timed item on the day axis, abstracted from event/task (minute spans)
+    /// so the overlap layout stays pure and unit-testable.
+    public struct AxisSpan: Equatable {
+        public let id: String
+        public let startMinute: Int
+        public let endMinute: Int
+        public init(id: String, startMinute: Int, endMinute: Int) {
+            self.id = id
+            self.startMinute = startMinute
+            self.endMinute = endMinute
+        }
+    }
+
+    /// Side-by-side placement for an axis item: its column and the number of
+    /// columns in its overlap cluster (so the view can size width = 1/count).
+    public struct AxisPlacement: Equatable {
+        public let column: Int
+        public let columnCount: Int
+        public init(column: Int, columnCount: Int) {
+            self.column = column
+            self.columnCount = columnCount
+        }
+    }
+
+    /// Assign overlapping axis items to side-by-side columns (calendar-style) so
+    /// concurrent meetings/tasks stop drawing on top of each other. Greedy
+    /// first-fit within each connected overlap cluster; column count resets
+    /// between clusters. Returns placements keyed by span id.
+    public static func axisColumns(_ spans: [AxisSpan]) -> [String: AxisPlacement] {
+        let sorted = spans.sorted {
+            $0.startMinute != $1.startMinute ? $0.startMinute < $1.startMinute : $0.endMinute < $1.endMinute
+        }
+        var result: [String: AxisPlacement] = [:]
+        var clusterIDs: [String] = []
+        var columnEnds: [Int] = []   // end minute of the last span placed in each column
+        var clusterMaxEnd = Int.min
+
+        func flushCluster() {
+            let count = columnEnds.count
+            for id in clusterIDs {
+                if let p = result[id] {
+                    result[id] = AxisPlacement(column: p.column, columnCount: count)
+                }
+            }
+            clusterIDs.removeAll()
+            columnEnds.removeAll()
+            clusterMaxEnd = Int.min
+        }
+
+        for span in sorted {
+            let end = max(span.endMinute, span.startMinute + 1) // zero-length still occupies a slot
+            // New cluster once this span starts at/after everything seen so far.
+            if !clusterIDs.isEmpty && span.startMinute >= clusterMaxEnd {
+                flushCluster()
+            }
+            // First column whose last item has ended by this span's start.
+            var placedColumn: Int?
+            for col in columnEnds.indices where columnEnds[col] <= span.startMinute {
+                columnEnds[col] = end
+                placedColumn = col
+                break
+            }
+            let column = placedColumn ?? {
+                columnEnds.append(end)
+                return columnEnds.count - 1
+            }()
+            result[span.id] = AxisPlacement(column: column, columnCount: 0) // count fixed on flush
+            clusterIDs.append(span.id)
+            clusterMaxEnd = Swift.max(clusterMaxEnd, end)
+        }
+        flushCluster()
+        return result
+    }
+
     /// Minutes between the axis start (`dayStartHour`) and `date`'s time-of-day.
     /// Negative when `date` is before the visible window. The view multiplies by
     /// points-per-minute to place a timed block.
