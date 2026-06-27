@@ -159,3 +159,41 @@ web app; per-token API usage; email/Slack/meeting *sources* (only the vault sour
 exists — fields are modelled, not wired); live Google Calendar fetch (data layer
 done, awaits Leon's OAuth client id); CloudKit sync + iOS target (schema is ready;
 needs an Xcode project for entitlements — see ADR-0004).
+
+## Agent Loop Workflows
+
+This repo uses Leon's `dev-loop` plugin for autonomous development.
+
+### Human Role
+
+Leon sets product direction at kickoff and accepts the risk of irreversible outward
+actions. Leon is NOT the engineering reviewer and is NOT a per-PR gate.
+
+### Workflow Files
+
+Read before running dev-loop workflows:
+
+- `.agent-loop/project.yml` — repo identity, PR target, autonomy kill-switch
+- `.agent-loop/checks.yml` — required verification commands (`swift test`, `swift build`)
+- `.agent-loop/risk.yml` — task-label / path risk + irreversible outward actions
+- `.agent-loop/review-rubric.md` — fresh-context review requirements
+- `.agent-loop/done-criteria.md` — what must exist before merge
+
+### How Work Lands
+
+- Builders create branches, commits, PRs, and merges autonomously.
+- Required checks from `.agent-loop/checks.yml` must pass.
+- A fresh-context review (separate session) must pass before merge.
+- Low/medium-risk changes auto-merge.
+- High-risk changes auto-merge only after the `deep-review` adversarial panel passes;
+  if the panel finds a blocker, the merge is held and logged to the digest.
+- Irreversible outward actions (publish release, delete remote data, rotate secrets,
+  force push) stop for Leon's explicit yes/no — the only human gate.
+- Every merge or hold is appended to `.agent-loop/digest.md` with a ready `git revert`
+  line, so Leon can scan and undo anything after the fact.
+
+### Runtime Artifacts
+
+Each run writes under `.agent-loop/runs/<run-id>/`: at minimum `trace.jsonl`,
+`verification.md`, review reports, `risk-report.md`, `deep-review-report.md` (high
+risk), and `pr-body.md`.

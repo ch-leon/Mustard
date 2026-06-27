@@ -1,0 +1,17 @@
+project:
+  name: "Mustard"
+  default_branch: "main"
+  issue_tracker: "github"          # github | local-docs | linear | shortcut | ...
+  pr_target: "main"
+  auto_merge_enabled: true          # global kill-switch — set false to pause ALL autonomy
+  # origin is the HTTPS URL on purpose — the SSH cert is org-scoped to
+  # code-heroes-pty-ltd, so SSH push to ch-leon/Mustard fails. Keep gh on HTTPS.
+  pr_create_command: "gh pr create --fill"
+  pr_merge_command: "gh pr merge --squash --delete-branch"
+
+workflow:
+  run_artifact_dir: ".agent-loop/runs"
+  branch_prefix: "agent/"
+  max_parallel_agents: 1            # agent shells out to `claude` serially; keep at 1
+  require_fresh_context_review: true
+  digest_file: ".agent-loop/digest.md"
