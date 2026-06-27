@@ -1,0 +1,17 @@
+checks:
+  required:
+    - name: "test"
+      command: "swift test"
+    - name: "build"
+      command: "swift build"
+  optional:
+    # No linter configured for this Swift package (no .swiftlint.yml / .swiftformat).
+    # Left as a no-op so the loop doesn't fail on a missing tool. Wire a real
+    # command here if SwiftLint / swift-format is ever added.
+    - name: "lint"
+      command: "sh -c 'echo \"no linter configured for Mustard — skipping\"; exit 0'"
+
+rules:
+  run_single_relevant_tests_during_work: true   # swift test --filter <SuiteName>
+  run_full_required_checks_before_pr: true
+  record_output_in_verification_md: true

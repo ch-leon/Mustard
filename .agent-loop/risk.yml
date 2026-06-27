@@ -1,0 +1,54 @@
+risk_classes:
+  low:
+    description: "Small, reversible work with narrow blast radius."
+    auto_merge: true
+  medium:
+    description: "Normal feature work or user-visible behavior."
+    auto_merge: true
+  high:
+    description: "Security, data, deployment, money, permissions, or irreversible effects."
+    auto_merge: after_deep_review   # merges only once the adversarial panel passes
+
+task_label_risk:
+  low: ["risk:low", "copy", "tests", "small-fix"]
+  medium: ["risk:medium", "feature", "refactor"]
+  high: ["risk:high", "auth", "security", "agent", "trust", "deployment"]
+
+# Touched-path risk. Matching is case-insensitive substring (so "auth" catches
+# "Sources/.../GoogleOAuth.swift"). A high match only routes the change to the robot
+# panel — never to a human — so over-matching is cheap; under-matching is the risk to
+# avoid.
+path_risk:
+  high:
+    - ".github/workflows/"
+    - ".env"
+    - "secret"
+    - "auth"                  # GoogleOAuth.swift, any auth/token handling
+    - "oauth"
+    - "ClaudeRunner"          # shells out to `claude`; scrubbed-env + closed-stdin are
+                              # load-bearing (ADR-0003) — touching this is high-risk
+    - "TrustPolicy"           # autonomy / auto-run gating
+    - "RecommendationAction"  # outward-action gating (isGated: email/Slack/ticket)
+  medium:
+    - "Package.swift"
+    - "build-app.sh"
+    - "Sources/"
+  low:
+    - "docs/"
+    - "README.md"
+    - "CLAUDE.md"
+    - "AGENTS.md"
+    - "Tests/"
+
+# Irreversible real-world effects git cannot undo. The ONLY human gate: if a change
+# performs any of these, merge-policy stops for Leon's explicit yes/no.
+#
+# Mustard has no deploy pipeline and the dev-loop itself sends no email/Slack — the
+# app's email/Slack/ticket actions are runtime-gated by TrustPolicy, not performed by
+# this loop. The realistic irreversible actions here are git/secret operations.
+outward_actions:
+  always_confirm:
+    - publish_release         # cutting/pushing a git tag or GitHub release
+    - delete_remote_data      # deleting branches/remote refs beyond the merged PR's
+    - rotate_secrets          # claude setup-token, OAuth client secrets
+    - force_push
