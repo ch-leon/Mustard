@@ -2,8 +2,11 @@ import Foundation
 import SwiftData
 import Observation
 
-/// Orchestrates the agent loop: sweep → recommendations → decision →
-/// execution → output card. Serial: one claude invocation at a time
+/// Orchestrates the agent loop: sweep → recommendations → decision → board task.
+/// Approving a recommendation PROMOTES it onto the board (no review gate, no
+/// OutputCard — output review lives in the board's Needs Review column). In-vault
+/// actions still run headless via claude; outward actions stage at `queued` for a
+/// decoupled connected session (ADR-0010). Serial: one claude invocation at a time
 /// (subscription-friendly).
 @MainActor
 @Observable
@@ -144,26 +147,20 @@ public final class AgentService {
         TrustLevel(rawValue: UserDefaults.standard.string(forKey: "trustLevel") ?? "") ?? .manual
     }
 
-    /// Auto-process the pending backlog according to trust: approve+execute
-    /// eligible recommendations serially, and auto-accept their output when the
-    /// level allows. Gated action types are never touched.
+    /// Auto-process the pending backlog according to trust: approve eligible
+    /// recommendations serially, promoting each onto the board via `decide`. There
+    /// is no review gate (ADR-0010) — output review lives in the board's Needs Review
+    /// column. Gated action types and awareness/ignored items are never touched.
     public func applyTrust(_ trust: TrustLevel) async {
         guard trust != .manual else { return }
         let pending = (try? context.fetch(FetchDescriptor<Recommendation>()))?
-            .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs gate themselves in delegate()
+            .filter { $0.decision == .pending && $0.task == nil } ?? []  // delegated recs are handled on delegate()
         for rec in pending {
             if rec.action == .fyi || rec.action == .ignore { continue }   // awareness/ignored items are never auto-actioned
             guard TrustPolicy.shouldAutoApprove(
                 actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
             ) else { continue }
-            rec.decision = .approved
-            if rec.action == .createTask { materializeTask(from: rec); continue }
-            let card = await execute(rec)
-            if let card, TrustPolicy.shouldAutoAccept(
-                actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
-            ) {
-                accept(card)
-            }
+            await decide(rec, .approved)
         }
     }
 
@@ -192,166 +189,134 @@ public final class AgentService {
         rec.snoozedUntil = until
     }
 
-    /// Approving a create_task lands a real task in the inbox — no claude run, no
-    /// OutputCard. The task appearing is the confirmation (mirrors the "I'll do it" button).
+    /// Approving a create_task lands a real `.me` task in the inbox — no claude run.
+    /// The task appearing is the confirmation (mirrors the "I'll do it" button).
     private func materializeTask(from rec: Recommendation) {
         let task = MustardTask(title: rec.title)
         task.notes = rec.draft.isEmpty ? rec.body : rec.draft
         task.status = .inbox
+        task.stage = .inbox
         context.insert(task)
     }
 
-    /// Record a decision. Approval triggers execution, honouring any triage
-    /// comment as feedback for the agent on this first run. Denying a delegated
-    /// recommendation returns the task to you.
-    public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
-        rec.decision = decision
-        if decision == .denied, let task = rec.task { task.owner = .me }
-        guard decision == .approved else { return }
-        if rec.action == .fyi { return }   // acknowledging an FYI runs nothing
-        if rec.action == .createTask { materializeTask(from: rec); return }
-        _ = await execute(rec, feedback: rec.comment)
+    /// The next 9:00 local time strictly after `now` (inline scheduling default for
+    /// the .scheduled decision — there is no SchedulingDefaults type).
+    private func nextNineAM(after now: Date = .now) -> Date {
+        let cal = Calendar.current
+        if let todayNine = cal.date(bySettingHour: 9, minute: 0, second: 0, of: now),
+           todayNine > now {
+            return todayNine
+        }
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: now) ?? now
+        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? now
     }
 
-    /// Delegate a task to the agent ("Ask agent to do this"). Routes the agent's
-    /// working directory by the task's client Area (Leon's choice, 2026-06-22), runs a
-    /// classify pass, and either queues the proposal (Manual/Supervised) or runs it now
-    /// (Trusted+). The agent may decline — then the task stays with you, with a note.
-    /// `workVaultRoot`/`sources` default to live settings; tests inject them.
-    public func delegate(
-        _ task: MustardTask,
-        workVaultRoot: String? = nil,
-        sources: [SourceConfig]? = nil
-    ) async {
-        guard !isSweeping, !isExecuting else { return }
-        let root = workVaultRoot ?? UserDefaults.standard.string(forKey: "meetingVaultPath") ?? ""
-        let configs = sources ?? SourceSettingsStore.loadOrMigrate().sources
-        let areaName = task.list?.area?.name
-
-        guard let cwd = AreaRouter.workingDirectory(
-            forArea: areaName, sources: configs, workVaultRoot: root
-        ) else {
-            lastError = "Can't delegate \"\(task.title)\": file it under a client area (Digital Licence, Sales Buddi, Sandvik, Code Heroes) with a configured KB first."
-            return
+    /// Promote a recommendation onto the board: reuse an existing delegated task
+    /// (`rec.task`) or create a new `.me` task, stamp provenance + the rec's draft,
+    /// place it at `stage`/`owner`, and link rec↔task. Returns the task.
+    @discardableResult
+    private func promote(
+        _ rec: Recommendation, to stage: TaskStage, owner: TaskOwner,
+        scheduledAt: Date? = nil
+    ) -> MustardTask {
+        let task = rec.task ?? MustardTask(title: rec.title)
+        let isNew = rec.task == nil
+        task.notes = rec.draft.isEmpty ? rec.body : rec.draft
+        task.actionType = rec.action
+        task.confidence = rec.confidence
+        task.migratedStage = true
+        task.owner = owner
+        if !task.status.isOpen {
+            // already done (e.g. headless vault note ran) — keep done stage
+        } else {
+            task.stage = stage
         }
-
-        lastError = nil
-        // Hold the serial "one claude at a time" guard across the classify call — the
-        // scheduler loop checks isExecuting before sweeping (ADR-0003). Reset right
-        // after, before any execute() (which manages isExecuting itself).
-        isExecuting = true
-        let result = await claude(
-            VaultSweep.classifyPrompt(title: task.title, notes: task.notes, areaName: areaName ?? ""),
-            cwd
-        )
-        isExecuting = false
-
-        // A claude failure is NOT a decline — surface it like `sweep` does, never fake "passed".
-        guard result.ok else {
-            lastError = "Delegation failed: \(result.text)"
-            return
-        }
-        let proposals = VaultSweep.parse(result.text)
-        guard let proposal = proposals.first,
-              RecommendationAction.from(proposal.actionType) != .ignore else {
-            // The agent declined ("ignore") or returned nothing parseable: leave the
-            // task with you, with a note. (Unrecognized action types map to vault_note
-            // via RecommendationAction.from, so only a literal "ignore" declines.)
-            let reason = proposals.first?.draft ?? ""
-            task.notes += "\n\n🤖 Agent passed on this" + (reason.isEmpty ? "." : ": \(reason)")
-            return
-        }
-
-        let rec = Recommendation(
-            title: proposal.title, body: proposal.body, actionType: proposal.actionType,
-            vaultPath: cwd, confidence: proposal.confidence, reasoning: proposal.reasoning,
-            draft: proposal.draft, source: "delegated",
-            sourceContext: "Delegated: \(task.title)"
-        )
-        rec.project = areaName ?? ""
+        if let scheduledAt { task.scheduledAt = scheduledAt }
         rec.task = task
         task.delegation = rec
-        task.owner = .agent          // flip to agent only once the proposal is real
-        context.insert(rec)
+        if isNew { context.insert(task) }
+        return task
+    }
 
-        let trust = Self.storedTrust()
-        if TrustPolicy.shouldAutoRunDelegation(
-            actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
-        ) {
-            rec.decision = .approved
-            let card = await execute(rec)
-            // Only auto-accept a SUCCESSFUL run — never silently complete on failure.
-            // A failed run leaves its error card pending in the review queue for you.
-            if let card, card.kind != "error", TrustPolicy.shouldAutoAccept(
-                actionType: rec.proposedActionType, trust: trust, confidence: rec.confidence
-            ) {
-                accept(card)
+    /// Record a decision and promote onto the board (ADR-0010). There is no review
+    /// gate or OutputCard — approving stages the work as a board task.
+    ///
+    /// - `fyi` + approved → runs nothing (acknowledging is inert).
+    /// - `createTask` + approved → a `.me` task in the inbox (`materializeTask`).
+    /// - `vaultNote` + approved → runs headless via claude (it can reach the vault);
+    ///   on success the task is marked DONE, on failure it stays `.queued` with the
+    ///   error surfaced on `lastError`.
+    /// - outward actions (`draftEmail`/`draftSlack`/`ticket`) + approved → a `.agent`
+    ///   task at `.queued`; the decoupled connected session executes it later.
+    /// - `.scheduled` → a `.me` task at `.scheduled` (next 9am).
+    /// - `.selfExecute` → a `.me` task at `.planned`.
+    /// - `.denied` → a delegated task returns to you (`.me`, `.planned` if not done).
+    public func decide(_ rec: Recommendation, _ decision: RecommendationDecision) async {
+        rec.decision = decision
+        switch decision {
+        case .denied:
+            if let task = rec.task {
+                task.owner = .me
+                if task.status.isOpen { task.stage = .planned }
             }
+            return
+        case .scheduled:
+            promote(rec, to: .scheduled, owner: .me, scheduledAt: nextNineAM())
+            return
+        case .selfExecute:
+            promote(rec, to: .planned, owner: .me)
+            return
+        case .approved:
+            break
+        default:
+            return
         }
-        // else: stays .pending → appears in the Agent console queue for approval.
-    }
 
-    /// Accept an output. For a delegated task this closes the loop: mark the task done
-    /// and append the agent's output to its Notes (Leon's choice, 2026-06-22). Non-
-    /// delegated cards just flip to accepted (sweep/inbox behaviour unchanged).
-    public func accept(_ card: OutputCard) {
-        // Never complete a task on a failed run (no silent completion); an error card
-        // should be Discarded or Revised, not Accepted.
-        guard card.kind != "error" else { return }
-        card.review = .accepted
-        guard let task = card.recommendation?.task else { return }
-        if !card.content.isEmpty {
-            task.notes += (task.notes.isEmpty ? "" : "\n\n") + "🤖 Agent output:\n\(card.content)"
+        // decision == .approved
+        if rec.action == .fyi { return }                 // acknowledging an FYI runs nothing
+        if rec.action == .createTask { materializeTask(from: rec); return }
+        if rec.action == .vaultNote {
+            await runVaultNote(rec)
+            return
         }
-        task.markDone()
+        // Outward / connector actions: stage for the decoupled session, no claude run.
+        promote(rec, to: .queued, owner: .agent)
     }
 
-    /// Discard an output. For a delegated task, hand it back to you.
-    public func discard(_ card: OutputCard) {
-        card.review = .discarded
-        if let task = card.recommendation?.task { task.owner = .me }
+    /// Delegate a task to the agent ("Ask agent to do this"). Trivial under the
+    /// board model (ADR-0010): the task simply hands off to the agent at `.forAgent`;
+    /// a prep session picks it up, fleshes it out, and moves it to `.needsApproval`.
+    public func delegate(_ task: MustardTask) {
+        task.owner = .agent
+        task.stage = .forAgent
     }
 
-    /// Re-run a reviewed output with the user's feedback and the prior output as
-    /// context, producing a NEW OutputCard. The old card is retired (`.revised`)
-    /// only once its replacement exists, so the review queue never empties without
-    /// one — and the prior cards stay linked to the recommendation as history.
-    @discardableResult
-    public func revise(_ card: OutputCard, feedback: String) async -> OutputCard? {
-        guard let rec = card.recommendation else { return nil }
-        rec.comment = feedback
-        let newCard = await execute(rec, feedback: feedback, priorOutput: card.content)
-        if newCard != nil { card.review = .revised }
-        return newCard
-    }
-
-    /// Run an approved recommendation; always produce exactly one OutputCard
-    /// per execution (success or failure — no silent completion). The prompt is
-    /// grounded in the proposal (action type, draft) and any `feedback`/`priorOutput`
-    /// turns it into a revision. Returns the card so callers (auto-accept) can act on it.
-    @discardableResult
-    public func execute(_ rec: Recommendation, feedback: String = "", priorOutput: String = "") async -> OutputCard? {
-        guard !isExecuting else { return nil }
+    /// Run an approved in-vault note headless via claude (it CAN reach the vault).
+    /// Promote a board task either way; on success mark it DONE, on failure leave it
+    /// at `.queued` and surface the error on `lastError` (no silent completion).
+    private func runVaultNote(_ rec: Recommendation) async {
+        guard !isExecuting else { return }
         isExecuting = true
         currentTitle = rec.title
         rec.executionState = .running
         defer { isExecuting = false; currentTitle = nil }
 
+        let task = promote(rec, to: .queued, owner: .agent)
         let result = await claude(
             VaultSweep.executePrompt(
                 title: rec.title, body: rec.body, action: rec.action,
                 draft: rec.draft, sourceContext: rec.sourceContext,
-                feedback: feedback, priorOutput: priorOutput
+                feedback: rec.comment, priorOutput: ""
             ),
             rec.vaultPath
         )
-        let card = OutputCard(
-            content: result.ok ? result.text : "Execution failed: \(result.text)",
-            kind: result.ok ? "summary" : "error",
-            recommendation: rec
-        )
-        context.insert(card)
-        rec.executionState = result.ok ? .finished : .failed
-        return card
+        if result.ok {
+            rec.executionState = .finished
+            task.markDone()
+        } else {
+            rec.executionState = .failed
+            lastError = "Execution failed: \(result.text)"
+            task.stage = .queued
+        }
     }
 }

@@ -85,14 +85,4 @@ final class SourceLinkTests: XCTestCase {
         XCTAssertEqual(SourceLink(from: t)?.url.absoluteString, "https://jira.example.com/BROWSE-1")
     }
 
-    func test_fromOutputCard_viaParent() {
-        let r = Recommendation(title: "Parent", source: "gmail", sourceURL: "https://mail.example.com/t/1")
-        let card = OutputCard(content: "done", kind: "summary", recommendation: r)
-        XCTAssertEqual(SourceLink(from: card)?.url.absoluteString, "https://mail.example.com/t/1")
-        XCTAssertEqual(SourceLink(from: card)?.label, "Parent")
-    }
-
-    func test_fromOutputCard_noParent_nil() {
-        XCTAssertNil(SourceLink(from: OutputCard(content: "x", kind: "summary")))
-    }
 }

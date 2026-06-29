@@ -7,7 +7,7 @@ final class InboxIngestServiceTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, CalendarEvent.self,
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self,
             configurations: config
         )
         return ModelContext(container)

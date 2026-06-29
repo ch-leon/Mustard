@@ -173,7 +173,7 @@ public struct TaskDetailSheet: View {
             .controlSize(.small)
             if task.owner == .me && task.delegation == nil && task.status != .done {
                 Button {
-                    Task { await agent.delegate(task) }
+                    agent.delegate(task)
                 } label: {
                     Label("Ask agent to do this", systemImage: "cpu")
                 }

@@ -10,7 +10,7 @@ public enum MustardContainer {
         let config = ModelConfiguration(url: dir.appending(path: "mustard.store"))
         do {
             let container = try ModelContainer(
-                for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, CalendarEvent.self, configurations: config
+                for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self, configurations: config
             )
             // One-time backfill of the stage model from legacy status (BAK-75).
             // A fresh context avoids the main-actor isolation of `mainContext`.

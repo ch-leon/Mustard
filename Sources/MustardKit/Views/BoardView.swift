@@ -147,7 +147,7 @@ struct BoardCard: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
         .contextMenu {
             if task.owner == .me && task.delegation == nil && task.status != .done {
-                Button { Task { await agent.delegate(task) } } label: {
+                Button { agent.delegate(task) } label: {
                     Label("Ask agent to do this", systemImage: "cpu")
                 }
             }

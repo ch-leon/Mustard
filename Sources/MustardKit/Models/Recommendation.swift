@@ -38,8 +38,6 @@ public final class Recommendation {
     public var comment: String = ""
     public var snoozedUntil: Date?
     public var createdAt: Date = Date.now
-    @Relationship(deleteRule: .cascade, inverse: \OutputCard.recommendation)
-    public var outputs: [OutputCard]? = []
     /// The task this recommendation was created to action (set when you delegate a
     /// task to the agent). Nil for sweep/inbox recs. Inverse of `MustardTask.delegation`.
     /// Optional → CloudKit-safe default (ADR-0001).
@@ -92,30 +90,5 @@ public final class Recommendation {
     public var action: RecommendationAction {
         get { RecommendationAction.from(proposedActionType) }
         set { proposedActionType = newValue.rawValue }
-    }
-}
-
-public enum ReviewStatus: String, Codable, CaseIterable {
-    case pending, accepted, revised, discarded
-}
-
-@Model
-public final class OutputCard {
-    public var content: String = ""
-    public var kind: String = "summary"
-    public var reviewRaw: String = ReviewStatus.pending.rawValue
-    public var createdAt: Date = Date.now
-    public var recommendation: Recommendation?
-
-    public var review: ReviewStatus {
-        get { ReviewStatus(rawValue: reviewRaw) ?? .pending }
-        set { reviewRaw = newValue.rawValue }
-    }
-
-    public init(content: String = "", kind: String = "summary", recommendation: Recommendation? = nil) {
-        self.content = content
-        self.kind = kind
-        self.recommendation = recommendation
-        self.createdAt = .now
     }
 }

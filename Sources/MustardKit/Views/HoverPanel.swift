@@ -53,7 +53,6 @@ public struct HoverPanelView: View {
     @Environment(AgentService.self) private var agent
     @Query private var tasks: [MustardTask]
     @Query private var recommendations: [Recommendation]
-    @Query private var cards: [OutputCard]
     @State private var expanded = false
 
     public init() {}
@@ -65,7 +64,7 @@ public struct HoverPanelView: View {
 
     private var waitingCount: Int {
         RecommendationQueue.pending(recommendations, now: .now).count
-            + cards.filter { $0.review == .pending }.count
+            + tasks.filter { $0.stage == .needsReview }.count   // board review (ADR-0010)
     }
 
     private var upcoming: [MustardTask] {

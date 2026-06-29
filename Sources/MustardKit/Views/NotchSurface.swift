@@ -101,7 +101,6 @@ public struct NotchView: View {
     @Environment(AgentService.self) private var agent
     @Query private var tasks: [MustardTask]
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
-    @Query private var cards: [OutputCard]
     @Query(sort: \CalendarEvent.start) private var events: [CalendarEvent]
     @State private var hovering = false
     @State private var captureText = ""
@@ -121,8 +120,14 @@ public struct NotchView: View {
         RecommendationQueue.pending(recommendations, now: .now)
     }
 
+    /// Tasks the board is waiting on you to review (output review now lives on the
+    /// board's Needs Review column — ADR-0010).
+    private var needsReviewCount: Int {
+        tasks.filter { $0.stage == .needsReview }.count
+    }
+
     private var waitingCount: Int {
-        pending.count + cards.filter { $0.review == .pending }.count
+        pending.count + needsReviewCount
     }
 
     private var todayMeetings: [CalendarEvent] {

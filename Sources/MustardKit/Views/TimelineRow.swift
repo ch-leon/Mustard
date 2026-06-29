@@ -1,32 +1,30 @@
 import SwiftUI
 
+/// A simple agent badge derived from the task's board `stage` (ADR-0010 replaced
+/// the derived DelegationPhase with the explicit stage). Shown only for agent-owned
+/// tasks; tinted with the agent purple. Kept named `DelegationBadge` so existing
+/// Week/Board callers still compile.
 struct DelegationBadge: View {
     let task: MustardTask
-    var body: some View {
-        let phase = DelegationPhase.of(task)
-        if let label = phase.label, let tone = phase.tone {
-            content(label, tone)
-        } else if task.owner == .agent {
-            content("Agent", .agentHasIt)   // agent-owned, no active phase
+
+    /// Short stage label for an agent-owned task; nil = no badge (e.g. done).
+    private var stageLabel: String? {
+        guard task.owner == .agent else { return nil }
+        switch task.stage {
+        case .forAgent: return "For agent"
+        case .needsApproval: return "Approve"
+        case .queued: return "Queued"
+        case .needsReview: return "Review"
+        case .done: return nil
+        default: return "Agent"
         }
     }
 
-    @ViewBuilder private func content(_ label: String, _ tone: DelegationTone) -> some View {
-        switch tone {
-        case .agentHasIt:
+    var body: some View {
+        if let label = stageLabel {
             Label(label, systemImage: "cpu")
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(Theme.Palette.agent)
-        case .needsYou:
-            Label(label, systemImage: "cpu")
-                .font(Theme.Fonts.meta)
-                .foregroundStyle(Theme.Palette.warningDeep)
-                .padding(.vertical, 1).padding(.horizontal, 8)
-                .background(Theme.Palette.warningSoft, in: Capsule())
-        case .doneByAgent:
-            Label(label, systemImage: "checkmark")
-                .font(Theme.Fonts.meta)
-                .foregroundStyle(Theme.Palette.textSecondary)
         }
     }
 }
@@ -91,7 +89,7 @@ public struct TimelineRow: View {
         .onTapGesture(perform: onOpen)
         .contextMenu {
             if task.owner == .me && task.delegation == nil && task.status != .done {
-                Button { Task { await agent.delegate(task) } } label: {
+                Button { agent.delegate(task) } label: {
                     Label("Ask agent to do this", systemImage: "cpu")
                 }
             }

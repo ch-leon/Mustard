@@ -254,7 +254,7 @@ public struct WeekView: View {
 
     @ViewBuilder private func menu(for task: MustardTask) -> some View {
         if task.owner == .me && task.delegation == nil && task.status != .done {
-            Button { Task { await agent.delegate(task) } } label: {
+            Button { agent.delegate(task) } label: {
                 Label("Ask agent to do this", systemImage: "cpu")
             }
             Divider()

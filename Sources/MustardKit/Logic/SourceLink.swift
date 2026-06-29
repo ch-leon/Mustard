@@ -55,10 +55,4 @@ public extension SourceLink {
     init?(from task: MustardTask) {
         self.init(sourceURL: task.sourceURL, source: task.source, title: task.title)
     }
-
-    /// Output cards have no URL of their own — resolve via the parent recommendation.
-    init?(from card: OutputCard) {
-        guard let rec = card.recommendation else { return nil }
-        self.init(from: rec)
-    }
 }

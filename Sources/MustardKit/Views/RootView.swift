@@ -47,14 +47,14 @@ public struct RootView: View {
     @State private var selectedScope: ListScope?
     @State private var showCommandBar = false
     @State private var sourcePanel = SourcePanelController()
-    @Query private var cards: [OutputCard]
     @Query private var recommendations: [Recommendation]
+    @Query private var tasks: [MustardTask]
 
     public init() {}
 
     private var waitingCount: Int {
         recommendations.filter { $0.decision == .pending }.count
-            + cards.filter { $0.review == .pending }.count
+            + tasks.filter { $0.stage == .needsReview }.count   // board review (ADR-0010)
     }
 
     public var body: some View {
