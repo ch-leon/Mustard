@@ -16,12 +16,33 @@ final class GoogleEventsClientTests: XCTestCase {
 
     func testFetchParsesEvents() async throws {
         let json = #"{"items":[{"id":"e1","summary":"Standup","status":"confirmed","start":{"dateTime":"2026-06-28T09:00:00Z"},"end":{"dateTime":"2026-06-28T09:15:00Z"}}]}"#
-        let client = GoogleEventsClient(transport: { _ in Data(json.utf8) })
+        let client = GoogleEventsClient(transport: { _ in (Data(json.utf8), 200) })
         let events = try await client.fetch(
             accessToken: "AT", calendarId: "primary",
             window: CalendarWindow(start: .now, end: .now))
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events.first?.externalId, "e1")
         XCTAssertEqual(events.first?.title, "Standup")
+    }
+
+    // Regression guard: a non-2xx error body must THROW, not parse to [] (which would
+    // make the upsert reconciler delete every synced event — silent data loss).
+    func testUnauthorizedThrowsInvalidGrant() async {
+        let body = #"{"error":{"code":401,"message":"Invalid Credentials"}}"#
+        let client = GoogleEventsClient(transport: { _ in (Data(body.utf8), 401) })
+        do {
+            _ = try await client.fetch(accessToken: "AT", calendarId: "primary",
+                                       window: CalendarWindow(start: .now, end: .now))
+            XCTFail("expected throw")
+        } catch { XCTAssertEqual(error as? GoogleAuthError, .invalidGrant) }
+    }
+
+    func testServerErrorThrows() async {
+        let client = GoogleEventsClient(transport: { _ in (Data("oops".utf8), 503) })
+        do {
+            _ = try await client.fetch(accessToken: "AT", calendarId: "primary",
+                                       window: CalendarWindow(start: .now, end: .now))
+            XCTFail("expected throw")
+        } catch { XCTAssertEqual(error as? GoogleAuthError, .server("events status 503")) }
     }
 }

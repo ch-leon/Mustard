@@ -32,6 +32,6 @@ public struct CalendarWindow: Equatable {
     }
 }
 
-/// Injectable HTTP seam: returns the response body. Non-2xx is surfaced via the body
-/// (Google returns a JSON `error` field), so callers parse rather than inspect status.
-public typealias HTTPTransport = @Sendable (URLRequest) async throws -> Data
+/// Injectable HTTP seam: returns the response body **and** the HTTP status code, so
+/// callers can fail loudly on non-2xx instead of mistaking an error body for empty data.
+public typealias HTTPTransport = @Sendable (URLRequest) async throws -> (Data, Int)

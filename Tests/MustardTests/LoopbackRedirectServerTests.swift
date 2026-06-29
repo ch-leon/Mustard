@@ -2,9 +2,13 @@ import XCTest
 @testable import MustardKit
 
 final class LoopbackRedirectServerTests: XCTestCase {
-    func testParsesCode() {
-        let r = LoopbackRedirectServer.parseRedirect(query: "code=abc123&scope=cal")
-        XCTAssertEqual(try? r.get(), "abc123")
+    func testParsesCodeAndState() {
+        let r = LoopbackRedirectServer.parseRedirect(query: "code=abc123&state=xyz&scope=cal")
+        XCTAssertEqual(try? r.get(), RedirectResult(code: "abc123", state: "xyz"))
+    }
+    func testParsesCodeWithoutState() {
+        let r = LoopbackRedirectServer.parseRedirect(query: "code=abc123")
+        XCTAssertEqual(try? r.get(), RedirectResult(code: "abc123", state: nil))
     }
     func testAccessDeniedMapsToDenied() {
         let r = LoopbackRedirectServer.parseRedirect(query: "error=access_denied")

@@ -48,10 +48,10 @@ public enum GoogleOAuth {
     public static let tokenEndpoint = "https://oauth2.googleapis.com/token"
 
     public static func authorizationURL(
-        clientId: String, redirectURI: String, pkce: PKCE
+        clientId: String, redirectURI: String, pkce: PKCE, state: String? = nil
     ) -> URL {
         var comps = URLComponents(string: authEndpoint)!
-        comps.queryItems = [
+        var items: [URLQueryItem] = [
             .init(name: "client_id", value: clientId),
             .init(name: "redirect_uri", value: redirectURI),
             .init(name: "response_type", value: "code"),
@@ -61,6 +61,8 @@ public enum GoogleOAuth {
             .init(name: "access_type", value: "offline"),
             .init(name: "prompt", value: "consent"),
         ]
+        if let state, !state.isEmpty { items.append(.init(name: "state", value: state)) }
+        comps.queryItems = items
         return comps.url!
     }
 

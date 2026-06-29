@@ -9,7 +9,8 @@ public struct GoogleTokenClient {
     }
 
     public static let defaultTransport: HTTPTransport = { req in
-        try await URLSession.shared.data(for: req).0
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        return (data, (resp as? HTTPURLResponse)?.statusCode ?? 0)
     }
 
     public static func exchangeBody(code: String, clientId: String, clientSecret: String,
@@ -38,16 +39,13 @@ public struct GoogleTokenClient {
         let body = Self.exchangeBody(code: code, clientId: credentials.clientId,
                                      clientSecret: credentials.clientSecret,
                                      redirectURI: redirectURI, verifier: pkce.verifier)
-        let data = try await post(body)
-        guard let token = GoogleOAuth.parseTokenResponse(data) else { throw Self.error(from: data) }
-        return token
+        return try await parseToken(from: try await post(body))
     }
 
     public func refresh(refreshToken: String, credentials: GoogleCredentials) async throws -> GoogleToken {
         let body = Self.refreshBody(refreshToken: refreshToken, clientId: credentials.clientId,
                                     clientSecret: credentials.clientSecret)
-        let data = try await post(body)
-        guard let token = GoogleOAuth.parseTokenResponse(data) else { throw Self.error(from: data) }
+        let token = try await parseToken(from: try await post(body))
         // Refresh responses omit refresh_token — carry the existing one forward.
         if token.refreshToken == nil {
             return GoogleToken(accessToken: token.accessToken, refreshToken: refreshToken, expiresAt: token.expiresAt)
@@ -55,19 +53,30 @@ public struct GoogleTokenClient {
         return token
     }
 
-    private func post(_ body: String) async throws -> Data {
+    private func parseToken(from response: (data: Data, status: Int)) throws -> GoogleToken {
+        guard (200..<300).contains(response.status) else {
+            throw Self.error(from: response.data, status: response.status)
+        }
+        guard let token = GoogleOAuth.parseTokenResponse(response.data) else {
+            throw GoogleAuthError.server("unexpected token response")
+        }
+        return token
+    }
+
+    private func post(_ body: String) async throws -> (data: Data, status: Int) {
         var req = URLRequest(url: URL(string: GoogleOAuth.tokenEndpoint)!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = Data(body.utf8)
-        return try await transport(req)
+        let (data, status) = try await transport(req)
+        return (data, status)
     }
 
-    static func error(from data: Data) -> GoogleAuthError {
+    static func error(from data: Data, status: Int) -> GoogleAuthError {
         struct Err: Decodable { let error: String? }
         let code = (try? JSONDecoder().decode(Err.self, from: data))?.error
         if code == "invalid_grant" { return .invalidGrant }
-        return .server(code ?? "unexpected token response")
+        return .server(code ?? "token status \(status)")
     }
 
     static func formEncode(_ pairs: [(String, String)]) -> String {

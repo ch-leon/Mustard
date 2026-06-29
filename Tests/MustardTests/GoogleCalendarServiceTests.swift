@@ -4,7 +4,9 @@ import SwiftData
 
 private final class StubServer2: RedirectServing {
     func start() throws -> Int { 6000 }
-    func awaitCode(timeout: TimeInterval) async throws -> String { "code" }
+    func awaitCode(timeout: TimeInterval) async throws -> RedirectResult {
+        RedirectResult(code: "code", state: "s")
+    }
     func stop() {}
 }
 
@@ -15,15 +17,16 @@ final class GoogleCalendarServiceTests: XCTestCase {
         return ModelContext(try ModelContainer(for: CalendarEvent.self, configurations: config))
     }
 
-    private func makeService(store: TokenStore, tokenJSON: String, eventsJSON: String,
+    private func makeService(store: TokenStore, tokenJSON: String, tokenStatus: Int = 200,
+                             eventsJSON: String, eventsStatus: Int = 200,
                              context: ModelContext, now: @escaping () -> Date) -> GoogleCalendarService {
-        let tokenClient = GoogleTokenClient(transport: { _ in Data(tokenJSON.utf8) })
+        let tokenClient = GoogleTokenClient(transport: { _ in (Data(tokenJSON.utf8), tokenStatus) })
         let session = GoogleAuthSession(
             makeServer: { StubServer2() }, tokenClient: tokenClient, store: store,
-            openURL: { _ in }, makePKCE: { PKCE(verifier: "v") })
+            openURL: { _ in }, makePKCE: { PKCE(verifier: "v") }, makeState: { "s" })
         return GoogleCalendarService(
             authSession: session, tokenClient: tokenClient,
-            eventsClient: GoogleEventsClient(transport: { _ in Data(eventsJSON.utf8) }),
+            eventsClient: GoogleEventsClient(transport: { _ in (Data(eventsJSON.utf8), eventsStatus) }),
             store: store, context: context, now: now, windowDays: 14)
     }
 
@@ -55,6 +58,50 @@ final class GoogleCalendarServiceTests: XCTestCase {
         try await svc.refreshIfNeeded()
         XCTAssertEqual(try store.loadToken()?.accessToken, "NEW")
         XCTAssertEqual(try store.loadToken()?.refreshToken, "RT")
+    }
+
+    func testRefreshIfNeededRefreshesNearExpiry() async throws {
+        let ctx = try makeContext()
+        let now = Date(timeIntervalSince1970: 1_780_000_000)
+        let store = InMemoryTokenStore()
+        try store.saveCredentials(.init(clientId: "c", clientSecret: "s"))
+        // Within the 60s skew → must refresh.
+        try store.saveToken(GoogleToken(accessToken: "OLD", refreshToken: "RT", expiresAt: now.addingTimeInterval(30)))
+        let svc = makeService(store: store,
+                              tokenJSON: #"{"access_token":"NEW","expires_in":3600}"#,
+                              eventsJSON: #"{"items":[]}"#, context: ctx, now: { now })
+        try await svc.refreshIfNeeded()
+        XCTAssertEqual(try store.loadToken()?.accessToken, "NEW")
+    }
+
+    func testRefreshIfNeededSkipsWhenValid() async throws {
+        let ctx = try makeContext()
+        let now = Date(timeIntervalSince1970: 1_780_000_000)
+        let store = InMemoryTokenStore()
+        try store.saveCredentials(.init(clientId: "c", clientSecret: "s"))
+        // Far from expiry → must NOT refresh (token stays OLD even though transport would return NEW).
+        try store.saveToken(GoogleToken(accessToken: "OLD", refreshToken: "RT", expiresAt: now.addingTimeInterval(3600)))
+        let svc = makeService(store: store,
+                              tokenJSON: #"{"access_token":"NEW","expires_in":3600}"#,
+                              eventsJSON: #"{"items":[]}"#, context: ctx, now: { now })
+        try await svc.refreshIfNeeded()
+        XCTAssertEqual(try store.loadToken()?.accessToken, "OLD")
+    }
+
+    func testFetchServerErrorKeepsEventsAndStaysConnectedFailure() async throws {
+        let ctx = try makeContext()
+        let now = Date(timeIntervalSince1970: 1_780_000_000)
+        let store = InMemoryTokenStore()
+        try store.saveCredentials(.init(clientId: "c", clientSecret: "s"))
+        try store.saveToken(GoogleToken(accessToken: "AT", refreshToken: "RT", expiresAt: now.addingTimeInterval(3600)))
+        ctx.insert(CalendarEvent(externalId: "keep", title: "X", start: now, end: now))
+        try ctx.save()
+        // Events endpoint 503 → must NOT wipe the synced rows.
+        let svc = makeService(store: store, tokenJSON: "{}",
+                              eventsJSON: "oops", eventsStatus: 503, context: ctx, now: { now })
+        await svc.fetch()
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<CalendarEvent>()).map(\.externalId), ["keep"])
+        guard case .failed = svc.state else { return XCTFail("expected .failed, got \(svc.state)") }
     }
 
     func testDisconnectClearsTokenAndEvents() async throws {

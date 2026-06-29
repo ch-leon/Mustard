@@ -27,7 +27,13 @@ public struct GoogleEventsClient {
                       window: CalendarWindow) async throws -> [ParsedEvent] {
         var req = URLRequest(url: Self.eventsURL(calendarId: calendarId, window: window))
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let data = try await transport(req)
+        let (data, status) = try await transport(req)
+        // Fail loudly on non-2xx. Otherwise a Google error body (no `items`) would parse
+        // to [] and the upsert reconciler would delete every synced event — silent data
+        // loss. 401 → invalidGrant so the service clears the token; others keep last sync.
+        guard (200..<300).contains(status) else {
+            throw status == 401 ? GoogleAuthError.invalidGrant : GoogleAuthError.server("events status \(status)")
+        }
         return GoogleCalendarParser.parseEvents(data)
     }
 }
