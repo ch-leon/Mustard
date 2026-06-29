@@ -1,0 +1,11 @@
+{"ts":"2026-06-29T10:30:52Z","event":"run_start","issue":"BAK-45","branch":"leon/bak-45-live-google-calendar-connect-auth-fetch"}
+{"ts":"2026-06-29T10:31:00Z","event":"risk_classified","class":"high","needs_deep_review":true,"outward_actions":"none"}
+{"ts":"2026-06-29T10:32:30Z","event":"task_done","task":1,"name":"loopback redirect + shared types","tests":"4 pass"}
+{"ts":"2026-06-29T10:33:10Z","event":"task_done","task":2,"name":"token client","tests":"4 pass"}
+{"ts":"2026-06-29T10:33:40Z","event":"task_done","task":3,"name":"events client","tests":"2 pass"}
+{"ts":"2026-06-29T10:34:10Z","event":"task_done","task":4,"name":"token store","tests":"2 pass"}
+{"ts":"2026-06-29T10:34:45Z","event":"task_done","task":5,"name":"upsert reconciler","tests":"3 pass"}
+{"ts":"2026-06-29T10:35:10Z","event":"task_done","task":6,"name":"auth session","tests":"1 pass"}
+{"ts":"2026-06-29T10:36:00Z","event":"task_done","task":7,"name":"GoogleCalendarService","tests":"3 pass"}
+{"ts":"2026-06-29T10:40:00Z","event":"task_done","task":"8-9","name":"settings UI + app wiring","build":"clean"}
+{"ts":"2026-06-29T10:41:00Z","event":"checks","swift_test":"314 pass / 1 skip","swift_build":"clean","app_bundle":"built"}

@@ -1,0 +1,126 @@
+import Foundation
+import Network
+
+/// The code + state extracted from the OAuth redirect.
+public struct RedirectResult: Equatable {
+    public let code: String
+    public let state: String?
+    public init(code: String, state: String?) { self.code = code; self.state = state }
+}
+
+/// Captures the single OAuth redirect on a loopback port. The socket plumbing is a
+/// thin shell (build-verified); `parseRedirect` is the pure, unit-tested seam.
+public protocol RedirectServing {
+    func start() throws -> Int                                     // bound port
+    func awaitCode(timeout: TimeInterval) async throws -> RedirectResult
+    func stop()
+}
+
+public final class LoopbackRedirectServer: RedirectServing {
+    private var listener: NWListener?
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<RedirectResult, Error>?
+    private var resolved = false
+
+    public init() {}
+
+    public static func parseRedirect(query: String) -> Result<RedirectResult, GoogleAuthError> {
+        let items = URLComponents(string: "http://x?\(query)")?.queryItems ?? []
+        let state = items.first(where: { $0.name == "state" })?.value
+        if let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty {
+            return .success(RedirectResult(code: code, state: state))
+        }
+        if let err = items.first(where: { $0.name == "error" })?.value {
+            return .failure(err == "access_denied" ? .denied : .server(err))
+        }
+        return .failure(.missingCode)
+    }
+
+    /// Resolve the pending `awaitCode` continuation exactly once, from any thread.
+    /// Guards against a double inbound connection and against the timeout racing the
+    /// redirect — whichever arrives first wins; the rest are no-ops.
+    private func resolve(_ result: Result<RedirectResult, Error>) {
+        lock.lock()
+        guard !resolved else { lock.unlock(); return }
+        resolved = true
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        switch result {
+        case .success(let payload): cont?.resume(returning: payload)
+        case .failure(let err): cont?.resume(throwing: err)
+        }
+    }
+
+    public func start() throws -> Int {
+        // Bind to the loopback interface only (RFC 8252 §8.3) — never 0.0.0.0, so no host
+        // on the LAN can reach the redirect port during the consent window.
+        let params = NWParameters.tcp
+        params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+        let listener = try NWListener(using: params)
+        self.listener = listener
+        let sem = DispatchSemaphore(value: 0)
+        var boundPort = 0
+        listener.stateUpdateHandler = { state in
+            switch state {
+            case .ready: boundPort = Int(listener.port?.rawValue ?? 0); sem.signal()
+            case .failed, .cancelled: sem.signal()
+            default: break
+            }
+        }
+        listener.newConnectionHandler = { [weak self] conn in self?.handle(conn) }
+        listener.start(queue: .global())
+        _ = sem.wait(timeout: .now() + 5)
+        guard boundPort != 0 else { throw GoogleAuthError.portBindFailed }
+        return boundPort
+    }
+
+    public func awaitCode(timeout: TimeInterval) async throws -> RedirectResult {
+        try await withThrowingTaskGroup(of: RedirectResult.self) { group in
+            group.addTask { try await self.waitForRedirect() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                throw GoogleAuthError.timeout
+            }
+            do {
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            } catch {
+                group.cancelAll()
+                // Timeout won the race: resolve the still-pending redirect continuation
+                // so it is never orphaned.
+                resolve(.failure(error))
+                throw error
+            }
+        }
+    }
+
+    public func stop() {
+        listener?.cancel()
+        listener = nil
+        resolve(.failure(GoogleAuthError.timeout))   // resolve if still pending
+    }
+
+    private func waitForRedirect() async throws -> RedirectResult {
+        try await withCheckedThrowingContinuation { cont in
+            lock.lock()
+            self.continuation = cont
+            lock.unlock()
+        }
+    }
+
+    private func handle(_ conn: NWConnection) {
+        conn.start(queue: .global())
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, _, _ in
+            guard let self, let data, let request = String(data: data, encoding: .utf8) else { return }
+            // Request line: "GET /?code=...&state=... HTTP/1.1"
+            let path = request.split(separator: " ").dropFirst().first.map(String.init) ?? ""
+            let query = path.contains("?") ? String(path.split(separator: "?").last ?? "") : ""
+            let body = "<html><body>Mustard is connected. You can close this tab.</body></html>"
+            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
+            conn.send(content: Data(response.utf8), completion: .contentProcessed { _ in conn.cancel() })
+            self.resolve(LoopbackRedirectServer.parseRedirect(query: query).mapError { $0 as Error })
+        }
+    }
+}
