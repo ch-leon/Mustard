@@ -154,13 +154,13 @@ public struct BoardView: View {
         let totalCount = isDone ? visible.count + older : all.count
 
         return VStack(alignment: .leading, spacing: 0) {
-            if let accent = style.accent {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(accent)
-                    .frame(height: 3)
-                    .padding(.horizontal, 2)
-                    .padding(.bottom, 9)
-            }
+            // Always reserve the accent-bar row so every column's header aligns —
+            // plain columns just get a transparent bar (the bar height is layout, not decoration).
+            RoundedRectangle(cornerRadius: 3)
+                .fill(style.accent ?? .clear)
+                .frame(height: 3)
+                .padding(.horizontal, 2)
+                .padding(.bottom, 9)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
