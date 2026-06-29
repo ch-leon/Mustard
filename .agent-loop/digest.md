@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-29 — MERGED · BAK-83 Agent Bridge Phase 2 (PR #27)
+- **Risk:** high (touches AgentService) · **Deep-review:** PASS (3/3 clear, no fix round)
+- **Checks:** swift test 334 pass/1 skip · swift build clean · CI (self-hosted)
+- **Outward actions:** none · bridge is file I/O only (no execution/send); staging-only
+- **Run:** `.agent-loop/runs/20260629-agent-bridge-phase2/`
+- **What landed:** AgentWorkOrder/AgentResult schemas, pure BridgeExport/BridgeIngest, FileBridgeIO, AgentService export+ingest on the 10-min loop, file-contract doc
+- **Follow-ups:** route via AreaRouter (vs defaultAreaMap); archive undecodable result files; (BAK-82 meeting titles, separate)
+- **Deferred:** Phase 3 — the connected-session worker that drains outbox, runs dl-create-shortcut-story, writes results
+- **Revert:** `git revert fe3b5b1b08e02475d9f23bc9215caca82ecc1e99`
+
 ## 2026-06-29 — MERGED · BAK-73 Agent Task Board Phase 1 (PR #26)
 - **Risk:** high (agent core — AgentService rewired) · **Deep-review:** PASS (3/3 clear after 1 fix round)
 - **Checks:** swift test 315 pass/1 skip · swift build clean · CI (self-hosted)
