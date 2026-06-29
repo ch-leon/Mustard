@@ -33,7 +33,7 @@ extension Data {
     }
 }
 
-public struct GoogleToken: Equatable {
+public struct GoogleToken: Codable, Equatable {
     public let accessToken: String
     public let refreshToken: String?
     public let expiresAt: Date
