@@ -89,7 +89,7 @@ public struct BoardView: View {
             if status == .done {
                 TaskCompletion.complete(task, in: context)
             } else {
-                PersonalBoard.move(task, to: status)
+                PersonalBoard.moveStatus(task, to: status)
             }
             return true
         }

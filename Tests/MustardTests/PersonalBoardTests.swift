@@ -18,14 +18,14 @@ final class PersonalBoardTests: XCTestCase {
 
     func test_move_toDone_stampsCompletion() {
         let t = MustardTask(title: "x"); t.status = .planned
-        PersonalBoard.move(t, to: .done)
+        PersonalBoard.moveStatus(t, to: .done)
         XCTAssertEqual(t.status, .done)
         XCTAssertNotNil(t.completedAt)
     }
 
     func test_move_outOfDone_clearsCompletion() {
         let t = MustardTask(title: "x"); t.markDone()
-        PersonalBoard.move(t, to: .inProgress)
+        PersonalBoard.moveStatus(t, to: .inProgress)
         XCTAssertEqual(t.status, .inProgress)
         XCTAssertNil(t.completedAt)
     }
