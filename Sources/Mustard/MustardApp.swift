@@ -73,6 +73,12 @@ struct MustardApp: App {
                             if Date.now.timeIntervalSince(lastInbox) >= 600 {
                                 for source in updated.sources where source.enabled && !source.workingDirectory.isEmpty {
                                     await agent.ingestInbox(workingDirectory: source.workingDirectory)
+                                    // Agent bridge: export queued/forAgent tasks + ingest results (Phase 2).
+                                    let areaName = MeetingTaskSync.defaultAreaMap[source.project] ?? ""
+                                    if !areaName.isEmpty {
+                                        agent.exportWorkOrders(workingDir: source.workingDirectory, area: areaName, project: source.project)
+                                        agent.ingestAgentResults(workingDir: source.workingDirectory)
+                                    }
                                 }
                                 lastInbox = .now
                             }

@@ -21,10 +21,13 @@ public final class AgentService {
 
     private let context: ModelContext
     private let claude: ClaudeRun
+    private let bridge: BridgeIO
 
-    public init(context: ModelContext, claude: @escaping ClaudeRun = ClaudeRunner.run) {
+    public init(context: ModelContext, claude: @escaping ClaudeRun = ClaudeRunner.run,
+                bridge: BridgeIO = FileBridgeIO()) {
         self.context = context
         self.claude = claude
+        self.bridge = bridge
     }
 
     /// Manual vault sweep: ask claude for recommendations, ingest them through the
@@ -126,6 +129,34 @@ public final class AgentService {
         guard !proposals.isEmpty else { return }
         ingest(proposals, vaultPath: workingDirectory)
         await applyTrust(Self.storedTrust())
+    }
+
+    /// Export forAgent/queued tasks under one KB working dir to its `_agent/outbox/`,
+    /// and cancel stale outbox files. Pure plan + injected IO. (area/project identify
+    /// the KB; in the loop these come from the SourceConfig + AreaRouter map.)
+    public func exportWorkOrders(workingDir: String, area: String, project: String) {
+        let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
+        // This dir handles tasks whose area maps here; the caller passes the dir/area/project.
+        let target = BridgeExport.RouteTarget(workingDir: workingDir, project: project)
+        let mine = all.filter { ($0.list?.area?.name ?? "") == area }
+        let plan = BridgeExport.plan(
+            tasks: mine, route: { _ in target },
+            liveOutboxUIDs: [workingDir: bridge.liveOutboxUIDs(workingDir: workingDir)], now: .now)
+        for w in plan.writes { try? bridge.writeWorkOrder(w.order, workingDir: workingDir) }
+        for c in plan.cancels { try? bridge.cancelWorkOrder(uid: c.uid, workingDir: workingDir) }
+    }
+
+    /// Ingest `_agent/results/` for one KB working dir: apply each (guarded) and archive it.
+    public func ingestAgentResults(workingDir: String) {
+        let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
+        let byUID = Dictionary(all.map { ($0.uid, $0) }, uniquingKeysWith: { a, _ in a })
+        for (result, path) in bridge.readResults(workingDir: workingDir) {
+            let outcome = BridgeIngest.apply(result, to: byUID[result.uid])
+            if outcome == .applied, result.status == "failed" {
+                lastError = "Agent run failed: \(result.error ?? "unknown")"
+            }
+            try? bridge.archiveResult(path, workingDir: workingDir)
+        }
     }
 
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
