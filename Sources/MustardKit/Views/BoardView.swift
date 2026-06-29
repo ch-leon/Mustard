@@ -1,163 +1,271 @@
 import SwiftUI
 import SwiftData
 
-/// Personal Kanban (spec feature 3): my tasks in status columns,
-/// drag a card between columns to change status. Things-3-calm.
+/// The owner-segmented task board (BAK-79). A single board whose visible columns
+/// change with the owner lens (Everyone / Mine / Agent). Pipeline + two human gates
+/// (Needs Approval, Needs Review). Recreated from the design handoff; all hex/sizes
+/// that Theme lacks (column kind tints) come straight from the handoff.
+///
+/// Scope note: only the board content right of the existing app sidebar lives here.
 public struct BoardView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
+    @Query(sort: \Area.name) private var areas: [Area]
+
+    @State private var view: BoardOwnerView
+    @State private var area: BoardArea = .all
     @State private var selectedTask: MustardTask?
 
-    public init() {}
+    private let settings = BoardSettings()
+    private var compact: Bool { settings.compact }
+    private var showConfidence: Bool { settings.showConfidence }
+    private var columnWidth: CGFloat { compact ? 162 : 182 }
+
+    public init() {
+        _view = State(initialValue: BoardSettings().defaultView)
+    }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Board")
-                .font(Theme.Fonts.header)
-                .foregroundStyle(Theme.Palette.textPrimary)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(PersonalBoard.columns, id: \.self) { status in
-                        column(status)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-                .frame(maxHeight: .infinity, alignment: .top)
-            }
-            .frame(maxHeight: .infinity)
+            header
+            columns
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
         .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
     }
 
-    private func column(_ status: TaskStatus) -> some View {
-        // The Done column shows only recent completions; older ones collapse into
-        // a "+N older" footer so 280+ done tasks can't flood the board.
-        let tasks = status == .done
-            ? PersonalBoard.recentDone(allTasks)
-            : PersonalBoard.tasks(allTasks, status: status)
-        let olderDone = status == .done ? PersonalBoard.olderDoneCount(allTasks) : 0
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text(status.label.uppercased())
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.Palette.textTertiary)
-                Text("\(tasks.count + olderDone)")
-                    .font(Theme.Fonts.meta)
-                    .foregroundStyle(Theme.Palette.textTertiary)
-                Spacer()
-            }
-            .padding(.horizontal, 4)
+    // MARK: Header
 
-            // Cards scroll within the column so a tall column never grows the
-            // whole board past the window (which would push the sidebar nav
-            // off-screen). LazyVStack keeps a long column cheap to render.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Text("Board")
+                    .font(Theme.Fonts.header)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                let waiting = PersonalBoard.waitingCount(allTasks, view: view, area: area)
+                if waiting > 0 {
+                    Text("● \(waiting) waiting on you")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Color(hex: "#6A61C9"))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#EEEBFA"), in: Capsule())
+                        .overlay(Capsule().stroke(Color(hex: "#E2DCF4"), lineWidth: 0.5))
+                }
+                Spacer(minLength: 0)
+            }
+
+            controls
+                .padding(.top, 16)
+
+            HStack(spacing: 6) {
+                Text("●").foregroundStyle(Theme.Palette.agent)
+                Text(view.caption)
+            }
+            .font(.system(size: 12.5))
+            .foregroundStyle(Color(hex: "#8A8579"))
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+    }
+
+    private var controls: some View {
+        HStack(spacing: 14) {
+            ownerSegmentedControl
+            Rectangle()
+                .fill(Color(hex: "#E1DCD1"))
+                .frame(width: 0.5, height: 22)
+            areaChips
+        }
+    }
+
+    private var ownerSegmentedControl: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(BoardOwnerView.allCases.enumerated()), id: \.element.id) { idx, v in
+                let active = v == view
+                let activeBg = v == .agent ? Theme.Palette.agent : Theme.Palette.textPrimary
+                Text(v.label)
+                    .font(.system(size: 13, weight: active ? .semibold : .medium))
+                    .foregroundStyle(active ? Color.white : Color(hex: "#8A8579"))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(active ? AnyShapeStyle(activeBg) : AnyShapeStyle(Color.clear))
+                    .contentShape(Rectangle())
+                    .onTapGesture { view = v }
+                    .overlay(alignment: .trailing) {
+                        if idx < BoardOwnerView.allCases.count - 1 {
+                            Rectangle().fill(Color(hex: "#E1DCD1")).frame(width: 0.5)
+                        }
+                    }
+            }
+        }
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "#E1DCD1"), lineWidth: 0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var areaChips: some View {
+        HStack(spacing: 6) {
+            areaChip(label: "All areas", target: .all)
+            ForEach(areas) { a in
+                areaChip(label: a.name, target: .area(a.name))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func areaChip(label: String, target: BoardArea) -> some View {
+        let active = area == target
+        Text(label)
+            .font(.system(size: 12, weight: active ? .semibold : .medium))
+            .foregroundStyle(active ? Color(hex: "#46433B") : Theme.Palette.textSecondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5)
+            .background(active ? Color(hex: "#EAE5DB") : Color.clear, in: Capsule())
+            .overlay(Capsule().stroke(active ? Color(hex: "#DAD3C6") : Color.clear, lineWidth: 0.5))
+            .contentShape(Capsule())
+            .onTapGesture { area = target }
+    }
+
+    // MARK: Columns
+
+    private var columns: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 11) {
+                ForEach(PersonalBoard.columns(for: view), id: \.self) { stage in
+                    column(stage)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 20)
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func column(_ stage: TaskStage) -> some View {
+        let style = ColumnStyle(stage.kind)
+        let all = PersonalBoard.tasks(allTasks, in: stage, view: view, area: area)
+        let isDone = stage == .done
+        let visible = isDone ? Array(all.prefix(PersonalBoard.doneColumnLimit)) : all
+        let older = isDone ? PersonalBoard.olderDoneCount(allTasks, view: view, area: area) : 0
+        let totalCount = isDone ? visible.count + older : all.count
+
+        return VStack(alignment: .leading, spacing: 0) {
+            if let accent = style.accent {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(accent)
+                    .frame(height: 3)
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 9)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(stage.label.uppercased())
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.04 * 11)
+                        .foregroundStyle(style.head)
+                    Text("\(totalCount)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(hex: "#C0BCB1"))
+                }
+                if let sub = stage.subLabel {
+                    Text(sub)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+            }
+            .padding(.horizontal, 3)
+            .padding(.bottom, 9)
+
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(tasks) { task in
-                        BoardCard(task: task)
+                    if visible.isEmpty && older == 0 {
+                        Text("—")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Color(hex: "#C8C3B7"))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 6)
+                    }
+                    ForEach(visible) { task in
+                        MustardBoardCard(task: task, showConfidence: showConfidence)
                             .draggable(task.uid)
                             .onTapGesture { selectedTask = task }
                     }
-
-                    if olderDone > 0 {
-                        Text("+\(olderDone) older completed")
-                            .font(Theme.Fonts.meta)
+                    if older > 0 {
+                        Text("+\(older) older completed")
+                            .font(.system(size: 11.5))
                             .foregroundStyle(Theme.Palette.textTertiary)
                             .padding(.horizontal, 4)
                             .padding(.top, 2)
                     }
+                    QuickColumnAdd(stage: stage)
                 }
             }
-
-            QuickColumnAdd(status: status)
         }
         .padding(10)
-        .frame(width: 220, alignment: .top)
+        .frame(width: columnWidth, alignment: .top)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Theme.Palette.surface.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .background(style.background, in: RoundedRectangle(cornerRadius: 12))
         .dropDestination(for: String.self) { uids, _ in
             guard let uid = uids.first,
                   let task = allTasks.first(where: { $0.uid == uid }) else { return false }
-            guard task.status != status else { return true }
-            if status == .done {
+            guard task.stage != stage else { return true }
+            if stage == .done {
                 TaskCompletion.complete(task, in: context)
             } else {
-                PersonalBoard.moveStatus(task, to: status)
+                PersonalBoard.move(task, to: stage)
             }
             return true
         }
     }
 }
 
-struct BoardCard: View {
-    @Environment(AgentService.self) private var agent
-    let task: MustardTask
+/// Visual treatment for a board column, mapped from `TaskColumnKind`. The tints are
+/// from the design handoff ("Column styling by kind") — Theme has no column tokens.
+private struct ColumnStyle {
+    let background: Color
+    let accent: Color?
+    let head: Color
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(task.title)
-                .font(Theme.Fonts.body)
-                .foregroundStyle(Theme.Palette.textPrimary)
-                .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            if task.isBlocked {
-                Label("Blocked", systemImage: "exclamationmark.octagon")
-                    .font(Theme.Fonts.meta)
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                    .lineLimit(1)
-            }
-            if task.scheduledAt != nil || task.estimateMinutes != 30 || task.list != nil {
-                VStack(alignment: .leading, spacing: 3) {
-                    if let when = task.scheduledAt {
-                        Label(
-                            when.formatted(.dateTime.weekday(.abbreviated).hour().minute()),
-                            systemImage: "calendar"
-                        )
-                        .foregroundStyle(Theme.Palette.accent)
-                        .lineLimit(1)
-                    }
-                    if task.list != nil || task.estimateMinutes != 30 {
-                        HStack(spacing: 6) {
-                            if let list = task.list {
-                                ListBadge(list: list)
-                            }
-                            if task.estimateMinutes != 30 {
-                                Text("\(task.estimateMinutes)m")
-                                    .foregroundStyle(Theme.Palette.textTertiary)
-                            }
-                            DelegationBadge(task: task)
-                        }
-                        .lineLimit(1)
-                    }
-                }
-                .font(Theme.Fonts.meta)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
-        .contextMenu {
-            if task.owner == .me && task.delegation == nil && task.status != .done {
-                Button { agent.delegate(task) } label: {
-                    Label("Ask agent to do this", systemImage: "cpu")
-                }
-            }
+    init(_ kind: TaskColumnKind) {
+        switch kind {
+        case .standard:
+            background = Color(hex: "#EFEBE2").opacity(0.55)
+            accent = nil
+            head = Color(hex: "#9A968B")
+        case .handoff:
+            background = Theme.Palette.agent.opacity(0.05)
+            accent = Color(hex: "#CFC9F0")
+            head = Color(hex: "#8079C6")
+        case .gate:
+            background = Theme.Palette.agent.opacity(0.085)
+            accent = Theme.Palette.agent
+            head = Color(hex: "#6A61C9")
+        case .agent:
+            background = Theme.Palette.agent.opacity(0.05)
+            accent = Color(hex: "#BCB6EC")
+            head = Color(hex: "#8079C6")
+        case .warn:
+            background = Theme.Palette.warning.opacity(0.07)
+            accent = Theme.Palette.warning
+            head = Color(hex: "#B07A29")
+        case .done:
+            background = Theme.Palette.done.opacity(0.05)
+            accent = Color(hex: "#9BD0BD")
+            head = Color(hex: "#6A9C84")
         }
     }
 }
 
+/// Per-column "+ Add" affordance: inserts a new `.me` task at this stage. Sets both
+/// `stage` and a sensible legacy `status` so old status-based surfaces stay coherent.
 struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
-    let status: TaskStatus
+    let stage: TaskStage
     @State private var text = ""
     @FocusState private var focused: Bool
 
@@ -165,27 +273,49 @@ struct QuickColumnAdd: View {
         HStack(spacing: 6) {
             Button(action: add) {
                 Image(systemName: "plus")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.Palette.textTertiary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#C0BCB1"))
             }
             .buttonStyle(.plain)
             TextField("Add…", text: $text)
                 .textFieldStyle(.plain)
-                .font(Theme.Fonts.meta)
+                .font(.system(size: 12))
+                .foregroundStyle(Color(hex: "#C0BCB1"))
                 .focused($focused)
                 .onSubmit(add)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .padding(.top, 7)
+        .padding(.bottom, 2)
     }
 
     private func add() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { focused = true; return }
         let task = MustardTask(title: trimmed)
-        task.status = status
+        task.stage = stage
+        task.status = legacyStatus(for: stage)
         context.insert(task)
         text = ""
         focused = true
     }
+
+    /// Map a stage onto the legacy `TaskStatus` for stores/surfaces that still read it.
+    private func legacyStatus(for stage: TaskStage) -> TaskStatus {
+        switch stage {
+        case .inbox: return .inbox
+        case .inProgress: return .inProgress
+        case .done: return .done
+        default: return .planned
+        }
+    }
 }
+
+#if DEBUG
+#Preview {
+    BoardView()
+        .frame(width: 1100, height: 700)
+        .modelContainer(PreviewData.container)
+        .environment(AgentService(context: PreviewData.container.mainContext))
+}
+#endif
