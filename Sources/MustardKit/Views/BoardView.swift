@@ -218,6 +218,12 @@ public struct BoardView: View {
                 TaskCompletion.complete(task, in: context)
             } else {
                 PersonalBoard.move(task, to: stage)
+                // Keep owner coherent with the lane dropped into; Inbox/Done are shared.
+                switch stage {
+                case .forAgent, .needsApproval, .queued, .needsReview: task.owner = .agent
+                case .planned, .scheduled, .inProgress, .blocked: task.owner = .me
+                case .inbox, .done: break
+                }
             }
             return true
         }
@@ -261,8 +267,8 @@ private struct ColumnStyle {
     }
 }
 
-/// Per-column "+ Add" affordance: inserts a new `.me` task at this stage. Sets both
-/// `stage` and a sensible legacy `status` so old status-based surfaces stay coherent.
+/// Per-column "+ Add" affordance: inserts a new `.me` task at this stage. `stage` is
+/// the source of truth; the legacy `status` field is left at its default.
 struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
     let stage: TaskStage
@@ -294,20 +300,9 @@ struct QuickColumnAdd: View {
         guard !trimmed.isEmpty else { focused = true; return }
         let task = MustardTask(title: trimmed)
         task.stage = stage
-        task.status = legacyStatus(for: stage)
         context.insert(task)
         text = ""
         focused = true
-    }
-
-    /// Map a stage onto the legacy `TaskStatus` for stores/surfaces that still read it.
-    private func legacyStatus(for stage: TaskStage) -> TaskStatus {
-        switch stage {
-        case .inbox: return .inbox
-        case .inProgress: return .inProgress
-        case .done: return .done
-        default: return .planned
-        }
     }
 }
 

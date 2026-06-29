@@ -60,4 +60,9 @@ final class StageBoardTests: XCTestCase {
         PersonalBoard.move(t, to: .done)
         XCTAssertEqual(t.stage, .done); XCTAssertNotNil(t.completedAt)
     }
+
+    func test_agentBadge_countsNeedsApprovalAndReview_anyOwner() {
+        let all = [task(.needsApproval, owner: .agent), task(.needsReview, owner: .me), task(.queued, owner: .agent)]
+        XCTAssertEqual(PersonalBoard.agentBadge(all), 2)
+    }
 }

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import MustardKit
 
 final class BoardMigrationTests: XCTestCase {
@@ -20,5 +21,29 @@ final class BoardMigrationTests: XCTestCase {
     func test_agentTask_landsInQueued() {
         XCTAssertEqual(BoardMigration.stage(legacyStatus: .inProgress, scheduledAt: nil, owner: .agent), .queued)
         XCTAssertEqual(BoardMigration.stage(legacyStatus: .done, scheduledAt: nil, owner: .agent), .done)
+    }
+
+    /// Launch-path behaviour: backfill migrates an un-migrated task once, then is a
+    /// no-op on re-run (the `migratedStage` guard), so it never clobbers later edits.
+    func test_backfill_migratesOnce_thenIdempotent() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self,
+            configurations: config
+        )
+        let ctx = ModelContext(container)
+        let t = MustardTask(title: "legacy")
+        t.statusRaw = TaskStatus.someday.rawValue
+        t.migratedStage = false
+        ctx.insert(t)
+
+        BoardMigration.backfill(ctx)
+        XCTAssertEqual(t.stage, .inbox)        // someday → inbox
+        XCTAssertTrue(t.migratedStage)
+
+        // A later manual change must survive a second backfill (idempotent).
+        t.stage = .queued
+        BoardMigration.backfill(ctx)
+        XCTAssertEqual(t.stage, .queued)
     }
 }
