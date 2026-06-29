@@ -1,11 +1,13 @@
 import SwiftUI
 import SwiftData
+import AppKit
 import MustardKit
 
 @main
 struct MustardApp: App {
     private let container: ModelContainer
     @State private var agent: AgentService
+    @State private var calendar: GoogleCalendarService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
@@ -14,16 +16,30 @@ struct MustardApp: App {
         let container = MustardContainer.make()
         self.container = container
         self._agent = State(initialValue: AgentService(context: container.mainContext))
+
+        let keychain = KeychainTokenStore()
+        self._calendar = State(initialValue: GoogleCalendarService(
+            authSession: GoogleAuthSession(
+                makeServer: { LoopbackRedirectServer() },
+                tokenClient: GoogleTokenClient(),
+                store: keychain,
+                openURL: { NSWorkspace.shared.open($0) }),
+            tokenClient: GoogleTokenClient(),
+            eventsClient: GoogleEventsClient(),
+            store: keychain,
+            context: container.mainContext))
     }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(agent)
+                .environment(calendar)
                 .frame(minWidth: 640, minHeight: 520)
                 .task {
                     let container = container
                     let agent = agent
+                    calendar.bootstrap()
                     if hoverPanel == nil {
                         hoverPanel = HoverPanel {
                             AnyView(
@@ -73,6 +89,11 @@ struct MustardApp: App {
                         // every tick, independent of the claude sweep interval.
                         if !meetingVaultPath.isEmpty, !agent.isSweeping, !agent.isExecuting {
                             agent.importMeetingTasks(vaultRoot: meetingVaultPath)
+                        }
+                        // Live Google Calendar: refresh + re-sync when connected.
+                        // fetch() calls refreshIfNeeded() internally.
+                        if calendar.state == .connected {
+                            await calendar.fetch()
                         }
                         try? await Task.sleep(for: .seconds(60))
                     }

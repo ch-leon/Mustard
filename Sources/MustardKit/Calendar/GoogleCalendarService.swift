@@ -38,6 +38,11 @@ public final class GoogleCalendarService {
         state = ((try? store.loadToken()) ?? nil) != nil ? .connected : .disconnected
     }
 
+    /// Persisted credentials, if any — lets the Settings UI prefill for one-tap reconnect.
+    public func savedCredentials() -> GoogleCredentials? {
+        (try? store.loadCredentials()) ?? nil
+    }
+
     public func connect(credentials: GoogleCredentials) async {
         state = .connecting
         do {
