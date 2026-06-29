@@ -44,10 +44,36 @@ public final class MustardTask {
     /// Stable identity from `MeetingTaskParser.originKey` — dedup + line locator.
     public var originKey: String?
 
+    // Board stage model (BAK-74). `stage` supersedes `status`; `statusRaw` is kept
+    // only so existing stores decode and `BoardMigration` can backfill `stage`.
+    public var stageRaw: String = TaskStage.inbox.rawValue
+    /// True once `stage` has been backfilled from legacy `statusRaw` (one-time).
+    public var migratedStage: Bool = false
+    /// Outward/connector action this task performs when agent-bound — drives gating
+    /// and the headless-vs-connector route. Nil for ordinary personal tasks.
+    public var actionTypeRaw: String?
+    /// Agent confidence (0…1) shown on Needs Approval / proposed cards.
+    public var confidence: Double?
+    /// Links surfaced on a Needs Review card (Shortcut / Jira / draft).
+    public var links: [TaskLink] = []
+
     public var status: TaskStatus {
         get { TaskStatus(rawValue: statusRaw) ?? .inbox }
         set { statusRaw = newValue.rawValue }
     }
+
+    public var stage: TaskStage {
+        get { TaskStage(rawValue: stageRaw) ?? .inbox }
+        set { stageRaw = newValue.rawValue }
+    }
+
+    public var actionType: RecommendationAction? {
+        get { actionTypeRaw.flatMap(RecommendationAction.init(rawValue:)) }
+        set { actionTypeRaw = newValue?.rawValue }
+    }
+
+    /// Outward/connector actions are always gated (reuse the recommendation policy).
+    public var isGated: Bool { actionType?.isGated ?? false }
 
     public var owner: TaskOwner {
         get { TaskOwner(rawValue: ownerRaw) ?? .me }
@@ -86,6 +112,7 @@ public final class MustardTask {
     /// `autoCompleted`; the task you call this on is not.
     public func markDone(now: Date = .now) {
         status = .done
+        stage = .done
         completedAt = now
         for child in subtasks ?? [] where child.status.isOpen {
             child.autoCompleted = true

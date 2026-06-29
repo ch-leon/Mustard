@@ -1,5 +1,7 @@
 import Foundation
 
+/// LEGACY: superseded by `TaskStage`. Retained only so existing stores decode and
+/// `BoardMigration` can backfill `stage` from it. Do not use in new code.
 public enum TaskStatus: String, Codable, CaseIterable, Identifiable {
     case inbox, planned, inProgress, done, someday
     public var id: String { rawValue }
