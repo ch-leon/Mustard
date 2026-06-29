@@ -112,8 +112,8 @@ public struct NotchView: View {
     }
 
     private var focusTask: MustardTask? {
-        let todays = DayPlanner.tasksForDay(tasks, day: .now).filter { $0.status.isOpen && !$0.isBlocked }
-        return tasks.first { $0.status == .inProgress && !$0.isBlocked } ?? todays.first
+        let todays = DayPlanner.tasksForDay(tasks, day: .now).filter { $0.stage.isOpen && !$0.isBlocked }
+        return tasks.first { $0.stage == .inProgress && !$0.isBlocked } ?? todays.first
     }
 
     private var pending: [Recommendation] {

@@ -80,7 +80,7 @@ struct CommandBarView: View {
             if screen == .today {
                 task.scheduledAt = Calendar.current.date(
                     bySettingHour: 9, minute: 0, second: 0, of: .now)
-                task.status = .planned
+                task.stage = .planned
             }
             context.insert(task)
         case .goToday:

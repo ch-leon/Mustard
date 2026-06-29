@@ -72,11 +72,11 @@ public struct MustardBoardCard: View {
         HStack(spacing: 0) {
             ownerTab(label: "You", active: !isAgent) {
                 PersonalBoard.reassign(task, to: .me)
-                task.status = .planned
+                task.stage = .planned
             }
             ownerTab(label: "✦", active: isAgent) {
                 agent.delegate(task)
-                task.status = .inbox
+                task.stage = .inbox
             }
         }
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "#E1DCD1"), lineWidth: 0.5))

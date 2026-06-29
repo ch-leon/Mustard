@@ -97,7 +97,7 @@ public final class MustardTask {
     /// (completed, total) over direct subtasks — drives the "0/1" header.
     public var subtaskProgress: (done: Int, total: Int) {
         let subs = subtasks ?? []
-        return (subs.filter { $0.status == .done }.count, subs.count)
+        return (subs.filter { $0.stage == .done }.count, subs.count)
     }
 
     public init(title: String = "", owner: TaskOwner = .me, scheduledAt: Date? = nil) {
@@ -114,7 +114,7 @@ public final class MustardTask {
         status = .done
         stage = .done
         completedAt = now
-        for child in subtasks ?? [] where child.status.isOpen {
+        for child in subtasks ?? [] where child.stage.isOpen {
             child.autoCompleted = true
             child.markDone(now: now)
         }

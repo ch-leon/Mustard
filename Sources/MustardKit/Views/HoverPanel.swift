@@ -58,8 +58,8 @@ public struct HoverPanelView: View {
     public init() {}
 
     private var focusTask: MustardTask? {
-        let todays = DayPlanner.tasksForDay(tasks, day: .now).filter { $0.status.isOpen }
-        return tasks.first { $0.status == .inProgress } ?? todays.first
+        let todays = DayPlanner.tasksForDay(tasks, day: .now).filter { $0.stage.isOpen }
+        return tasks.first { $0.stage == .inProgress } ?? todays.first
     }
 
     private var waitingCount: Int {

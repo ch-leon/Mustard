@@ -68,8 +68,8 @@ public struct TodayView: View {
     }
 
     private func toggle(_ task: MustardTask) {
-        if task.status == .done {
-            task.status = .planned
+        if task.stage == .done {
+            task.stage = .planned
             task.completedAt = nil
         } else {
             TaskCompletion.complete(task, in: context)

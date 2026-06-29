@@ -194,7 +194,6 @@ public final class AgentService {
     private func materializeTask(from rec: Recommendation) {
         let task = MustardTask(title: rec.title)
         task.notes = rec.draft.isEmpty ? rec.body : rec.draft
-        task.status = .inbox
         task.stage = .inbox
         context.insert(task)
     }
@@ -226,7 +225,7 @@ public final class AgentService {
         task.confidence = rec.confidence
         task.migratedStage = true
         task.owner = owner
-        if !task.status.isOpen {
+        if !task.stage.isOpen {
             // already done (e.g. headless vault note ran) — keep done stage
         } else {
             task.stage = stage
@@ -257,7 +256,7 @@ public final class AgentService {
         case .denied:
             if let task = rec.task {
                 task.owner = .me
-                if task.status.isOpen { task.stage = .planned }
+                if task.stage.isOpen { task.stage = .planned }
             }
             return
         case .scheduled:

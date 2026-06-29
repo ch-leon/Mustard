@@ -13,35 +13,35 @@ public enum AreaOrganizer {
     /// The not-done tasks from an already-scoped list, original order preserved.
     /// (Someday counts as active — it's still open work, just deferred.)
     public static func active(_ tasks: [MustardTask]) -> [MustardTask] {
-        tasks.filter { $0.status != .done }
+        tasks.filter { $0.stage != .done }
     }
 
     /// The completed tasks from an already-scoped list, newest completion first.
     public static func completed(_ tasks: [MustardTask]) -> [MustardTask] {
-        tasks.filter { $0.status == .done }
+        tasks.filter { $0.stage == .done }
             .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
     }
 
     /// Open tasks with no list — the unfiled bucket, oldest first.
     public static func unfiled(_ all: [MustardTask]) -> [MustardTask] {
-        all.filter { $0.list == nil && $0.status.isOpen }
+        all.filter { $0.list == nil && $0.stage.isOpen }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
     /// Count of open tasks filed into `list`.
     public static func openCount(for list: TaskList, in all: [MustardTask]) -> Int {
-        all.lazy.filter { $0.list === list && $0.status.isOpen }.count
+        all.lazy.filter { $0.list === list && $0.stage.isOpen }.count
     }
 
     /// Count of open tasks across all lists belonging to `area` (matched by the
     /// task's `list.area`, so area-less lists never contribute).
     public static func openCount(for area: Area, in all: [MustardTask]) -> Int {
-        all.lazy.filter { $0.status.isOpen && $0.list?.area === area }.count
+        all.lazy.filter { $0.stage.isOpen && $0.list?.area === area }.count
     }
 
     /// Count of open, unfiled tasks (for the "Unfiled" sidebar entry).
     public static func unfiledCount(_ all: [MustardTask]) -> Int {
-        all.lazy.filter { $0.list == nil && $0.status.isOpen }.count
+        all.lazy.filter { $0.list == nil && $0.stage.isOpen }.count
     }
 
     /// Areas sorted by name (localized, case-insensitive), then createdAt.

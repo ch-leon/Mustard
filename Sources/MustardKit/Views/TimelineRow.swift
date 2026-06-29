@@ -46,7 +46,7 @@ public struct TimelineRow: View {
         return when.formatted(date: .omitted, time: .shortened)
     }
 
-    private var isDone: Bool { task.status == .done }
+    private var isDone: Bool { task.stage == .done }
 
     public var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -88,7 +88,7 @@ public struct TimelineRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .contextMenu {
-            if task.owner == .me && task.delegation == nil && task.status != .done {
+            if task.owner == .me && task.delegation == nil && task.stage != .done {
                 Button { agent.delegate(task) } label: {
                     Label("Ask agent to do this", systemImage: "cpu")
                 }
