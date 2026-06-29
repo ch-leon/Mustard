@@ -9,9 +9,15 @@ public enum MustardContainer {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let config = ModelConfiguration(url: dir.appending(path: "mustard.store"))
         do {
-            return try ModelContainer(
+            let container = try ModelContainer(
                 for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, CalendarEvent.self, configurations: config
             )
+            // One-time backfill of the stage model from legacy status (BAK-75).
+            // A fresh context avoids the main-actor isolation of `mainContext`.
+            let migration = ModelContext(container)
+            BoardMigration.backfill(migration)
+            try? migration.save()
+            return container
         } catch {
             fatalError("Could not open Mustard store: \(error)")
         }
