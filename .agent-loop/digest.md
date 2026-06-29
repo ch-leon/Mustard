@@ -2,6 +2,13 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-29 — MERGED · BAK-87 project→area routing fix (PR #29)
+- **Risk:** high (AgentService) · **Deep-review:** PASS (2-lens — correctness + security/scope, both clear; small focused fix)
+- **Checks:** swift test 339 pass/1 skip · swift build clean
+- **Root cause:** `project` stored as folder name ("DL-Knowledge-Base") but area maps code-keyed ("DL") → bridge export was DORMANT in real config + promote stamped no area → triage-approved recs never reached the outbox.
+- **Fix:** `AreaMapping.areaName(forProject:)` (folder-name + code → area); bridge loop uses it; promote/materializeTask stamp the task's area (find-or-create). `AreaRouter` now dead code.
+- **Revert:** `git revert 12540b9739eabde787921fb07b867c4b93df94c7`
+
 ## 2026-06-29 — MERGED · BAK-83 Agent Bridge Phase 2 (PR #27)
 - **Risk:** high (touches AgentService) · **Deep-review:** PASS (3/3 clear, no fix round)
 - **Checks:** swift test 334 pass/1 skip · swift build clean · CI (self-hosted)
