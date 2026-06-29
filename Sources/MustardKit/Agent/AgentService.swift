@@ -227,6 +227,21 @@ public final class AgentService {
         task.notes = rec.draft.isEmpty ? rec.body : rec.draft
         task.stage = .inbox
         context.insert(task)
+        ensureArea(task, fromProject: rec.project)
+    }
+
+    /// Stamp a newly-created task with the area resolved from the rec's `project`, so the
+    /// board area filter and the bridge export can route it. Find-or-create the Area + a
+    /// list in it; no-op if the task already has a list or the project doesn't map.
+    private func ensureArea(_ task: MustardTask, fromProject project: String) {
+        guard task.list == nil, let areaName = AreaMapping.areaName(forProject: project) else { return }
+        let area = (try? context.fetch(FetchDescriptor<Area>()))?.first { $0.name == areaName }
+            ?? { let a = Area(name: areaName); context.insert(a); return a }()
+        if let list = (try? context.fetch(FetchDescriptor<TaskList>()))?.first(where: { $0.area?.name == areaName }) {
+            task.list = list
+        } else {
+            let list = TaskList(name: areaName, area: area); context.insert(list); task.list = list
+        }
     }
 
     /// The next 9:00 local time strictly after `now` (inline scheduling default for
@@ -264,7 +279,10 @@ public final class AgentService {
         if let scheduledAt { task.scheduledAt = scheduledAt }
         rec.task = task
         task.delegation = rec
-        if isNew { context.insert(task) }
+        if isNew {
+            context.insert(task)
+            ensureArea(task, fromProject: rec.project)  // route by area for export/board filter
+        }
         return task
     }
 

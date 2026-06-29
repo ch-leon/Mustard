@@ -74,7 +74,9 @@ struct MustardApp: App {
                                 for source in updated.sources where source.enabled && !source.workingDirectory.isEmpty {
                                     await agent.ingestInbox(workingDirectory: source.workingDirectory)
                                     // Agent bridge: export queued/forAgent tasks + ingest results (Phase 2).
-                                    let areaName = MeetingTaskSync.defaultAreaMap[source.project] ?? ""
+                                    // Resolve the area from the project's folder-name form ("DL-Knowledge-Base")
+                                    // or code ("DL") — the config stores the folder name, the map is code-keyed.
+                                    let areaName = AreaMapping.areaName(forProject: source.project) ?? ""
                                     if !areaName.isEmpty {
                                         agent.exportWorkOrders(workingDir: source.workingDirectory, area: areaName, project: source.project)
                                         agent.ingestAgentResults(workingDir: source.workingDirectory)
