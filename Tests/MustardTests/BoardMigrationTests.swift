@@ -46,4 +46,22 @@ final class BoardMigrationTests: XCTestCase {
         BoardMigration.backfill(ctx)
         XCTAssertEqual(t.stage, .queued)
     }
+
+    /// Regression: a task created in-app (born `migratedStage = true`) and placed at a
+    /// non-inbox stage must NOT be reverted to inbox by the launch backfill, which
+    /// derives stage from the (stale, default-inbox) legacy `statusRaw`.
+    func test_backfill_doesNotClobberNewlyCreatedTaskStage() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self,
+            configurations: config
+        )
+        let ctx = ModelContext(container)
+        let t = MustardTask(title: "added via +Add")  // born migratedStage = true
+        t.stage = .inProgress                          // statusRaw stays default "inbox"
+        ctx.insert(t)
+
+        BoardMigration.backfill(ctx)
+        XCTAssertEqual(t.stage, .inProgress, "backfill must not revert an in-app task's stage")
+    }
 }

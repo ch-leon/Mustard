@@ -105,6 +105,11 @@ public final class MustardTask {
         self.ownerRaw = owner.rawValue
         self.scheduledAt = scheduledAt
         self.createdAt = .now
+        // Tasks created in code are born on the stage model — they carry no legacy
+        // status to migrate. Marking them migrated keeps the launch backfill (which
+        // derives stage from `statusRaw`) from ever clobbering their stage. Only rows
+        // decoded from a pre-stage store (default false) get backfilled, once each.
+        self.migratedStage = true
     }
 
     /// Mark done, stamping completion time, and cascade-complete open subtasks

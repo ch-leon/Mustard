@@ -294,13 +294,15 @@ public final class AgentService {
     /// Promote a board task either way; on success mark it DONE, on failure leave it
     /// at `.queued` and surface the error on `lastError` (no silent completion).
     private func runVaultNote(_ rec: Recommendation) async {
+        // Stage the task first so a race with another execution can't strand the rec
+        // (approved-but-no-task). If we're busy, it simply stays queued for a later run.
+        let task = promote(rec, to: .queued, owner: .agent)
         guard !isExecuting else { return }
         isExecuting = true
         currentTitle = rec.title
         rec.executionState = .running
         defer { isExecuting = false; currentTitle = nil }
 
-        let task = promote(rec, to: .queued, owner: .agent)
         let result = await claude(
             VaultSweep.executePrompt(
                 title: rec.title, body: rec.body, action: rec.action,
