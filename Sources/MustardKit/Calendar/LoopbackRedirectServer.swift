@@ -11,10 +11,27 @@ public protocol RedirectServing {
 
 public final class LoopbackRedirectServer: RedirectServing {
     private var listener: NWListener?
+    private let lock = NSLock()
     private var continuation: CheckedContinuation<String, Error>?
     private var resolved = false
 
     public init() {}
+
+    /// Resolve the pending `awaitCode` continuation exactly once, from any thread.
+    /// Guards against a double inbound connection and against the timeout racing the
+    /// redirect — whichever arrives first wins; the rest are no-ops.
+    private func resolve(_ result: Result<String, Error>) {
+        lock.lock()
+        guard !resolved else { lock.unlock(); return }
+        resolved = true
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        switch result {
+        case .success(let code): cont?.resume(returning: code)
+        case .failure(let err): cont?.resume(throwing: err)
+        }
+    }
 
     public static func parseRedirect(query: String) -> Result<String, GoogleAuthError> {
         let items = URLComponents(string: "http://x?\(query)")?.queryItems ?? []
@@ -53,19 +70,32 @@ public final class LoopbackRedirectServer: RedirectServing {
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 throw GoogleAuthError.timeout
             }
-            let code = try await group.next()!
-            group.cancelAll()
-            return code
+            do {
+                let code = try await group.next()!
+                group.cancelAll()
+                return code
+            } catch {
+                group.cancelAll()
+                // Timeout won the race: resolve the still-pending redirect continuation
+                // so it is never orphaned.
+                resolve(.failure(error))
+                throw error
+            }
         }
     }
 
     public func stop() {
         listener?.cancel()
         listener = nil
+        resolve(.failure(GoogleAuthError.timeout))   // resolve if still pending
     }
 
     private func waitForRedirect() async throws -> String {
-        try await withCheckedThrowingContinuation { cont in self.continuation = cont }
+        try await withCheckedThrowingContinuation { cont in
+            lock.lock()
+            self.continuation = cont
+            lock.unlock()
+        }
     }
 
     private func handle(_ conn: NWConnection) {
@@ -75,17 +105,10 @@ public final class LoopbackRedirectServer: RedirectServing {
             // Request line: "GET /?code=... HTTP/1.1"
             let path = request.split(separator: " ").dropFirst().first.map(String.init) ?? ""
             let query = path.contains("?") ? String(path.split(separator: "?").last ?? "") : ""
-            let result = LoopbackRedirectServer.parseRedirect(query: query)
             let body = "<html><body>Mustard is connected. You can close this tab.</body></html>"
             let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
             conn.send(content: Data(response.utf8), completion: .contentProcessed { _ in conn.cancel() })
-            guard !self.resolved else { return }
-            self.resolved = true
-            switch result {
-            case .success(let code): self.continuation?.resume(returning: code)
-            case .failure(let err): self.continuation?.resume(throwing: err)
-            }
-            self.continuation = nil
+            self.resolve(LoopbackRedirectServer.parseRedirect(query: query).mapError { $0 as Error })
         }
     }
 }
