@@ -143,16 +143,19 @@ final class VaultSweepPromptTests: XCTestCase {
     }
 }
 
+
 @MainActor
 final class AgentServiceTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, OutputCard.self, CalendarEvent.self,
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self,
             configurations: config
         )
         return ModelContext(container)
     }
+
+    // MARK: - Sweep
 
     func test_sweep_insertsPendingRecommendations() async throws {
         let ctx = try makeContext()
@@ -198,73 +201,160 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(recent.source, "meeting")
     }
 
-    func test_approve_executesAndProducesExactlyOneCard() async throws {
+    // MARK: - decide(approved) — board promotion (ADR-0010)
+
+    func test_approve_outwardAction_stagesQueuedAgentTask_noClaude() async throws {
         let ctx = try makeContext()
-        let stub: ClaudeRun = { prompt, _ in
-            // Key on the rec title rather than prompt copy, so the test is robust
-            // to prompt wording changes.
-            ClaudeResult(ok: true, text: prompt.contains("Do it") ? "Did the thing." : "[]")
-        }
-        let service = AgentService(context: ctx, claude: stub)
-        let rec = Recommendation(title: "Do it", vaultPath: "/tmp/vault")
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        // draft_email is an outward/connector action — staged for the decoupled session.
+        let rec = Recommendation(title: "Reply to Kamil", actionType: "draft_email",
+                                 vaultPath: "/v", confidence: 0.8, draft: "Hi Kamil,")
         ctx.insert(rec)
 
         await service.decide(rec, .approved)
 
+        XCTAssertFalse(called, "outward actions don't run headless — they queue")
         XCTAssertEqual(rec.decision, .approved)
-        XCTAssertEqual(rec.executionState, .finished)
-        let cards = try ctx.fetch(FetchDescriptor<OutputCard>())
-        XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.first?.content, "Did the thing.")
-        XCTAssertEqual(cards.first?.review, .pending)
+        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
+        XCTAssertEqual(tasks.count, 1)
+        let task = try XCTUnwrap(tasks.first)
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertEqual(task.actionType, .draftEmail)
+        XCTAssertEqual(task.notes, "Hi Kamil,")
+        XCTAssertEqual(task.delegation, rec)
+        XCTAssertEqual(rec.task, task)
     }
 
-    func test_execute_failureStillProducesCard_markedFailed() async throws {
+    func test_approve_vaultNote_runsHeadless_marksTaskDone() async throws {
         let ctx = try makeContext()
-        let stub: ClaudeRun = { _, _ in ClaudeResult(ok: false, text: "boom") }
-        let service = AgentService(context: ctx, claude: stub)
-        let rec = Recommendation(title: "Do it", vaultPath: "/tmp/vault")
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "Filed the note.") })
+        let rec = Recommendation(title: "Update SDK note", actionType: "vault_note", vaultPath: "/v")
         ctx.insert(rec)
 
-        await service.execute(rec)
+        await service.decide(rec, .approved)
+
+        XCTAssertEqual(rec.executionState, .finished)
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.stage, .done)
+        XCTAssertEqual(task.status, .done)
+        XCTAssertNotNil(task.completedAt)
+    }
+
+    func test_approve_vaultNote_failure_leavesTaskQueued_setsError() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: false, text: "boom") })
+        let rec = Recommendation(title: "Update SDK note", actionType: "vault_note", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.decide(rec, .approved)
 
         XCTAssertEqual(rec.executionState, .failed)
-        let cards = try ctx.fetch(FetchDescriptor<OutputCard>())
-        XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.first?.kind, "error")
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.stage, .queued, "a failed headless run leaves the task queued")
+        XCTAssertNotEqual(task.status, .done)
+        XCTAssertNotNil(service.lastError)
     }
 
-    func test_deny_doesNotExecute() async throws {
+    func test_approve_createTask_insertsInboxMeTask_noClaude() async throws {
         let ctx = try makeContext()
         var called = false
-        let stub: ClaudeRun = { _, _ in called = true; return ClaudeResult(ok: true, text: "") }
-        let service = AgentService(context: ctx, claude: stub)
-        let rec = Recommendation(title: "Nope", vaultPath: "/tmp/vault")
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Find Ruby's error screens", actionType: "create_task",
+                                 vaultPath: "/v", draft: "Locate in Figma; answer Liam's Qs")
         ctx.insert(rec)
+
+        await service.decide(rec, .approved)
+
+        XCTAssertFalse(called)
+        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
+        XCTAssertEqual(tasks.count, 1)
+        let task = try XCTUnwrap(tasks.first)
+        XCTAssertEqual(task.title, "Find Ruby's error screens")
+        XCTAssertEqual(task.notes, "Locate in Figma; answer Liam's Qs")
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertEqual(task.stage, .inbox)
+        XCTAssertEqual(task.status, .inbox)
+    }
+
+    func test_approve_fyi_doesNothing() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "FYI", actionType: "fyi", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.decide(rec, .approved)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<MustardTask>()).count, 0)
+    }
+
+    // MARK: - decide(scheduled / selfExecute / denied)
+
+    func test_decide_scheduled_createsScheduledMeTask_atNextNineAM() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Prep slides", actionType: "vault_note", vaultPath: "/v", draft: "outline")
+        ctx.insert(rec)
+
+        await service.decide(rec, .scheduled)
+
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertEqual(task.stage, .scheduled)
+        let when = try XCTUnwrap(task.scheduledAt)
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: when)
+        XCTAssertEqual(comps.hour, 9)
+        XCTAssertEqual(comps.minute, 0)
+        XCTAssertGreaterThan(when, .now)
+    }
+
+    func test_decide_selfExecute_createsPlannedMeTask() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "I'll handle it", actionType: "draft_email", vaultPath: "/v")
+        ctx.insert(rec)
+
+        await service.decide(rec, .selfExecute)
+
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertEqual(task.stage, .planned)
+    }
+
+    func test_decide_denyDelegatedRec_returnsTaskToYou_planned() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "T", owner: .agent); task.stage = .forAgent
+        let rec = Recommendation(title: "R", actionType: "vault_note")
+        rec.task = task; task.delegation = rec
+        ctx.insert(task); ctx.insert(rec)
 
         await service.decide(rec, .denied)
 
-        XCTAssertEqual(rec.decision, .denied)
-        XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertEqual(task.stage, .planned)
     }
 
-    func test_applyTrust_supervised_autoRunsNonGated_outputAwaitsReview() async throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v", confidence: 0.9)
-        ctx.insert(rec)
+    // MARK: - delegate (trivial board hand-off)
 
-        await service.applyTrust(.supervised)
+    func test_delegate_handsTaskToAgent_atForAgent() {
+        let ctx = try! makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "Do this", owner: .me)
+        ctx.insert(task)
 
-        XCTAssertEqual(rec.decision, .approved)
-        XCTAssertEqual(rec.executionState, .finished)
-        let cards = try ctx.fetch(FetchDescriptor<OutputCard>())
-        XCTAssertEqual(cards.count, 1)
-        XCTAssertEqual(cards.first?.review, .pending)
+        service.delegate(task)
+
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertEqual(task.stage, .forAgent)
     }
 
-    func test_applyTrust_trusted_autoAcceptsNonGated() async throws {
+    // MARK: - applyTrust
+
+    func test_applyTrust_trusted_autoApprovesNonGated_promotesTask() async throws {
         let ctx = try makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "done") })
         let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v", confidence: 0.9)
@@ -272,7 +362,23 @@ final class AgentServiceTests: XCTestCase {
 
         await service.applyTrust(.trusted)
 
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).first?.review, .accepted)
+        XCTAssertEqual(rec.decision, .approved)
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.stage, .done)   // vault note ran headless to done
+    }
+
+    func test_applyTrust_neverTouchesGatedActions() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Email Kamil", actionType: "draft_email", vaultPath: "/v", confidence: 0.95)
+        ctx.insert(rec)
+
+        await service.applyTrust(.autonomous)
+
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertFalse(called)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<MustardTask>()).count, 0)
     }
 
     func test_applyTrust_skipsLowConfidence_evenTrusted() async throws {
@@ -288,6 +394,83 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertFalse(called)
     }
 
+    func test_applyTrust_skipsFyi() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Heads up", actionType: "fyi", vaultPath: "/v", confidence: 0.9)
+        ctx.insert(rec)
+
+        await service.applyTrust(.autonomous)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(rec.decision, .pending)
+    }
+
+    func test_applyTrust_neverAutoActionsIgnoreRecs() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "PO Review", actionType: "ignore",
+                                 vaultPath: "/tmp/vault", confidence: 0.95)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called, "ignore recs must never auto-action")
+        XCTAssertEqual(rec.decision, .pending)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<MustardTask>()).count, 0)
+    }
+
+    func test_applyTrust_skipsDelegatedRecs() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        // A delegated rec (has a task link) is not auto-actioned by the trust sweep.
+        let task = MustardTask(title: "Delegated work", owner: .agent)
+        let rec = Recommendation(title: "Do it", actionType: "vault_note", confidence: 0.9)
+        rec.task = task; task.delegation = rec
+        ctx.insert(task); ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called)
+        XCTAssertEqual(rec.decision, .pending)
+    }
+
+    func test_applyTrust_createTask_insertsMeTask_noClaude() async throws {
+        let ctx = try makeContext()
+        var called = false
+        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Do the thing", actionType: "create_task", vaultPath: "/v", confidence: 0.9)
+        ctx.insert(rec)
+
+        await service.applyTrust(.trusted)
+
+        XCTAssertFalse(called)
+        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
+        XCTAssertEqual(tasks.count, 1)
+        XCTAssertEqual(tasks.first?.stage, .inbox)
+    }
+
+    // MARK: - grounded prompt + comment/snooze
+
+    func test_approve_vaultNote_buildsGroundedPrompt_includingDraftAndComment() async throws {
+        let ctx = try makeContext()
+        var captured = ""
+        let service = AgentService(context: ctx, claude: { prompt, _ in
+            captured = prompt; return ClaudeResult(ok: true, text: "ok")
+        })
+        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v", draft: "Body draft")
+        ctx.insert(rec)
+        service.comment(rec, "keep it under 100 words")
+
+        await service.decide(rec, .approved)
+
+        XCTAssertTrue(captured.contains("Body draft"))
+        XCTAssertTrue(captured.contains("keep it under 100 words"))
+    }
+
     func test_commentAndSnooze() async throws {
         let ctx = try makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
@@ -301,123 +484,9 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(rec.decision, .pending)
     }
 
-    func test_execute_buildsGroundedPrompt_includingDraft() async throws {
-        let ctx = try makeContext()
-        var captured = ""
-        let service = AgentService(context: ctx, claude: { prompt, _ in
-            captured = prompt; return ClaudeResult(ok: true, text: "ok")
-        })
-        let rec = Recommendation(
-            title: "Reply", actionType: "draft_email", vaultPath: "/v",
-            draft: "Hi Kamil,"
-        )
-        ctx.insert(rec)
+    // MARK: - keep (FYI filing)
 
-        await service.execute(rec)
-
-        XCTAssertTrue(captured.contains("Hi Kamil,"))
-        XCTAssertTrue(captured.lowercased().contains("email"))
-    }
-
-    func test_decide_approved_passesTriageCommentAsFeedback() async throws {
-        let ctx = try makeContext()
-        var captured = ""
-        let service = AgentService(context: ctx, claude: { prompt, _ in
-            captured = prompt; return ClaudeResult(ok: true, text: "ok")
-        })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
-        ctx.insert(rec)
-        service.comment(rec, "keep it under 100 words")
-
-        await service.decide(rec, .approved)
-
-        XCTAssertTrue(captured.contains("keep it under 100 words"))
-    }
-
-    func test_revise_retiresOldCard_createsNewPending_chainsHistory() async throws {
-        let ctx = try makeContext()
-        var captured = ""
-        let service = AgentService(context: ctx, claude: { prompt, _ in
-            captured = prompt; return ClaudeResult(ok: true, text: "v2 output")
-        })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
-        ctx.insert(rec)
-        let first = OutputCard(content: "v1 output", recommendation: rec)
-        ctx.insert(first)
-
-        let newCard = await service.revise(first, feedback: "make it shorter")
-
-        XCTAssertEqual(first.review, .revised)
-        XCTAssertNotNil(newCard)
-        XCTAssertEqual(newCard?.review, .pending)
-        XCTAssertEqual(newCard?.content, "v2 output")
-        XCTAssertEqual(rec.comment, "make it shorter")
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 2)
-        XCTAssertTrue(captured.contains("v1 output"))
-        XCTAssertTrue(captured.contains("make it shorter"))
-    }
-
-    func test_revise_emptyFeedback_stillRevisesWithPriorOutput() async throws {
-        let ctx = try makeContext()
-        var captured = ""
-        let service = AgentService(context: ctx, claude: { prompt, _ in
-            captured = prompt; return ClaudeResult(ok: true, text: "v2")
-        })
-        let rec = Recommendation(title: "Note", actionType: "vault_note", vaultPath: "/v")
-        ctx.insert(rec)
-        let first = OutputCard(content: "v1 output", recommendation: rec)
-        ctx.insert(first)
-
-        let newCard = await service.revise(first, feedback: "")
-
-        XCTAssertNotNil(newCard)
-        XCTAssertTrue(captured.contains("v1 output"))
-    }
-
-    func test_revise_noRecommendation_isNoOp() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in
-            called = true; return ClaudeResult(ok: true, text: "x")
-        })
-        let orphan = OutputCard(content: "orphan", recommendation: nil)
-        ctx.insert(orphan)
-
-        let result = await service.revise(orphan, feedback: "change it")
-
-        XCTAssertNil(result)
-        XCTAssertFalse(called)
-        XCTAssertEqual(orphan.review, .pending)
-    }
-
-    func test_applyTrust_neverTouchesGatedActions() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Email Kamil", actionType: "draft_email", vaultPath: "/v")
-        ctx.insert(rec)
-
-        await service.applyTrust(.autonomous)
-
-        XCTAssertEqual(rec.decision, .pending)
-        XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
-
-    func test_decide_approved_fyi_doesNotExecute() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "FYI", actionType: "fyi", vaultPath: "/v")
-        ctx.insert(rec)
-
-        await service.decide(rec, .approved)
-
-        XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
-
-    func test_keep_fyi_appendsLog_noClaude_noCard() async throws {
+    func test_keep_fyi_appendsLog_noClaude() async throws {
         let ctx = try makeContext()
         var called = false
         let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
@@ -430,7 +499,6 @@ final class AgentServiceTests: XCTestCase {
         service.keep(rec)
 
         XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
         XCTAssertEqual(rec.decision, .approved)
         let log = try String(contentsOf: InboxLog.logURL(workingDirectory: dir.path), encoding: .utf8)
         XCTAssertTrue(log.contains("Standup moved"))
@@ -454,273 +522,7 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("Second"))
     }
 
-    func test_approve_createTask_insertsInboxTask_noClaude_noCard() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Find Ruby's error screens", actionType: "create_task",
-                                 vaultPath: "/v", draft: "Locate in Figma; answer Liam's Qs")
-        ctx.insert(rec)
-
-        await service.decide(rec, .approved)
-
-        XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-        let tasks = try ctx.fetch(FetchDescriptor<MustardTask>())
-        XCTAssertEqual(tasks.count, 1)
-        XCTAssertEqual(tasks.first?.title, "Find Ruby's error screens")
-        XCTAssertEqual(tasks.first?.notes, "Locate in Figma; answer Liam's Qs")
-        XCTAssertEqual(tasks.first?.status, .inbox)
-    }
-
-    func test_applyTrust_createTask_insertsTask_notCard() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Do the thing", actionType: "create_task", vaultPath: "/v", confidence: 0.9)
-        ctx.insert(rec)
-
-        await service.applyTrust(.trusted)
-
-        XCTAssertFalse(called)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<MustardTask>()).count, 1)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
-
-    func test_applyTrust_skipsFyi() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let service = AgentService(context: ctx, claude: { _, _ in called = true; return ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Heads up", actionType: "fyi", vaultPath: "/v", confidence: 0.9)
-        ctx.insert(rec)
-
-        await service.applyTrust(.autonomous)
-
-        XCTAssertFalse(called)
-        XCTAssertEqual(rec.decision, .pending)
-    }
-
-    // MARK: - delegate / accept / discard (Tasks 6 & 7)
-
-    private func delegatableTask(_ ctx: ModelContext, area: String = "Digital Licence") -> MustardTask {
-        let a = Area(name: area)
-        let list = TaskList(name: area, area: a)
-        let task = MustardTask(title: "Find Ruby's error screens")
-        task.notes = "Liam asked where they live."
-        task.list = list
-        ctx.insert(a); ctx.insert(list); ctx.insert(task)
-        return task
-    }
-
-    func test_delegate_manual_queuesProposal_setsOwnerAgent_noExecute() async throws {
-        let ctx = try makeContext()
-        var calls = 0
-        let service = AgentService(context: ctx, claude: { _, _ in
-            calls += 1
-            return ClaudeResult(ok: true, text: #"[{"title":"Locate screens","action_type":"vault_note","confidence":0.9,"reasoning":"clear","draft":"steps"}]"#)
-        })
-        let task = delegatableTask(ctx)
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertEqual(calls, 1)                 // classify ran once; no execute under Manual
-        XCTAssertEqual(task.owner, .agent)
-        XCTAssertNotNil(task.delegation)
-        XCTAssertEqual(task.delegation?.decision, .pending)
-        XCTAssertEqual(task.delegation?.vaultPath, "/work/DL")
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
-
-    func test_delegate_trusted_runsImmediately_producesCard() async throws {
-        UserDefaults.standard.set("trusted", forKey: "trustLevel")
-        defer { UserDefaults.standard.removeObject(forKey: "trustLevel") }
-        let ctx = try makeContext()
-        var calls = 0
-        let service = AgentService(context: ctx, claude: { _, _ in
-            calls += 1
-            return ClaudeResult(ok: true, text: #"[{"title":"Locate screens","action_type":"vault_note","confidence":0.9,"reasoning":"clear","draft":"steps"}]"#)
-        })
-        let task = delegatableTask(ctx)
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertEqual(calls, 2)                 // classify + execute
-        XCTAssertEqual(task.delegation?.decision, .approved)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 1)
-        XCTAssertEqual(task.status, .done)                    // successful run completes the task
-        let savedCard = try ctx.fetch(FetchDescriptor<OutputCard>()).first
-        XCTAssertEqual(savedCard?.review, .accepted)
-    }
-
-    func test_delegate_claudeFailure_setsError_noFakeDecline() async throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: false, text: "401 unauthorized") })
-        let task = delegatableTask(ctx)
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertNil(task.delegation)
-        XCTAssertEqual(task.owner, .me)                       // never flipped to agent
-        XCTAssertEqual(service.lastError, "Delegation failed: 401 unauthorized")
-        XCTAssertFalse(task.notes.contains("passed on this")) // a failure is not a decline
-    }
-
-    func test_delegate_trusted_executionFails_doesNotCompleteTask() async throws {
-        UserDefaults.standard.set("trusted", forKey: "trustLevel")
-        defer { UserDefaults.standard.removeObject(forKey: "trustLevel") }
-        let ctx = try makeContext()
-        var calls = 0
-        let service = AgentService(context: ctx, claude: { _, _ in
-            calls += 1
-            if calls == 1 {   // classify succeeds
-                return ClaudeResult(ok: true, text: #"[{"title":"Do it","action_type":"vault_note","confidence":0.9,"reasoning":"x","draft":"d"}]"#)
-            }
-            return ClaudeResult(ok: false, text: "boom")   // execute fails
-        })
-        let task = delegatableTask(ctx)
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertEqual(calls, 2)
-        XCTAssertNotEqual(task.status, .done)                 // failed run never completes the task
-        let card = try ctx.fetch(FetchDescriptor<OutputCard>()).first
-        XCTAssertEqual(card?.kind, "error")
-        XCTAssertNotEqual(card?.review, .accepted)            // not auto-accepted
-    }
-
-    func test_accept_errorCard_doesNotCompleteTask() throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
-        let task = MustardTask(title: "T", owner: .agent)
-        let rec = Recommendation(title: "R", actionType: "vault_note")
-        rec.task = task; task.delegation = rec
-        let card = OutputCard(content: "Execution failed: boom", kind: "error", recommendation: rec)
-        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
-
-        service.accept(card)
-
-        XCTAssertNotEqual(task.status, .done)
-        XCTAssertNotEqual(card.review, .accepted)             // inert on an error card
-    }
-
-    func test_delegate_decline_revertsOwner_appendsNote_noRec() async throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in
-            ClaudeResult(ok: true, text: #"[{"title":"x","action_type":"ignore","reasoning":"needs your judgement","draft":"needs your judgement"}]"#)
-        })
-        let task = delegatableTask(ctx)
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertEqual(task.owner, .me)          // returned to you
-        XCTAssertNil(task.delegation)
-        XCTAssertTrue(task.notes.contains("needs your judgement"))
-    }
-
-    func test_delegate_unresolvedArea_setsError_doesNotChangeOwner() async throws {
-        let ctx = try makeContext()
-        var calls = 0
-        let service = AgentService(context: ctx, claude: { _, _ in calls += 1; return ClaudeResult(ok: true, text: "[]") })
-        let task = delegatableTask(ctx, area: "Personal Errands")   // unmapped → no KB
-
-        await service.delegate(task, workVaultRoot: "/work", sources: [])
-
-        XCTAssertEqual(calls, 0)                 // never called claude
-        XCTAssertEqual(task.owner, .me)
-        XCTAssertNil(task.delegation)
-        XCTAssertNotNil(service.lastError)
-    }
-
-    func test_accept_delegatedCard_marksTaskDone_appendsOutputToNotes() async throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
-        let task = MustardTask(title: "Write the summary"); task.notes = "context"
-        let rec = Recommendation(title: "Write summary", actionType: "vault_note")
-        rec.task = task; task.delegation = rec
-        let card = OutputCard(content: "Here is the finished summary.", recommendation: rec)
-        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
-
-        service.accept(card)
-
-        XCTAssertEqual(card.review, .accepted)
-        XCTAssertEqual(task.status, .done)
-        XCTAssertNotNil(task.completedAt)
-        XCTAssertTrue(task.notes.contains("Here is the finished summary."))
-    }
-
-    func test_accept_nonDelegatedCard_justAccepts() throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
-        let rec = Recommendation(title: "Sweep rec", actionType: "vault_note")  // no task link
-        let card = OutputCard(content: "done", recommendation: rec)
-        ctx.insert(rec); ctx.insert(card)
-
-        service.accept(card)
-
-        XCTAssertEqual(card.review, .accepted)
-    }
-
-    func test_discard_delegatedCard_returnsTaskToYou() throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
-        let task = MustardTask(title: "T", owner: .agent)
-        let rec = Recommendation(title: "R", actionType: "vault_note")
-        rec.task = task; task.delegation = rec
-        let card = OutputCard(content: "draft", recommendation: rec)
-        ctx.insert(task); ctx.insert(rec); ctx.insert(card)
-
-        service.discard(card)
-
-        XCTAssertEqual(card.review, .discarded)
-        XCTAssertEqual(task.owner, .me)
-    }
-
-    func test_decide_denyDelegatedRec_returnsTaskToYou() async throws {
-        let ctx = try makeContext()
-        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
-        let task = MustardTask(title: "T", owner: .agent)
-        let rec = Recommendation(title: "R", actionType: "vault_note")
-        rec.task = task; task.delegation = rec
-        ctx.insert(task); ctx.insert(rec)
-
-        await service.decide(rec, .denied)
-
-        XCTAssertEqual(task.owner, .me)
-    }
-
-    func test_applyTrust_neverAutoExecutesIgnoreRecs() async throws {
-        let ctx = try makeContext()
-        var called = false
-        let stub: ClaudeRun = { _, _ in called = true; return ClaudeResult(ok: true, text: "x") }
-        let service = AgentService(context: ctx, claude: stub)
-        // Non-gated + high confidence would normally auto-run at Trusted.
-        let rec = Recommendation(title: "PO Review", actionType: "ignore",
-                                 vaultPath: "/tmp/vault", confidence: 0.95)
-        ctx.insert(rec)
-
-        await service.applyTrust(.trusted)
-
-        XCTAssertFalse(called, "ignore recs must never auto-execute")
-        XCTAssertEqual(rec.decision, .pending)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
-
-    func test_applyTrust_skipsDelegatedRecs_supervisedQueuesThem() async throws {
-        let ctx = try makeContext()
-        var calls = 0
-        let service = AgentService(context: ctx, claude: { _, _ in calls += 1; return ClaudeResult(ok: true, text: "x") })
-        // A queued delegated rec: pending, non-gated, high confidence, WITH a task link.
-        let task = MustardTask(title: "Delegated work", owner: .agent)
-        let rec = Recommendation(title: "Do it", actionType: "vault_note", confidence: 0.9)
-        rec.task = task; task.delegation = rec
-        ctx.insert(task); ctx.insert(rec)
-
-        await service.applyTrust(.supervised)
-
-        XCTAssertEqual(calls, 0)                       // delegation queues at Supervised — not auto-run by trust sweep
-        XCTAssertEqual(rec.decision, .pending)
-        XCTAssertEqual(try ctx.fetch(FetchDescriptor<OutputCard>()).count, 0)
-    }
+    // MARK: - ingestInbox
 
     func test_ingestInbox_reclassifiesGmailJiraNotificationToJiraSource() async throws {
         let ctx = try makeContext()

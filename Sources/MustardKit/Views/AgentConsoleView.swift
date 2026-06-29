@@ -2,8 +2,9 @@ import SwiftUI
 import SwiftData
 import AppKit
 
-/// The agent console: vault source row, Recommendations queue (master-detail
-/// list │ detail), Review queue (accept/revise/discard). Things-3-calm throughout.
+/// The agent console: vault source row + Recommendations queue (master-detail
+/// list │ detail). Output review now lives on the board's Needs Review column
+/// (ADR-0010) — there is no console review queue. Things-3-calm throughout.
 public struct AgentConsoleView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
@@ -16,16 +17,11 @@ public struct AgentConsoleView: View {
 
     private var trust: TrustLevel { TrustLevel(rawValue: trustRaw) ?? .manual }
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
-    @Query(sort: \OutputCard.createdAt, order: .reverse) private var cards: [OutputCard]
 
     public init() {}
 
     private var pending: [Recommendation] {
         RecommendationQueue.pending(recommendations, now: .now)
-    }
-
-    private var reviewQueue: [OutputCard] {
-        cards.filter { $0.review == .pending }
     }
 
     public var body: some View {
@@ -82,14 +78,7 @@ public struct AgentConsoleView: View {
                     }
                 }
 
-                sectionLabel("REVIEW", count: reviewQueue.count)
-                if reviewQueue.isEmpty {
-                    emptyLine("No output waiting for review.")
-                }
-                ForEach(reviewQueue) { card in
-                    OutputCardRow(card: card)
-                    Divider().overlay(Theme.Palette.hairline)
-                }
+                // Output review now lives on the board's Needs Review column (ADR-0010).
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 20)
@@ -239,7 +228,7 @@ public struct AgentConsoleView: View {
             if count > 0 {
                 Text("\(count)")
                     .font(Theme.Fonts.meta)
-                    .foregroundStyle(title == "REVIEW" ? Theme.Palette.done : Theme.Palette.agent)
+                    .foregroundStyle(Theme.Palette.agent)
             }
         }
         .padding(.top, 24)
@@ -395,73 +384,3 @@ struct FlowChips: View {
     }
 }
 
-struct OutputCardRow: View {
-    @Environment(AgentService.self) private var agent
-    let card: OutputCard
-    @State private var expanded = false
-    @State private var revising = false
-    @State private var feedbackText = ""
-
-    /// 1-based version of this card within its recommendation's output history.
-    private var version: Int {
-        guard let outputs = card.recommendation?.outputs else { return 1 }
-        let ordered = outputs.sorted { $0.createdAt < $1.createdAt }
-        return (ordered.firstIndex { $0 === card } ?? ordered.count - 1) + 1
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: card.kind == "error" ? "exclamationmark.circle" : "checkmark.circle")
-                    .font(.system(size: 12))
-                    .foregroundStyle(card.kind == "error" ? Color(hex: "#D85A30") : Theme.Palette.done)
-                Text(card.recommendation?.title ?? "Output")
-                    .font(Theme.Fonts.title)
-                    .foregroundStyle(Theme.Palette.textPrimary)
-                if version > 1 {
-                    Text("v\(version)")
-                        .font(.system(size: 10, weight: .semibold)).tracking(0.04)
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(Theme.Palette.surface, in: Capsule())
-                        .help("Revision \(version) — earlier outputs are kept in history.")
-                }
-                Spacer()
-                SourceLinkButton(card: card)
-                Button(expanded ? "Less" : "More") { expanded.toggle() }
-                    .buttonStyle(.plain)
-                    .font(Theme.Fonts.meta)
-                    .foregroundStyle(Theme.Palette.accent)
-            }
-            Text(card.content)
-                .font(Theme.Fonts.meta)
-                .foregroundStyle(Theme.Palette.textSecondary)
-                .lineLimit(expanded ? nil : 3)
-                .textSelection(.enabled)
-            HStack(spacing: 8) {
-                Button("Accept") { agent.accept(card) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Palette.done)
-                    .controlSize(.small)
-                Button("Revise") {
-                    revising.toggle()
-                    feedbackText = card.recommendation?.comment ?? ""
-                }
-                .controlSize(.small)
-                .disabled(agent.isExecuting)
-                Button("Discard", role: .destructive) { agent.discard(card) }
-                    .controlSize(.small)
-            }
-            if revising {
-                TextField("What should change?", text: $feedbackText)
-                    .textFieldStyle(.roundedBorder).font(Theme.Fonts.meta)
-                    .onSubmit {
-                        let text = feedbackText
-                        revising = false
-                        Task { await agent.revise(card, feedback: text) }
-                    }
-            }
-        }
-        .padding(.vertical, 10)
-    }
-}

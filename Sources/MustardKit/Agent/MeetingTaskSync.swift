@@ -69,11 +69,11 @@ public final class MeetingTaskSync {
             let subtitle = meetingSubtitle(text: text, path: path)
             for parsed in MeetingTaskParser.parse(text, notePath: path) {
                 if let task = byKey[parsed.originKey] {
-                    if parsed.isDone && task.status.isOpen {
+                    if parsed.isDone && task.stage.isOpen {
                         // Line ticked in the vault while the task was open → vault won.
                         task.markDone(now: now)
                         digest.completedFromVault += 1
-                    } else if !parsed.isDone && task.status == .done {
+                    } else if !parsed.isDone && task.stage == .done {
                         // Completed in Mustard but the note line is still open → write back.
                         if completeInVault(task, now: task.completedAt ?? now) {
                             digest.syncedToVault += 1
@@ -94,7 +94,7 @@ public final class MeetingTaskSync {
 
     private func makeTask(_ p: ParsedMeetingTask, subtitle: String, now: Date) -> MustardTask {
         let task = MustardTask(title: p.title, owner: .me)
-        task.status = .inbox
+        task.stage = .inbox
         task.source = "meeting"
         task.sourceURL = p.notePath
         task.sourceContext = subtitle

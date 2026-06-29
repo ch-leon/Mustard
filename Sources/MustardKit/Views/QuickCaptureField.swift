@@ -43,7 +43,7 @@ public struct QuickCaptureField: View {
         if let day = scheduleOnto {
             task.scheduledAt = Calendar.current.date(
                 bySettingHour: 9, minute: 0, second: 0, of: day)
-            task.status = .planned
+            task.stage = .planned
         }
         if let list = fileInto { task.list = list }
         context.insert(task)

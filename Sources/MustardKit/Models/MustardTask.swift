@@ -44,10 +44,36 @@ public final class MustardTask {
     /// Stable identity from `MeetingTaskParser.originKey` — dedup + line locator.
     public var originKey: String?
 
+    // Board stage model (BAK-74). `stage` supersedes `status`; `statusRaw` is kept
+    // only so existing stores decode and `BoardMigration` can backfill `stage`.
+    public var stageRaw: String = TaskStage.inbox.rawValue
+    /// True once `stage` has been backfilled from legacy `statusRaw` (one-time).
+    public var migratedStage: Bool = false
+    /// Outward/connector action this task performs when agent-bound — drives gating
+    /// and the headless-vs-connector route. Nil for ordinary personal tasks.
+    public var actionTypeRaw: String?
+    /// Agent confidence (0…1) shown on Needs Approval / proposed cards.
+    public var confidence: Double?
+    /// Links surfaced on a Needs Review card (Shortcut / Jira / draft).
+    public var links: [TaskLink] = []
+
     public var status: TaskStatus {
         get { TaskStatus(rawValue: statusRaw) ?? .inbox }
         set { statusRaw = newValue.rawValue }
     }
+
+    public var stage: TaskStage {
+        get { TaskStage(rawValue: stageRaw) ?? .inbox }
+        set { stageRaw = newValue.rawValue }
+    }
+
+    public var actionType: RecommendationAction? {
+        get { actionTypeRaw.flatMap(RecommendationAction.init(rawValue:)) }
+        set { actionTypeRaw = newValue?.rawValue }
+    }
+
+    /// Outward/connector actions are always gated (reuse the recommendation policy).
+    public var isGated: Bool { actionType?.isGated ?? false }
 
     public var owner: TaskOwner {
         get { TaskOwner(rawValue: ownerRaw) ?? .me }
@@ -71,7 +97,7 @@ public final class MustardTask {
     /// (completed, total) over direct subtasks — drives the "0/1" header.
     public var subtaskProgress: (done: Int, total: Int) {
         let subs = subtasks ?? []
-        return (subs.filter { $0.status == .done }.count, subs.count)
+        return (subs.filter { $0.stage == .done }.count, subs.count)
     }
 
     public init(title: String = "", owner: TaskOwner = .me, scheduledAt: Date? = nil) {
@@ -79,6 +105,11 @@ public final class MustardTask {
         self.ownerRaw = owner.rawValue
         self.scheduledAt = scheduledAt
         self.createdAt = .now
+        // Tasks created in code are born on the stage model — they carry no legacy
+        // status to migrate. Marking them migrated keeps the launch backfill (which
+        // derives stage from `statusRaw`) from ever clobbering their stage. Only rows
+        // decoded from a pre-stage store (default false) get backfilled, once each.
+        self.migratedStage = true
     }
 
     /// Mark done, stamping completion time, and cascade-complete open subtasks
@@ -86,8 +117,9 @@ public final class MustardTask {
     /// `autoCompleted`; the task you call this on is not.
     public func markDone(now: Date = .now) {
         status = .done
+        stage = .done
         completedAt = now
-        for child in subtasks ?? [] where child.status.isOpen {
+        for child in subtasks ?? [] where child.stage.isOpen {
             child.autoCompleted = true
             child.markDone(now: now)
         }

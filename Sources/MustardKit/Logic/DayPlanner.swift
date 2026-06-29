@@ -17,7 +17,7 @@ public enum DayPlanner {
 
     /// Open tasks with no scheduled date — the inbox rail.
     public static func unscheduled(_ tasks: [MustardTask]) -> [MustardTask] {
-        tasks.filter { $0.scheduledAt == nil && $0.status.isOpen }
+        tasks.filter { $0.scheduledAt == nil && $0.stage.isOpen }
     }
 
     /// Next open, scheduled tasks starting after `after`, soonest first (for the hover panel).
@@ -26,7 +26,7 @@ public enum DayPlanner {
     ) -> [MustardTask] {
         tasks
             .filter { task in
-                guard task.status.isOpen, !task.isBlocked, let when = task.scheduledAt else { return false }
+                guard task.stage.isOpen, !task.isBlocked, let when = task.scheduledAt else { return false }
                 return when > after
             }
             .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }
@@ -40,7 +40,7 @@ public enum DayPlanner {
     ) {
         let startOfToday = calendar.startOfDay(for: today)
         for task in tasks {
-            guard task.status.isOpen, let when = task.scheduledAt,
+            guard task.stage.isOpen, let when = task.scheduledAt,
                   when < startOfToday else { continue }
             let time = calendar.dateComponents([.hour, .minute], from: when)
             task.scheduledAt = calendar.date(

@@ -21,7 +21,7 @@ final class MeetingTaskSyncTests: XCTestCase {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self,
-            Recommendation.self, OutputCard.self, CalendarEvent.self,
+            Recommendation.self, CalendarEvent.self,
             configurations: config
         )
         return ModelContext(container)

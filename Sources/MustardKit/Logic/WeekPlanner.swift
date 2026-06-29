@@ -15,7 +15,7 @@ public enum WeekPlanner {
 
     /// Open, unscheduled tasks owned by me — the rail.
     public static func unscheduled(_ tasks: [MustardTask]) -> [MustardTask] {
-        tasks.filter { $0.owner == .me && $0.scheduledAt == nil && $0.status.isOpen }
+        tasks.filter { $0.owner == .me && $0.scheduledAt == nil && $0.stage.isOpen }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -25,7 +25,7 @@ public enum WeekPlanner {
         let todayStart = calendar.startOfDay(for: now)
         return tasks
             .filter { task in
-                guard task.owner == .me, task.status.isOpen, let when = task.scheduledAt else { return false }
+                guard task.owner == .me, task.stage.isOpen, let when = task.scheduledAt else { return false }
                 return when < todayStart
             }
             .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }

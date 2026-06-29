@@ -165,7 +165,7 @@ public struct WeekView: View {
             guard let uid = uids.first, let task = allTasks.first(where: { $0.uid == uid })
             else { return false }
             task.scheduledAt = WeekPlanner.scheduleDate(on: day, keepingTimeFrom: task.scheduledAt)
-            if task.status == .inbox { task.status = .planned }
+            if task.stage == .inbox { task.stage = .planned }
             return true
         }
     }
@@ -253,14 +253,14 @@ public struct WeekView: View {
     // MARK: - Mutations
 
     @ViewBuilder private func menu(for task: MustardTask) -> some View {
-        if task.owner == .me && task.delegation == nil && task.status != .done {
-            Button { Task { await agent.delegate(task) } } label: {
+        if task.owner == .me && task.delegation == nil && task.stage != .done {
+            Button { agent.delegate(task) } label: {
                 Label("Ask agent to do this", systemImage: "cpu")
             }
             Divider()
         }
-        if task.status == .done {
-            Button("Reopen") { task.status = .planned; task.completedAt = nil }
+        if task.stage == .done {
+            Button("Reopen") { task.stage = .planned; task.completedAt = nil }
         } else {
             Button("Complete") { task.markDone() }
         }
@@ -271,8 +271,8 @@ public struct WeekView: View {
     }
 
     private func toggle(_ task: MustardTask) {
-        if task.status == .done {
-            task.status = .planned
+        if task.stage == .done {
+            task.stage = .planned
             task.completedAt = nil
         } else {
             task.markDone()
@@ -369,7 +369,7 @@ struct AxisTaskBlock: View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 Button(action: onToggle) {
-                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                    Image(systemName: task.stage == .done ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 11)).foregroundStyle(tint)
                 }
                 .buttonStyle(.plain)
@@ -381,7 +381,7 @@ struct AxisTaskBlock: View {
             }
             Text(task.title)
                 .font(.system(size: 11)).foregroundStyle(Theme.Palette.textPrimary)
-                .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+                .strikethrough(task.stage == .done, color: Theme.Palette.textTertiary)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -422,7 +422,7 @@ struct WeekBlock: View {
     var body: some View {
         HStack(spacing: 6) {
             Button(action: onToggle) {
-                Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                Image(systemName: task.stage == .done ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11)).foregroundStyle(tint)
             }
             .buttonStyle(.plain)
@@ -434,7 +434,7 @@ struct WeekBlock: View {
                 Text(task.title)
                     .font(Theme.Fonts.meta)
                     .foregroundStyle(Theme.Palette.textPrimary)
-                    .strikethrough(task.status == .done, color: Theme.Palette.textTertiary)
+                    .strikethrough(task.stage == .done, color: Theme.Palette.textTertiary)
                     .lineLimit(2)
             }
             Spacer(minLength: 0)

@@ -5,11 +5,11 @@ final class AreaOrganizerTests: XCTestCase {
     private func list(_ name: String, area: Area? = nil) -> TaskList {
         TaskList(name: name, area: area)
     }
-    private func task(_ title: String, list: TaskList? = nil, status: TaskStatus = .inbox,
+    private func task(_ title: String, list: TaskList? = nil, stage: TaskStage = .inbox,
                       created: TimeInterval = 0) -> MustardTask {
         let t = MustardTask(title: title)
         t.list = list
-        t.status = status
+        t.stage = stage
         t.createdAt = Date(timeIntervalSince1970: created)
         return t
     }
@@ -17,7 +17,7 @@ final class AreaOrganizerTests: XCTestCase {
     func test_tasks_inList_returnsOnlyThatListsTasks_anyStatus_oldestFirst() {
         let dev = list("Dev"); let ops = list("Ops")
         let a = task("a", list: dev, created: 1)
-        let b = task("b", list: dev, status: .done, created: 2)
+        let b = task("b", list: dev, stage: .done, created: 2)
         let c = task("c", list: ops, created: 3)
         let d = task("d", created: 4) // unfiled
 
@@ -29,7 +29,7 @@ final class AreaOrganizerTests: XCTestCase {
         let dev = list("Dev")
         let open2 = task("u2", created: 2)
         let open1 = task("u1", created: 1)
-        let doneUnfiled = task("done", status: .done)
+        let doneUnfiled = task("done", stage: .done)
         let filed = task("filed", list: dev)
 
         let result = AreaOrganizer.unfiled([open2, open1, doneUnfiled, filed])
@@ -40,11 +40,11 @@ final class AreaOrganizerTests: XCTestCase {
         let dev = list("Dev")
         let tasks = [
             task("1", list: dev),
-            task("2", list: dev, status: .inProgress),
-            task("3", list: dev, status: .done),
-            task("4", list: dev, status: .someday),
+            task("2", list: dev, stage: .inProgress),
+            task("3", list: dev, stage: .done),
+            task("4", list: dev, stage: .planned),
         ]
-        XCTAssertEqual(AreaOrganizer.openCount(for: dev, in: tasks), 2)
+        XCTAssertEqual(AreaOrganizer.openCount(for: dev, in: tasks), 3)
     }
 
     func test_openCount_forArea_sumsOpenAcrossItsLists() {
@@ -65,7 +65,7 @@ final class AreaOrganizerTests: XCTestCase {
         let orphan = list("Loose") // area == nil
         let tasks = [
             task("open", list: dev),
-            task("done", list: dev, status: .done),
+            task("done", list: dev, stage: .done),
             task("orphan", list: orphan),
         ]
         XCTAssertEqual(AreaOrganizer.openCount(for: area, in: tasks), 1)
@@ -73,16 +73,16 @@ final class AreaOrganizerTests: XCTestCase {
 
     func test_unfiledCount_countsOpenNilListOnly() {
         let dev = list("Dev")
-        let tasks = [task("u1"), task("u2", status: .done), task("f", list: dev)]
+        let tasks = [task("u1"), task("u2", stage: .done), task("f", list: dev)]
         XCTAssertEqual(AreaOrganizer.unfiledCount(tasks), 1)
     }
 
     func test_active_excludesDone_preservesOrder() {
         let dev = list("Dev")
         let a = task("a", list: dev, created: 1)
-        let b = task("b", list: dev, status: .done, created: 2)
-        let c = task("c", list: dev, status: .inProgress, created: 3)
-        let d = task("d", list: dev, status: .someday, created: 4)
+        let b = task("b", list: dev, stage: .done, created: 2)
+        let c = task("c", list: dev, stage: .inProgress, created: 3)
+        let d = task("d", list: dev, stage: .planned, created: 4)
 
         let scoped = AreaOrganizer.tasks(in: dev, from: [a, b, c, d])
         XCTAssertEqual(AreaOrganizer.active(scoped).map(\.title), ["a", "c", "d"])
@@ -91,9 +91,9 @@ final class AreaOrganizerTests: XCTestCase {
     func test_completed_onlyDone_newestCompletionFirst() {
         let dev = list("Dev")
         let a = task("a", list: dev, created: 1)
-        let oldDone = task("old", list: dev, status: .done, created: 2)
+        let oldDone = task("old", list: dev, stage: .done, created: 2)
         oldDone.completedAt = Date(timeIntervalSince1970: 100)
-        let newDone = task("new", list: dev, status: .done, created: 3)
+        let newDone = task("new", list: dev, stage: .done, created: 3)
         newDone.completedAt = Date(timeIntervalSince1970: 200)
 
         let scoped = AreaOrganizer.tasks(in: dev, from: [a, oldDone, newDone])

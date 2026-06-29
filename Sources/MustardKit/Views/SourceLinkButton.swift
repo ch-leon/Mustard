@@ -8,7 +8,6 @@ struct SourceLinkButton: View {
 
     init(rec: Recommendation) { link = SourceLink(from: rec) }
     init(task: MustardTask) { link = SourceLink(from: task) }
-    init(card: OutputCard) { link = SourceLink(from: card) }
 
     var body: some View {
         if let link { SourceLinkButtonInner(link: link) }

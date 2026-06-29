@@ -42,7 +42,7 @@ public enum RecurrenceEngine {
         next.parent = task.parent
         next.recurrence = rule
         next.dueAt = nextDate(rule, after: anchor, calendar: calendar)
-        next.status = .inbox
+        next.stage = .inbox
         next.recurredFrom = task.uid
         return next
     }

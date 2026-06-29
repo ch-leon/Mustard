@@ -44,9 +44,9 @@ public struct TaskDetailSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        PropertyRow(label: "Status") {
-                            Picker("", selection: $task.status) {
-                                ForEach(TaskStatus.allCases, id: \.self) { Text($0.label).tag($0) }
+                        PropertyRow(label: "Stage") {
+                            Picker("", selection: $task.stage) {
+                                ForEach(TaskStage.allCases) { Text($0.label).tag($0) }
                             }.labelsHidden().fixedSize()
                         }
                         PropertyRow(label: "Priority") {
@@ -76,7 +76,7 @@ public struct TaskDetailSheet: View {
                                     .onChange(of: isScheduled) { _, on in
                                         task.scheduledAt = on ? scheduledDate : nil
                                         task.isTimed = on
-                                        if on, task.status == .inbox { task.status = .planned }
+                                        if on, task.stage == .inbox { task.stage = .planned }
                                     }
                                 if isScheduled {
                                     // Picking a specific time anchors the task to the week's time axis.
@@ -171,9 +171,9 @@ public struct TaskDetailSheet: View {
                 Label("Delete task", systemImage: "trash")
             }
             .controlSize(.small)
-            if task.owner == .me && task.delegation == nil && task.status != .done {
+            if task.owner == .me && task.delegation == nil && task.stage != .done {
                 Button {
-                    Task { await agent.delegate(task) }
+                    agent.delegate(task)
                 } label: {
                     Label("Ask agent to do this", systemImage: "cpu")
                 }
@@ -182,7 +182,7 @@ public struct TaskDetailSheet: View {
                 .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
             }
             Spacer()
-            if task.status != .done {
+            if task.stage != .done {
                 Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
                     .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
             }
@@ -198,10 +198,10 @@ public struct TaskDetailSheet: View {
                 .foregroundStyle(Theme.Palette.textTertiary)
             ForEach(task.subtasks ?? []) { sub in
                 HStack(spacing: 8) {
-                    Image(systemName: sub.status == .done ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(sub.status == .done ? Theme.Palette.done : Theme.Palette.textTertiary)
+                    Image(systemName: sub.stage == .done ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(sub.stage == .done ? Theme.Palette.done : Theme.Palette.textTertiary)
                     Text(sub.title).font(Theme.Fonts.meta)
-                        .strikethrough(sub.status == .done, color: Theme.Palette.textTertiary)
+                        .strikethrough(sub.stage == .done, color: Theme.Palette.textTertiary)
                         .foregroundStyle(Theme.Palette.textPrimary)
                 }
             }
