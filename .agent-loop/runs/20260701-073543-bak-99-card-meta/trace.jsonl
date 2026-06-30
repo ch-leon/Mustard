@@ -1,0 +1,7 @@
+{"event":"run_start","run_id":"20260701-073543-bak-99-card-meta","issue":"BAK-99","branch":"leon/bak-99-board-card-priority-proposed-tags","base":"main"}
+{"event":"risk_classify","class":"medium","reason":"Sources/ — additive model (urgent enum, isProposed) + view; no high paths"}
+{"event":"tdd","file":"Tests/MustardTests/BoardCardMetaTests.swift","unit":"TaskPriority.urgent + MustardTask.isProposed"}
+{"event":"implement","action":"model","note":"add TaskPriority.urgent (reorder Low->Urgent), add MustardTask.isProposed (agent+inbox)"}
+{"event":"implement","action":"view","file":"MustardBoardCard.swift","note":"priority flag pill, proposed pill, tags row (max 3); Theme tokens"}
+{"event":"checks","check":"swift build","result":"pass"}
+{"event":"checks","check":"swift test","result":"pass","summary":"382 passed, 1 skipped, 0 failures"}

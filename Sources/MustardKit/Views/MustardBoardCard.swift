@@ -25,6 +25,7 @@ public struct MustardBoardCard: View {
             topRow
             title
             metaRow
+            tagsRow
             confidenceRow
             statusPill
             blockedRow
@@ -49,13 +50,15 @@ public struct MustardBoardCard: View {
         }
     }
 
-    // MARK: Top row — owner toggle + gated padlock
+    // MARK: Top row — priority flag · owner toggle · ✦ Proposed · gated padlock
 
     @ViewBuilder private var topRow: some View {
         if !isDone {
             HStack(spacing: 6) {
+                priorityFlag
                 ownerToggle
                 Spacer(minLength: 0)
+                if task.isProposed { proposedPill }
                 if task.isGated {
                     Image(systemName: "lock")
                         .font(.system(size: 11))
@@ -66,6 +69,40 @@ public struct MustardBoardCard: View {
             .frame(minHeight: 18)
             .padding(.bottom, 7)
         }
+    }
+
+    // MARK: Priority flag (HIGH / URGENT)
+
+    @ViewBuilder private var priorityFlag: some View {
+        switch task.priority {
+        case .high:
+            flagPill("HIGH", fg: Theme.Palette.priorityHighText, bg: Theme.Palette.priorityHighBg)
+        case .urgent:
+            flagPill("URGENT", fg: Theme.Palette.priorityUrgentText, bg: Theme.Palette.priorityUrgentBg)
+        case .normal, .low:
+            EmptyView()
+        }
+    }
+
+    private func flagPill(_ text: String, fg: Color, bg: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .tracking(0.4)
+            .foregroundStyle(fg)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(bg, in: RoundedRectangle(cornerRadius: 4))
+    }
+
+    // MARK: ✦ Proposed pill (agent-surfaced inbox task)
+
+    private var proposedPill: some View {
+        Text("✦ Proposed")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Theme.Palette.agentText)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 1)
+            .background(Theme.Palette.agentTintLight, in: Capsule())
     }
 
     private var ownerToggle: some View {
@@ -147,6 +184,22 @@ public struct MustardBoardCard: View {
             .font(.system(size: 11.5))
             .foregroundStyle(Theme.Palette.textSecondary)
             .padding(.top, 8)
+        }
+    }
+
+    // MARK: Tags (#tag, max 3)
+
+    @ViewBuilder private var tagsRow: some View {
+        let tags = Array(task.tags.prefix(3))
+        if !tags.isEmpty {
+            FlowMeta(spacing: 6) {
+                ForEach(tags, id: \.self) { tag in
+                    Text("#\(tag)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                }
+            }
+            .padding(.top, 6)
         }
     }
 
