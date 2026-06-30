@@ -1,0 +1,3 @@
+{"event":"run_start","issue":"BAK-137","branch":"leon/bak-137-detail-approval-context"}
+{"event":"implement","note":"read-only agentContext section (stage badge, gated notice, confidence, WHY, draft); no mode toggle"}
+{"event":"checks","check":"swift test","result":"pass","summary":"419 pass"}
