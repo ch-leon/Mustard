@@ -69,6 +69,16 @@ public final class MeetingTaskSync {
             let subtitle = meetingSubtitle(text: text, path: path)
             for parsed in MeetingTaskParser.parse(text, notePath: path) {
                 if let task = byKey[parsed.originKey] {
+                    // Heal legacy giant-title imports once: only when notes was never
+                    // populated and the freshly-parsed concise title differs. Gated to
+                    // live (non-archived) meeting tasks so manual edits and pruned rows
+                    // are never clobbered.
+                    if task.source == "meeting", task.notes.isEmpty, task.title != parsed.title {
+                        task.title = parsed.title
+                        task.notes = Self.composeNotes(parsed, subtitle: subtitle)
+                        task.tags = parsed.tags
+                        if task.dueAt == nil { task.dueAt = parsed.due }
+                    }
                     if parsed.isDone && task.stage.isOpen {
                         // Line ticked in the vault while the task was open → vault won.
                         task.markDone(now: now)

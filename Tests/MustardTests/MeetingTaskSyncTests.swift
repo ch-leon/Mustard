@@ -228,6 +228,31 @@ final class MeetingTaskSyncTests: XCTestCase {
         XCTAssertTrue(t.notes.contains("From: Weekly sync 2026-06-16"))
     }
 
+    func test_import_healsLegacyGiantTitleTaskOnce() throws {
+        let ctx = try makeContext()
+        let path = "DL/meetings/2026/06/2026-06-16-sync.md"
+        let line = "- [ ] Email Kamil — desc: \"Send the SDK spec to Kamil.\", owner: [[Leon Creed-Baker]], due: not stated #task #sdk #ch — [T: \"send Kamil the spec\"]"
+        let io = FakeVaultIO([path: note(line)])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        // Seed a legacy task: giant title (the raw line), empty notes, same originKey.
+        let legacy = MustardTask(title: line, owner: .me)
+        legacy.source = "meeting"; legacy.sourceURL = path; legacy.notes = ""
+        legacy.originKey = MeetingTaskParser.originKey(notePath: path, line: line)
+        ctx.insert(legacy)
+
+        _ = sync.importTasks()
+        XCTAssertEqual(try tasks(ctx).count, 1, "healed in place, not duplicated")
+        XCTAssertEqual(legacy.title, "Email Kamil")
+        XCTAssertTrue(legacy.notes.contains("Send the SDK spec to Kamil."))
+        XCTAssertEqual(legacy.tags, ["sdk"])
+
+        // Idempotent: a manual notes edit survives a second sweep.
+        legacy.notes = "manually edited"
+        _ = sync.importTasks()
+        XCTAssertEqual(legacy.notes, "manually edited")
+    }
+
     func test_writeBack_preservesBlockId() throws {
         let ctx = try makeContext()
         let io = FakeVaultIO(["DL/meetings/a.md": note("- [ ] Task with id ^xy7")])
