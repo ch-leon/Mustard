@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-111 parity audit: Agent console (PR #49)
+- **Risk:** medium (Improvement; cosmetic views + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
+- **Review:** fresh-context APPROVE — presentation-only (✦ Sweep + action pill, WHY header, gated full-width banner), gated banner still `isGated`-gated, title HStack intact, Theme tokens, no logic change; parity report + ADR-0010 PRD note accurate
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-083219-bak-111-parity-console/`
+- **What landed:** docs/design/redesign-2026/parity/agent-console.md (mostly MATCH); inline console parity fixes; PRD stale-spec note (console Review queue is board-side per ADR-0010). Follow-ups filed: BAK-130 (header subhead), BAK-131 (contextual approve labels).
+- **Revert:** `git revert d3c4912bee8c8f0768d5446a6b12c7587b5f8dd8`
+
 ## 2026-07-01 — MERGED · BAK-107 blockedByTask dependency (PR #48)
 - **Risk:** medium (Feature; additive SwiftData relationship + detail/form) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 417 pass/1 skip (+4 BlockedByTests) · CI (self-hosted)
