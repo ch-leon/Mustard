@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-30 — MERGED · BAK-92 bridge double-execution race fix (PR #31)
+- **Risk:** high (escalated — agent work-dispatch correctness path; no high path literally matched) · **Deep-review:** PASS (3/3 — correctness + security/risk + spec-faithfulness, all clear, no fix round)
+- **Checks:** swift test 345 pass/1 skip (+6 tests) · swift build clean · CI (self-hosted) green 42s
+- **Outward actions:** none · the diff is pure logic + a non-mutating dir read; it makes dispatch strictly *more* conservative
+- **Run:** `.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/`
+- **Root cause:** between the worker archiving a consumed outbox order + writing a result and Mustard's next ingest tick, the task stays `.queued`/`.forAgent` with no live outbox file → `BridgeExport.plan` re-issued the order → a worker on the duplicate executes twice (e.g. a second Gmail draft / Shortcut story).
+- **Fix:** `plan` gains a `liveResultUIDs` guard — suppress a re-write when a LIVE `results/<uid>.json` exists (NOT `results/done/`, so the `failed`-retry path still re-issues). New `BridgeIO.liveResultUIDs` (non-recursive). Loop ordering (export→ingest) documented as load-bearing.
+- **Follow-ups (non-blocking, panel-raised):** fail-open hardening of `liveResultUIDs` (distinguish absent dir vs listing error); worker-side idempotency backstop (Phase 3); true exactly-once via atomic outbox claim.
+- **Revert:** `git revert 6ca9bd05c647f4089d59125bf12b76703dc926f3`
+
 ## 2026-06-29 — MERGED · BAK-87 project→area routing fix (PR #29)
 - **Risk:** high (AgentService) · **Deep-review:** PASS (2-lens — correctness + security/scope, both clear; small focused fix)
 - **Checks:** swift test 339 pass/1 skip · swift build clean
