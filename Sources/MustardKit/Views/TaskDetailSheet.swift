@@ -183,43 +183,80 @@ public struct TaskDetailSheet: View {
         .padding(.horizontal, 20).padding(.vertical, 14)
     }
 
+    // Stage-adaptive footer (BAK-136): Delete stays leading (this sheet is also the
+    // editor); the stage-specific matrix sits trailing. Forward gate actions reuse
+    // PersonalBoard.approveTarget/move — no forked state machine.
     private var footer: some View {
-        HStack {
+        HStack(spacing: 8) {
             Button(role: .destructive) {
-                context.delete(task)
-                dismiss()
-            } label: {
-                Label("Delete task", systemImage: "trash")
-            }
+                context.delete(task); dismiss()
+            } label: { Label("Delete task", systemImage: "trash") }
             .controlSize(.small)
-            if task.owner == .me && task.delegation == nil && task.stage != .done {
-                Button {
-                    agent.delegate(task)
-                } label: {
-                    Label("Ask agent to do this", systemImage: "cpu")
-                }
-                .tint(Theme.Palette.agent)
-                .controlSize(.small)
-                .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
-            }
-            // Reverse gate transitions (BAK-100): pull work back a stage.
-            if task.stage == .queued {
-                Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }
-                    .controlSize(.small)
-                    .help("Send this back to Needs Approval.")
-            }
-            if task.stage == .needsReview {
-                Button("Request changes") { PersonalBoard.move(task, to: .queued) }
-                    .controlSize(.small)
-                    .help("Send the output back to the queue for another pass.")
-            }
             Spacer()
-            if task.stage != .done {
-                Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
-                    .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
-            }
+            stageActions
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
+    }
+
+    @ViewBuilder private var stageActions: some View {
+        switch task.stage {
+        case .needsApproval:
+            Button("I'll do it") { takeOver() }.controlSize(.small)
+            Button("Deny", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
+            Button(task.isGated ? "Approve & run" : "Approve") { approveGate() }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
+        case .needsReview:
+            Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
+            Button("Discard", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
+            Button("Accept output") { TaskCompletion.complete(task, in: context); dismiss() }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+        case .queued:
+            Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }.controlSize(.small)
+            Button("Move to review") { PersonalBoard.move(task, to: .needsReview) }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
+        case .forAgent:
+            Button("Take back") { takeOver() }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.accent).controlSize(.small)
+        case .inbox where task.isProposed:
+            Button("I'll do it") { takeOver() }.controlSize(.small)
+            Button("Schedule") { scheduleTomorrow() }.controlSize(.small)
+            Button("Dismiss", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
+            Button("Approve") { PersonalBoard.move(task, to: .needsApproval) }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
+        case .done:
+            EmptyView()
+        default:
+            // Your own open tasks (inbox/planned/scheduled/inProgress/blocked).
+            if task.owner == .me && task.delegation == nil {
+                Button { agent.delegate(task) } label: { Label("Hand to ✦ agent", systemImage: "cpu") }
+                    .tint(Theme.Palette.agent).controlSize(.small)
+                    .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
+            }
+            Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+        }
+    }
+
+    /// Take a task back to yourself as planned work.
+    private func takeOver() {
+        task.owner = .me
+        if task.stage.isOpen { task.stage = .planned }
+    }
+
+    /// Approve a gate using the shared state machine (needsApproval → queued/needsReview).
+    private func approveGate() {
+        if let target = PersonalBoard.approveTarget(for: task) { PersonalBoard.move(task, to: target) }
+    }
+
+    /// Schedule a proposed task for tomorrow 9am as your own planned/scheduled work.
+    private func scheduleTomorrow() {
+        task.owner = .me
+        let cal = Calendar.current
+        if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {
+            task.scheduledAt = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
+        }
+        task.isTimed = false
+        task.stage = .scheduled
     }
 
     // Links referenced by the task (BAK-91) — e.g. a Shortcut story / Jira issue carried
