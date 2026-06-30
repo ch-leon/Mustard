@@ -48,6 +48,8 @@ public struct TaskDetailSheet: View {
                             .foregroundStyle(Theme.Palette.textPrimary)
                     }
 
+                    agentContext
+
                     VStack(alignment: .leading, spacing: 12) {
                         PropertyRow(label: "Stage") {
                             Picker("", selection: $task.stage) {
@@ -310,6 +312,76 @@ public struct TaskDetailSheet: View {
         defer { newLinkURL = "" }
         guard !task.links.contains(where: { $0.url == trimmed }) else { return }
         task.links.append(TaskLink(label: TaskLinkExtractor.label(for: url), url: trimmed))
+    }
+
+    /// Read-only agent-context (BAK-137): the approval-panel info — stage badge, gated
+    /// notice, confidence, WHY, and the proposed draft — surfaced when the task carries
+    /// agent context. (No separate read/edit mode: the sheet shows context + remains editable.)
+    @ViewBuilder private var agentContext: some View {
+        let conf = task.confidence
+        let why = task.delegation?.reasoning ?? ""
+        let draft = task.delegation?.draft ?? ""
+        if conf != nil || !why.isEmpty || !draft.isEmpty || task.isGated {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(task.stage.label.uppercased())
+                        .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                        .foregroundStyle(stageBadgeColor)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(stageBadgeColor.opacity(0.14), in: Capsule())
+                    Spacer()
+                }
+                if task.isGated {
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock").font(.system(size: 11))
+                        Text("Gated action — always reviewed by you, whatever the trust level.")
+                            .font(.system(size: 11))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Theme.Palette.agentText)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(Theme.Palette.agentTintLight, in: RoundedRectangle(cornerRadius: 8))
+                }
+                if let conf {
+                    HStack(spacing: 8) {
+                        Text("CONFIDENCE").font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text(String(format: "%.2f", conf))
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.confidenceColor(conf))
+                        HStack(spacing: 2) {
+                            ForEach(0..<5, id: \.self) { i in
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(i < Int((conf * 5).rounded(.down)) ? Theme.confidenceColor(conf) : Theme.Palette.confidenceUnfilled)
+                                    .frame(width: 16, height: 5)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                if !why.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("WHY").font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text(why).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                    }
+                }
+                if !draft.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("DRAFT").font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text(draft).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private var stageBadgeColor: Color {
+        task.owner == .agent ? Theme.Palette.agentText : Theme.Palette.textSecondary
     }
 
     private var subtasksSection: some View {
