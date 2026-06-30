@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-137 detail read-only agent approval context (PR)
+- **Risk:** medium (Feature; TaskDetailSheet view) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 419 pass/1 skip
+- **Review:** fresh-context APPROVE — read-only additive section, nil-safe, confidence bars in-range, Theme tokens, doesn't disturb form/footer; no mode-toggle (deliberate), output block N-A per ADR-0010
+- **Run:** `.agent-loop/runs/20260701-093829-bak-137-approval-context/`
+- **What landed:** read-only agentContext (stage badge, gated notice, confidence, WHY, draft) shown when the task carries agent context.
+- **Revert:** `git revert 83dd115267328fec60ebc7cda0b2fbdbb90d252f`
+
+
 ## 2026-07-01 — MERGED · BAK-136 detail stage-adaptive footer matrix (PR)
 - **Risk:** medium (Feature; TaskDetailSheet) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 419 pass/1 skip
