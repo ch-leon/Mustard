@@ -63,6 +63,7 @@ public struct TaskDetailSheet: View {
                             Picker("", selection: $task.owner) {
                                 ForEach(TaskOwner.allCases) { Text($0.label).tag($0) }
                             }.labelsHidden().pickerStyle(.segmented).fixedSize()
+                                .tint(task.owner == .agent ? Theme.Palette.agent : Theme.Palette.accent)
                         }
                         PropertyRow(label: "Action") {
                             // What the agent does when it executes this task. A queued
@@ -282,11 +283,24 @@ public struct TaskDetailSheet: View {
                 .foregroundStyle(Theme.Palette.textTertiary)
             ForEach(task.subtasks ?? []) { sub in
                 HStack(spacing: 8) {
-                    Image(systemName: sub.stage == .done ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(sub.stage == .done ? Theme.Palette.done : Theme.Palette.textTertiary)
+                    Button {
+                        if sub.stage == .done { sub.stage = .planned; sub.completedAt = nil }
+                        else { sub.markDone() }
+                    } label: {
+                        Image(systemName: sub.stage == .done ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(sub.stage == .done ? Theme.Palette.done : Theme.Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
                     Text(sub.title).font(Theme.Fonts.meta)
                         .strikethrough(sub.stage == .done, color: Theme.Palette.textTertiary)
                         .foregroundStyle(Theme.Palette.textPrimary)
+                    Spacer(minLength: 0)
+                    Button { context.delete(sub) } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove subtask")
                 }
             }
             Button {
