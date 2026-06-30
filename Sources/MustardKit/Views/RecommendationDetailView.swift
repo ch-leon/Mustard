@@ -22,19 +22,27 @@ struct RecommendationDetailView: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles").font(.system(size: 13)).foregroundStyle(Theme.Palette.agent)
                 Text(rec.title).font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)
-                if rec.action.isGated {
-                    Label("Always needs you", systemImage: "lock")
-                        .labelStyle(.titleAndIcon).font(.system(size: 11))
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                        .help("Email, Slack, and ticket actions are always gated regardless of trust.")
-                }
                 Spacer()
+            }
+            if rec.action.isGated {
+                HStack(spacing: 6) {
+                    Image(systemName: "lock").font(.system(size: 11))
+                    Text("\(rec.action.label) — always reviewed by you, regardless of trust level.")
+                        .font(.system(size: 11))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Theme.Palette.agentText)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(Theme.Palette.agentTintLight, in: RoundedRectangle(cornerRadius: 8))
+                .help("Email, Slack, and ticket actions are always gated regardless of trust.")
             }
             actionAndConfidence
             if !rec.reasoning.isEmpty {
-                (Text("Why · ").foregroundStyle(Theme.Palette.textTertiary)
-                    + Text(rec.reasoning).foregroundStyle(Theme.Palette.textSecondary))
-                    .font(Theme.Fonts.meta)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WHY").font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                    Text(rec.reasoning).font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                }
             }
             drawer
             outcomes
@@ -44,7 +52,7 @@ struct RecommendationDetailView: View {
 
     private var actionAndConfidence: some View {
         HStack(spacing: 8) {
-            Text(rec.action.label)
+            Text("✦ \(rec.action.label)")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(hex: "#534AB7"))
                 .padding(.horizontal, 8).padding(.vertical, 2)

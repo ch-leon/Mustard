@@ -110,6 +110,14 @@ layered on the iOS target.
    per-list colour under one group header (Errands purple vs Reading grey under
    "Personal") needs a per-list `colorHex` — a model change, not done here.
 
+## Known stale-spec notes
+
+- The prototype + this README describe a **console-resident Review queue** (Agent
+  screen) with Accept/Revise/Discard cards. The shipped app moved review to the
+  **board's Needs Review column (ADR-0010)**; the console intentionally omits the
+  queue. Treat the README's console Review section as superseded — do not re-flag in
+  parity audits (BAK-111).
+
 ## Out of scope (YAGNI)
 
 Multi-user/auth/billing; hosted backend; web app; configurable gated-action rules

@@ -197,7 +197,7 @@ public struct AgentConsoleView: View {
                         Text("Sweeping…")
                     }
                 } else {
-                    Label("Sweep", systemImage: "wand.and.stars")
+                    Label("✦ Sweep", systemImage: "wand.and.stars")
                 }
             }
             .disabled(vaultPath.isEmpty || agent.isSweeping)
