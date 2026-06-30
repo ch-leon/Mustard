@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-136 detail stage-adaptive footer matrix (PR)
+- **Risk:** medium (Feature; TaskDetailSheet) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 419 pass/1 skip
+- **Review:** fresh-context APPROVE — switch exhaustive (default catches non-proposed inbox), each branch matches the matrix, transitions reuse approveTarget/move (non-forked), dismiss semantics safe, deletes .nullify-safe, Theme tokens
+- **Run:** `.agent-loop/runs/20260701-093418-bak-136-footer-matrix/`
+- **What landed:** six-branch stage-adaptive footer (needsApproval/needsReview/queued/forAgent/proposed-inbox/your-tasks) with takeOver/approveGate/scheduleTomorrow helpers.
+- **Revert:** `git revert e146ecbc13915e271f0c9ae37683f7cc2703faff`
+
+
 ## 2026-07-01 — MERGED · BAK-134 board + New task + Search (PR)
 - **Risk:** medium (Feature; BoardView + PersonalBoard helper) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 419 pass/1 skip (+2 filterBySearch tests)
