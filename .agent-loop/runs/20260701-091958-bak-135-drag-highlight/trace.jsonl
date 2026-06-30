@@ -1,0 +1,3 @@
+{"event":"run_start","issue":"BAK-135","branch":"leon/bak-135-drag-over-highlight"}
+{"event":"implement","note":"dropDestination isTargeted -> dropTargetStage; 2px accent overlay on targeted column"}
+{"event":"checks","check":"swift test","result":"pass","summary":"417 pass"}

@@ -18,6 +18,7 @@ public struct BoardView: View {
     @State private var selectedTask: MustardTask?
     @State private var reviewFocus = false
     @State private var expandedEmpty: Set<TaskStage> = []
+    @State private var dropTargetStage: TaskStage?
 
     private let settings = BoardSettings()
     private var compact: Bool { settings.compact }
@@ -239,6 +240,11 @@ public struct BoardView: View {
         .frame(width: columnWidth, alignment: .top)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(style.background, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            if dropTargetStage == stage {
+                RoundedRectangle(cornerRadius: 12).stroke(Theme.Palette.accent, lineWidth: 2)
+            }
+        }
         .dropDestination(for: String.self) { uids, _ in
             guard let uid = uids.first,
                   let task = allTasks.first(where: { $0.uid == uid }) else { return false }
@@ -265,6 +271,9 @@ public struct BoardView: View {
                 }
             }
             return true
+        } isTargeted: { targeted in
+            if targeted { dropTargetStage = stage }
+            else if dropTargetStage == stage { dropTargetStage = nil }
         }
     }
 
