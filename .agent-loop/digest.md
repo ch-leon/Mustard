@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-30 — MERGED · BAK-89 settable task actionType + export guard (PR #32)
+- **Risk:** medium (Feature; Logic + Views; no high path, no AgentService change) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift test 348 pass/1 skip (+3 tests) · swift build clean · CI (self-hosted) green 42s
+- **Review:** fresh-context APPROVE, no blockers (one follow-up test folded in)
+- **Outward actions:** none · the change makes export STRICTER + adds UI
+- **Run:** `.agent-loop/runs/20260630-195145-bak89-actiontype/`
+- **What landed:** `BridgeExport.plan` skips a `.queued` task with no actionType (would emit an empty-action execute order; forAgent/prep exempt); `TaskDetailSheet` Action picker; `MustardBoardCard` amber "Needs an action type" pill.
+- **Leon — visual confirm pending:** Action picker persists; queued card flips amber→"Queued to run" once an action is set (UI build-verified only).
+- **Revert:** `git revert da775334b011147adca8cd06dd6e49b5e049ee40`
+
 ## 2026-06-30 — MERGED · BAK-92 bridge double-execution race fix (PR #31)
 - **Risk:** high (escalated — agent work-dispatch correctness path; no high path literally matched) · **Deep-review:** PASS (3/3 — correctness + security/risk + spec-faithfulness, all clear, no fix round)
 - **Checks:** swift test 345 pass/1 skip (+6 tests) · swift build clean · CI (self-hosted) green 42s
