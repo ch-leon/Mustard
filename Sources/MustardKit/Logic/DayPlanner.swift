@@ -20,6 +20,15 @@ public enum DayPlanner {
         tasks.filter { $0.scheduledAt == nil && $0.stage.isOpen }
     }
 
+    /// (done, total) over the tasks scheduled on `day` — drives Today's progress bar
+    /// "N of M done" (BAK-103). Derived; never stored.
+    public static func dayProgress(
+        _ tasks: [MustardTask], day: Date, calendar: Calendar = .current
+    ) -> (done: Int, total: Int) {
+        let forDay = tasksForDay(tasks, day: day, calendar: calendar)
+        return (forDay.filter { $0.stage == .done }.count, forDay.count)
+    }
+
     /// Next open, scheduled tasks starting after `after`, soonest first (for the hover panel).
     public static func upcoming(
         _ tasks: [MustardTask], after: Date, limit: Int = 3
