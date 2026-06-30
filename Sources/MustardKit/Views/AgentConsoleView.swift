@@ -170,7 +170,8 @@ public struct AgentConsoleView: View {
     }
 
     private var sourceRow: some View {
-        HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
+          HStack(spacing: 10) {
             Image(systemName: "books.vertical")
                 .foregroundStyle(Theme.Palette.textTertiary)
             Text(vaultPath.isEmpty ? "Choose your knowledge base folder…" : vaultPath)
@@ -216,6 +217,14 @@ public struct AgentConsoleView: View {
             .controlSize(.small)
             .fixedSize()
             .help(trust.blurb)
+          }
+          // Always-visible trust blurb + gated-action footer note (BAK-112).
+          Text(trust.blurb)
+              .font(.system(size: 11.5))
+              .foregroundStyle(Theme.Palette.textSecondary)
+          Text("🔒 Email, Slack and tickets are always reviewed by you — at every trust level.")
+              .font(.system(size: 11))
+              .foregroundStyle(Theme.Palette.textTertiary)
         }
         .padding(.vertical, 10)
     }

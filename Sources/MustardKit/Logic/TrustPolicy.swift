@@ -23,12 +23,14 @@ public enum TrustLevel: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Plain-English explanation shown under the Trust control (verbatim from the
+    /// 2026 handoff — BAK-112).
     public var blurb: String {
         switch self {
-        case .manual: "You approve every recommendation."
-        case .supervised: "Auto-runs non-gated work; you review the output."
-        case .trusted: "Auto-runs and auto-accepts non-gated work."
-        case .autonomous: "Fully hands-off except always-gated actions."
+        case .manual: "You approve everything. The agent only proposes — nothing runs on its own."
+        case .supervised: "Non-gated work runs automatically; you review every output before it counts. Email, Slack and tickets stay gated."
+        case .trusted: "The agent runs non-gated work and auto-accepts the output. Gated actions still wait for you."
+        case .autonomous: "Maximum autonomy. Only the always-gated actions (email, Slack, tickets) ever pause for you."
         }
     }
 }
