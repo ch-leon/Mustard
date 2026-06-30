@@ -1,0 +1,3 @@
+{"event":"run_start","issue":"BAK-130","branch":"leon/bak-130-console-subhead"}
+{"event":"implement","note":"dynamic subhead (agent.isSweeping); kept progress+toggle"}
+{"event":"checks","check":"swift test","result":"pass","summary":"417 pass"}
