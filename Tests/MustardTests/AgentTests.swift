@@ -278,6 +278,25 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(task.status, .inbox)
     }
 
+    // BAK-91: a create_task rec referencing a Shortcut/Jira link should carry that
+    // link onto the materialized task (so there's somewhere to see/open it).
+    func test_approve_createTask_capturesReferencedLink() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let rec = Recommendation(title: "Review the story", actionType: "create_task",
+                                 vaultPath: "/v",
+                                 draft: "See https://app.shortcut.com/codeheroes/story/9001 and reply",
+                                 sourceURL: "https://app.shortcut.com/codeheroes/story/9001")
+        ctx.insert(rec)
+
+        await service.decide(rec, .approved)
+
+        let task = try XCTUnwrap(try ctx.fetch(FetchDescriptor<MustardTask>()).first)
+        XCTAssertEqual(task.links.map(\.url), ["https://app.shortcut.com/codeheroes/story/9001"])
+        XCTAssertEqual(task.links.first?.label, "Shortcut")
+        XCTAssertEqual(task.sourceURL, "https://app.shortcut.com/codeheroes/story/9001")
+    }
+
     func test_approve_fyi_doesNothing() async throws {
         let ctx = try makeContext()
         var called = false

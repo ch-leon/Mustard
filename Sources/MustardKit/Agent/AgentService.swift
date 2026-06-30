@@ -230,6 +230,11 @@ public final class AgentService {
         let task = MustardTask(title: rec.title)
         task.notes = rec.draft.isEmpty ? rec.body : rec.draft
         task.stage = .inbox
+        // BAK-91: carry the referenced item(s) so there's somewhere to see/open them —
+        // any Shortcut/Jira link in the rec's text, plus the rec's own source URL.
+        task.sourceURL = rec.sourceURL
+        task.links = TaskLinkExtractor.referencedLinks(
+            in: [rec.sourceURL, rec.draft, rec.body, rec.sourceContext, rec.originalSource])
         context.insert(task)
         ensureArea(task, fromProject: rec.project)
     }
