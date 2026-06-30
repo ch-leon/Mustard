@@ -131,7 +131,7 @@ public struct BoardView: View {
 
     private var areaChips: some View {
         HStack(spacing: 6) {
-            areaChip(label: "All areas", target: .all)
+            areaChip(label: "All", target: .all)
             ForEach(areas) { a in
                 areaChip(label: a.name, target: .area(a.name))
             }
