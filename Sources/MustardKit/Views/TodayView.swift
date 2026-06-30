@@ -6,8 +6,12 @@ public struct TodayView: View {
     @Query private var allTasks: [MustardTask]
     @State private var selectedTask: MustardTask?
     private let today = Date.now
+    /// Navigate to the Agent console (the header "✦ Plan with agent" entry).
+    private let onPlan: () -> Void
 
-    public init() {}
+    public init(onPlan: @escaping () -> Void = {}) { self.onPlan = onPlan }
+
+    private var progress: (done: Int, total: Int) { DayPlanner.dayProgress(allTasks, day: today) }
 
     private var scheduled: [MustardTask] { DayPlanner.tasksForDay(allTasks, day: today) }
     private var unscheduled: [MustardTask] { DayPlanner.unscheduled(allTasks) }
@@ -16,6 +20,7 @@ public struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
+                progressBar
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(scheduled) { task in
                         TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
@@ -63,8 +68,39 @@ public struct TodayView: View {
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textSecondary)
             Spacer()
+            Button(action: onPlan) {
+                Text("✦ Plan with agent")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.Palette.agentText)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(Theme.Palette.agentTintLight, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Open the Agent console to plan your day.")
         }
         .padding(.bottom, 12)
+    }
+
+    /// Thin day-progress bar — "N of M done" over today's scheduled tasks.
+    @ViewBuilder private var progressBar: some View {
+        let p = progress
+        if p.total > 0 {
+            VStack(alignment: .leading, spacing: 5) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.Palette.hairline)
+                        Capsule().fill(Theme.Palette.done)
+                            .frame(width: geo.size.width * CGFloat(p.done) / CGFloat(p.total))
+                    }
+                }
+                .frame(height: 4)
+                Text("\(p.done) of \(p.total) done")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            }
+            .padding(.bottom, 16)
+        }
     }
 
     private func toggle(_ task: MustardTask) {

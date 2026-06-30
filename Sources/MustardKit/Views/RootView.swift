@@ -63,7 +63,7 @@ public struct RootView: View {
             Divider().overlay(Theme.Palette.hairline)
             Group {
                 switch screen {
-                case .today: TodayView()
+                case .today: TodayView(onPlan: { screen = .agent })
                 case .board: BoardView()
                 case .week: WeekView()
                 case .agent: AgentConsoleView()

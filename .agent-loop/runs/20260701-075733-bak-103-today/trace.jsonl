@@ -1,0 +1,8 @@
+{"event":"run_start","run_id":"20260701-075733-bak-103-today","issue":"BAK-103","branch":"leon/bak-103-today-progress-plan","base":"main"}
+{"event":"risk_classify","class":"medium","reason":"Sources/ DayPlanner + TodayView + RootView; no high paths"}
+{"event":"note","text":"quick-add already exists (QuickCaptureField); delta is progress bar + Plan entry"}
+{"event":"tdd","file":"Tests/MustardTests/DayProgressTests.swift","unit":"DayPlanner.dayProgress"}
+{"event":"implement","action":"logic","note":"dayProgress(done,total) over tasksForDay"}
+{"event":"implement","action":"view","note":"TodayView progress bar + Plan button (onPlan); RootView passes screen=.agent"}
+{"event":"checks","check":"swift build","result":"pass"}
+{"event":"checks","check":"swift test","result":"pass","summary":"395 pass, 1 skip, 0 failures"}
