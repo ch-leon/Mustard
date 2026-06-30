@@ -120,9 +120,14 @@ public struct AgentConsoleView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("Agent")
-                .font(Theme.Fonts.header)
-                .foregroundStyle(Theme.Palette.textPrimary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Agent")
+                    .font(Theme.Fonts.header)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                Text(agent.isSweeping ? "reviewing your sources…" : "plans your day with you")
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            }
             if agent.isExecuting {
                 ProgressView().controlSize(.small)
                 Text("working…")
