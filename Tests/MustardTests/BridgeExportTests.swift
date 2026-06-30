@@ -81,6 +81,35 @@ final class BridgeExportTests: XCTestCase {
         XCTAssertTrue(plan.writes.isEmpty)
     }
 
+    // BAK-89: a queued task with no actionType would export an `execute` order with
+    // actionType="" — the worker can't act on it. The export must skip it (the UI
+    // surfaces "needs an action type"); a queued task means the action is known.
+    func test_queuedTask_withoutActionType_isSkipped() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1")],   // no action
+                                     route: route, liveOutboxUIDs: [:], now: now)
+        XCTAssertTrue(plan.writes.isEmpty, "must not emit an execute order with empty actionType")
+    }
+
+    // forAgent/prep legitimately has no actionType yet — that's exactly what the prep
+    // pass classifies — so it must still be exported.
+    func test_forAgentTask_withoutActionType_stillWritesPrep() {
+        let plan = BridgeExport.plan(tasks: [task(.forAgent, uid: "u2")],  // no action
+                                     route: route, liveOutboxUIDs: [:], now: now)
+        XCTAssertEqual(plan.writes.first?.order.mode, "prep")
+        XCTAssertEqual(plan.writes.first?.order.actionType, "")
+    }
+
+    // The no-action skip must not disturb BAK-92's cancel logic: a queued no-action
+    // task with a LIVE outbox stays in the active set (insert precedes the guard), so
+    // its outbox is neither re-issued nor spuriously cancelled. Guards the load-bearing
+    // insert-before-guard ordering against a future refactor.
+    func test_queuedNoAction_withLiveOutbox_neitherWritesNorCancels() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1")],   // no action
+                                     route: route, liveOutboxUIDs: ["/kb/DL": ["u1"]], now: now)
+        XCTAssertTrue(plan.writes.isEmpty)
+        XCTAssertTrue(plan.cancels.isEmpty)
+    }
+
     func test_nonAgentStage_isIgnored() {
         let plan = BridgeExport.plan(tasks: [task(.planned, uid: "u3")],
                                      route: route, liveOutboxUIDs: [:], now: now)

@@ -18,6 +18,9 @@ public struct TaskDetailSheet: View {
     @State private var bodyPreview = false
 
     private static let estimates = [15, 30, 45, 60, 90, 120]
+    /// Actions the agent can execute for a queued task (excludes create_task/fyi/ignore,
+    /// which aren't agent-execute outcomes). Offered in the Action picker.
+    private static let agentActions: [RecommendationAction] = [.draftEmail, .draftSlack, .ticket, .vaultNote]
 
     public init(task: MustardTask) {
         self.task = task
@@ -58,6 +61,17 @@ public struct TaskDetailSheet: View {
                             Picker("", selection: $task.owner) {
                                 ForEach(TaskOwner.allCases) { Text($0.label).tag($0) }
                             }.labelsHidden().pickerStyle(.segmented).fixedSize()
+                        }
+                        PropertyRow(label: "Action") {
+                            // What the agent does when it executes this task. A queued
+                            // task must have one set or the bridge can't route it (BAK-89).
+                            Picker("", selection: Binding(
+                                get: { task.actionType },
+                                set: { task.actionType = $0 }
+                            )) {
+                                Text("None").tag(RecommendationAction?.none)
+                                ForEach(Self.agentActions) { Text($0.label).tag(RecommendationAction?.some($0)) }
+                            }.labelsHidden().fixedSize()
                         }
                         PropertyRow(label: "Due") {
                             HStack {
