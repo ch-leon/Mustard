@@ -6,6 +6,7 @@ import SwiftData
 public struct TaskDetailSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(AgentService.self) private var agent
     @Bindable var task: MustardTask
     @Query private var areas: [Area]
@@ -16,6 +17,7 @@ public struct TaskDetailSheet: View {
     @State private var hasDue: Bool
     @State private var dueDate: Date
     @State private var bodyPreview = false
+    @State private var newLinkURL = ""
 
     private static let estimates = [15, 30, 45, 60, 90, 120]
     /// Actions the agent can execute for a queued task (excludes create_task/fyi/ignore,
@@ -155,6 +157,7 @@ public struct TaskDetailSheet: View {
                     .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
 
                     subtasksSection
+                    linksSection
                     bodySection
                 }
                 .padding(20)
@@ -202,6 +205,59 @@ public struct TaskDetailSheet: View {
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
+    }
+
+    // Links referenced by the task (BAK-91) — e.g. a Shortcut story / Jira issue carried
+    // from a create_task rec, or one added by hand. Show, open, remove, add.
+    private var linksSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("LINKS")
+                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                .foregroundStyle(Theme.Palette.textTertiary)
+            ForEach(task.links, id: \.url) { link in
+                HStack(spacing: 8) {
+                    Button {
+                        if let u = URL(string: link.url) { openURL(u) }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link").font(.system(size: 11))
+                            Text(link.label).font(Theme.Fonts.meta)
+                            Text(link.url).font(Theme.Fonts.meta)
+                                .foregroundStyle(Theme.Palette.textTertiary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.Palette.accent)
+                    Spacer(minLength: 0)
+                    Button { task.links.removeAll { $0.url == link.url } } label: {
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.Palette.textTertiary)
+                    .help("Remove link")
+                }
+            }
+            HStack(spacing: 6) {
+                TextField("Add a link (URL)…", text: $newLinkURL)
+                    .textFieldStyle(.plain).font(Theme.Fonts.meta).onSubmit(addLink)
+                Button(action: addLink) {
+                    Image(systemName: "plus").font(Theme.Fonts.meta)
+                }
+                .buttonStyle(.plain).foregroundStyle(Theme.Palette.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Append a manually-entered link (http/https only), de-duplicated, labelled by host.
+    private func addLink() {
+        let trimmed = newLinkURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return }
+        defer { newLinkURL = "" }
+        guard !task.links.contains(where: { $0.url == trimmed }) else { return }
+        task.links.append(TaskLink(label: TaskLinkExtractor.label(for: url), url: trimmed))
     }
 
     private var subtasksSection: some View {
