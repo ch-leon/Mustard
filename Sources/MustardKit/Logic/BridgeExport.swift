@@ -29,6 +29,11 @@ public enum BridgeExport {
         for t in tasks where exportStages.contains(t.stage) {
             guard let target = route(t) else { continue }
             activeByDir[target.workingDir, default: []].insert(t.uid)
+            // A queued task with no actionType would export an `execute` order with
+            // actionType="" — the worker can't act on it (BAK-89). Skip it; the UI
+            // surfaces "needs an action type". forAgent/prep is exempt: an empty action
+            // is expected there — classifying it is exactly what the prep pass does.
+            if t.stage == .queued && t.actionType == nil { continue }
             let live = liveOutboxUIDs[target.workingDir] ?? []
             let pendingResults = liveResultUIDs[target.workingDir] ?? []
             if !live.contains(t.uid) && !pendingResults.contains(t.uid) {

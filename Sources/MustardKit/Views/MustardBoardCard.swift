@@ -212,6 +212,11 @@ public struct MustardBoardCard: View {
         case .needsApproval:
             return ("Your move · approve to run", Color(hex: "#6A61C9"), Color(hex: "#EEEBFA"))
         case .queued:
+            // A queued task with no action type can't be routed to the agent (BAK-89);
+            // surface it in amber so it's visibly not-runnable until set in the detail sheet.
+            if task.actionType == nil {
+                return ("Needs an action type", Color(hex: "#B07A29"), Color(hex: "#FBF1E2"))
+            }
             return ("Queued to run", Color(hex: "#8A8579"), Color(hex: "#F1EDE4"))
         case .needsReview:
             return ("Review output", Color(hex: "#1B7A57"), Color(hex: "#E3F2EB"))
