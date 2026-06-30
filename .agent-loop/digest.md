@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-101 board review-focus mode + caption (PR #41)
+- **Risk:** medium (Feature; BoardView + PersonalBoard constant) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 388 pass/1 skip (+1 BoardFocusTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — toggle correct, columns pin to gateStages when focused, pill stays visible at count 0 (always an exit), count derived + owner/area-scoped, focus orthogonal to owner/area (no stuck state); removed 2 hardcoded hexes
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-074835-bak-101-review-focus/`
+- **What landed:** header waiting pill → toggle button; review-focus collapses board to `PersonalBoard.gateStages` ([needsApproval, needsReview]); pill flips to "Exit review queue" (filled); focus-aware caption.
+- **For Leon's eye:** collapse/restore + filled-pill state.
+- **Revert:** `git revert 15c93d9297dedd4a82e18862c02be57aa5130318`
+
 ## 2026-07-01 — MERGED · BAK-100 board inline gate actions + reverse transitions (PR #40)
 - **Risk:** medium (Feature; Logic helper + 2 views) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 387 pass/1 skip (+5 GateTransitionTests) · CI (self-hosted)
