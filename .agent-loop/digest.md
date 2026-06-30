@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-103 Today day-progress bar + Plan entry (PR #43)
+- **Risk:** medium (Feature; DayPlanner helper + TodayView + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 395 pass/1 skip (+2 DayProgressTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — progress derivation correct (done in total, not pinned 100%), bar gated by total>0 (no NaN), onPlan default keeps preview safe, all 3 TodayView call sites compile, Theme tokens only
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-075733-bak-103-today/`
+- **What landed:** `DayPlanner.dayProgress(_:day:)`; TodayView day-progress bar ("N of M done") + "✦ Plan with agent" header button (onPlan → RootView screen=.agent). Quick-add already existed (QuickCaptureField).
+- **For Leon's eye:** progress bar fill + Plan button navigation.
+- **Revert:** `git revert b5f45a52ecbbc3e76ac930e2e944d11289918ebd`
+
 ## 2026-07-01 — MERGED · BAK-102 board auto-collapse empty columns (PR #42)
 - **Risk:** medium (Improvement; BoardView + PersonalBoard helper) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 393 pass/1 skip (+5 collapse-rule tests) · CI (self-hosted)
