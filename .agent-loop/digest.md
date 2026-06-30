@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-30 — MERGED · BAK-84 quarantine undecodable agent result files (PR #36)
+- **Risk:** medium (Improvement; Logic + BridgeIO + a one-line `ingestAgentResults` call) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift test 366 pass/1 skip (+5 tests) · swift build clean · CI (self-hosted) green 43s
+- **Review:** fresh-context no blockers; keep-criterion parity confirmed exact; Part-1 obsolescence independently verified; rerun-idempotency test folded in (45ba930)
+- **Outward actions:** none · quarantine relocates a local file Mustard already ignores
+- **Run:** `.agent-loop/runs/20260630-203248-bak84-bridge-routing/`
+- **What landed (Part 2):** `BridgeIO.quarantineUndecodableResults` moves undecodable/empty-uid `results/*.json` → `results/quarantine/` (same keep-criterion as readResults); `ingestAgentResults` calls it each run after archiving the good ones; `BridgeFolders.resultsQuarantine`.
+- **Part 1 (route via AreaRouter) — OBSOLETE:** BAK-87 already reworked routing (loop uses each SourceConfig's `workingDirectory` + `AreaMapping`, never `defaultAreaMap`); `AreaRouter` is dead. Documented + stale comment refreshed; dead-AreaRouter removal filed as **BAK-96**.
+- **Process note:** built in an isolated git worktree off `origin/main` (per the BAK-90 concurrency lesson).
+- **Revert:** `git revert f911b85dfdf8ade62f3e452930bf4af7c5d155cb`
+
 ## 2026-06-30 — MERGED · BAK-91 capture + surface referenced Shortcut/Jira link (PR #35)
 - **Risk:** medium (Feature; new Logic helper + a 2-line `materializeTask` change + a View; the AgentService touch carries no dispatch/gating logic) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift test 361 pass/1 skip (+9 tests) · swift build clean · CI (self-hosted) green 44s
