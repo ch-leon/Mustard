@@ -75,6 +75,10 @@ public final class MustardTask {
     /// Outward/connector actions are always gated (reuse the recommendation policy).
     public var isGated: Bool { actionType?.isGated ?? false }
 
+    /// Agent-surfaced and still in the inbox, awaiting your triage — drives the
+    /// "✦ Proposed" pill (handoff: agent-proposed tasks land in Inbox flagged Proposed).
+    public var isProposed: Bool { owner == .agent && stage == .inbox }
+
     public var owner: TaskOwner {
         get { TaskOwner(rawValue: ownerRaw) ?? .me }
         set { ownerRaw = newValue.rawValue }

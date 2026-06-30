@@ -26,11 +26,13 @@ public enum TaskOwner: String, Codable, CaseIterable, Identifiable {
 }
 
 public enum TaskPriority: String, Codable, CaseIterable, Identifiable {
-    case high, normal, low
+    // Order is the handoff create-form order (Low → Urgent); rawValues are stable.
+    case low, normal, high, urgent
     public var id: String { rawValue }
 
     public var label: String {
         switch self {
+        case .urgent: "Urgent"
         case .high: "High"
         case .normal: "Normal"
         case .low: "Low"
