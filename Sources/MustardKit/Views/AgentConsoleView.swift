@@ -204,17 +204,18 @@ public struct AgentConsoleView: View {
             .disabled(vaultPath.isEmpty || agent.isSweeping)
             .tint(Theme.Palette.accent)
 
-            Menu("Trust: \(trust.label)") {
-                ForEach(TrustLevel.allCases) { level in
-                    Button {
-                        trustRaw = level.rawValue
-                        Task { await agent.applyTrust(level) }
-                    } label: {
-                        Text("\(level.label) — \(level.blurb)")
-                    }
+            Picker("", selection: Binding(
+                get: { trust },
+                set: { level in
+                    trustRaw = level.rawValue
+                    Task { await agent.applyTrust(level) }
                 }
+            )) {
+                ForEach(TrustLevel.allCases) { Text($0.label).tag($0) }
             }
-            .controlSize(.small)
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .tint(Theme.Palette.agent)
             .fixedSize()
             .help(trust.blurb)
           }
