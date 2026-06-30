@@ -186,6 +186,48 @@ final class MeetingTaskSyncTests: XCTestCase {
         XCTAssertEqual(io.files["DL/meetings/a.md"], note("- [ ] A completely different line"))
     }
 
+    func test_composeNotes_descMeetingOwnerDue() {
+        let p = ParsedMeetingTask(
+            title: "Move credentials to production", isDone: false,
+            due: nil, desc: "Promote the creds to prod.", owner: "Code Heroes",
+            dueText: "imminent", transcriptQuote: "targeting production imminently",
+            tags: ["creds"], rawLine: "-", notePath: "DL/meetings/2026/04/2026-04-17-x.md",
+            originKey: "k")
+        let notes = MeetingTaskSync.composeNotes(p, subtitle: "DLA/DLV Feature Showcase")
+        XCTAssertEqual(notes, """
+        Promote the creds to prod.
+
+        From: DLA/DLV Feature Showcase (2026-04-17)
+        Context: "targeting production imminently"
+        Owner: Code Heroes · Due: imminent
+        """)
+    }
+
+    func test_composeNotes_fallsBackToQuoteWhenNoDesc() {
+        let p = ParsedMeetingTask(
+            title: "Ship it", isDone: false, due: nil, desc: nil, owner: nil,
+            dueText: nil, transcriptQuote: "we will ship", tags: [],
+            rawLine: "-", notePath: "DL/m.md", originKey: "k")
+        let notes = MeetingTaskSync.composeNotes(p, subtitle: "Standup")
+        XCTAssertEqual(notes, "we will ship\n\nFrom: Standup")
+    }
+
+    func test_import_populatesNotesAndTags() throws {
+        let ctx = try makeContext()
+        let line = "- [ ] Email Kamil — desc: \"Send the SDK spec to Kamil.\", owner: [[Leon Creed-Baker]], due: 2026-07-15 #task #sdk #ch — [T: \"send Kamil the spec\"]"
+        let io = FakeVaultIO(["DL/meetings/2026/06/2026-06-16-sync.md": note(line)])
+        let sync = MeetingTaskSync(context: ctx, io: io)
+
+        _ = sync.importTasks()
+
+        let t = try XCTUnwrap(try tasks(ctx).first)
+        XCTAssertEqual(t.title, "Email Kamil")
+        XCTAssertEqual(t.tags, ["sdk"])
+        XCTAssertEqual(t.dueAt, at("2026-07-15T00:00:00Z"))
+        XCTAssertTrue(t.notes.contains("Send the SDK spec to Kamil."))
+        XCTAssertTrue(t.notes.contains("From: Weekly sync 2026-06-16"))
+    }
+
     func test_writeBack_preservesBlockId() throws {
         let ctx = try makeContext()
         let io = FakeVaultIO(["DL/meetings/a.md": note("- [ ] Task with id ^xy7")])
