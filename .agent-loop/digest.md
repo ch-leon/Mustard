@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-97 vendor 2026 redesign handoff + PRD (PR #37)
+- **Risk:** low (docs-only; `docs/design/redesign-2026/**` + run artifacts; no Sources/Package/config) · **Deep-review:** n/a (low auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 366 pass/1 skip (baseline; no behaviour changed) · CI (self-hosted)
+- **Review:** fresh-context APPROVE; one non-blocking nit (PRD threshold recommendation mislabelled the ≥0.5 set as "desktop code") fixed before merge
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-061603-bak-97-vendor-handoff/`
+- **What landed:** vendored desktop+mobile prototypes + handoff README into `docs/design/redesign-2026/` (excludes prototype runtime support.js/ios-frame.jsx) and a `PRD.md` mapping the handoff to the BAK-97..119 task graph; documents two parity discrepancies (confidence thresholds; Admin dot colour) for BAK-98.
+- **Kickoff context:** first slice of the 2026 redesign. Most of the desktop is already shipped — remaining work is the desktop delta (BAK-98..107, parity audits 111/112/117/118) + the iOS companion (foundation BAK-108, blocked on Apple Dev entitlements → shell 110 → screens 113/114/115/116/119).
+- **Revert:** `git revert 0aa29e7fbd7b161e31dcf49dfd7345bbdc07a3e7`
+
 ## 2026-06-30 — MERGED · BAK-84 quarantine undecodable agent result files (PR #36)
 - **Risk:** medium (Improvement; Logic + BridgeIO + a one-line `ingestAgentResults` call) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift test 366 pass/1 skip (+5 tests) · swift build clean · CI (self-hosted) green 43s
