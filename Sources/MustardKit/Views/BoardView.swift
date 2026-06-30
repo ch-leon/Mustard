@@ -16,6 +16,7 @@ public struct BoardView: View {
     @State private var view: BoardOwnerView
     @State private var area: BoardArea = .all
     @State private var selectedTask: MustardTask?
+    @State private var reviewFocus = false
 
     private let settings = BoardSettings()
     private var compact: Bool { settings.compact }
@@ -62,14 +63,18 @@ public struct BoardView: View {
                     .font(Theme.Fonts.header)
                     .foregroundStyle(Theme.Palette.textPrimary)
                 let waiting = PersonalBoard.waitingCount(allTasks, view: view, area: area)
-                if waiting > 0 {
-                    Text("● \(waiting) waiting on you")
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(Color(hex: "#6A61C9"))
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: "#EEEBFA"), in: Capsule())
-                        .overlay(Capsule().stroke(Color(hex: "#E2DCF4"), lineWidth: 0.5))
+                if waiting > 0 || reviewFocus {
+                    Button { reviewFocus.toggle() } label: {
+                        Text(reviewFocus ? "Exit review queue" : "● \(waiting) waiting on you")
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(reviewFocus ? Color.white : Theme.Palette.agentText)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 4)
+                            .background(reviewFocus ? AnyShapeStyle(Theme.Palette.agent) : AnyShapeStyle(Theme.Palette.agentTintLight), in: Capsule())
+                            .overlay(Capsule().stroke(reviewFocus ? Color.clear : Color(hex: "#E2DCF4"), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help(reviewFocus ? "Show the full board." : "Focus the board on just the two gate columns.")
                 }
                 Spacer(minLength: 0)
             }
@@ -79,7 +84,7 @@ public struct BoardView: View {
 
             HStack(spacing: 6) {
                 Text("●").foregroundStyle(Theme.Palette.agent)
-                Text(view.caption)
+                Text(reviewFocus ? "Review queue — everything waiting on you, both gates." : view.caption)
             }
             .font(.system(size: 12.5))
             .foregroundStyle(Color(hex: "#8A8579"))
@@ -151,7 +156,7 @@ public struct BoardView: View {
     private var columns: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 11) {
-                ForEach(PersonalBoard.columns(for: view), id: \.self) { stage in
+                ForEach(reviewFocus ? PersonalBoard.gateStages : PersonalBoard.columns(for: view), id: \.self) { stage in
                     column(stage)
                 }
             }

@@ -20,6 +20,10 @@ public enum PersonalBoard {
     /// Columns shown for a given owner view.
     public static func columns(for view: BoardOwnerView) -> [TaskStage] { view.columns }
 
+    /// The two gate columns shown when the board is focused to the review queue
+    /// ("N waiting on you" → Exit review queue, BAK-101).
+    public static let gateStages: [TaskStage] = [.needsApproval, .needsReview]
+
     /// Tasks in a stage within the current owner + area scope, oldest first
     /// (done by most-recently-completed).
     public static func tasks(_ all: [MustardTask], in stage: TaskStage,
