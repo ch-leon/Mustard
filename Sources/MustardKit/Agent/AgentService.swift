@@ -136,7 +136,8 @@ public final class AgentService {
 
     /// Export forAgent/queued tasks under one KB working dir to its `_agent/outbox/`,
     /// and cancel stale outbox files. Pure plan + injected IO. (area/project identify
-    /// the KB; in the loop these come from the SourceConfig + AreaRouter map.)
+    /// the KB; in the loop they come from each enabled SourceConfig's own
+    /// `workingDirectory` + `AreaMapping.areaName(forProject:)` — see MustardApp.)
     public func exportWorkOrders(workingDir: String, area: String, project: String) {
         let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
         // This dir handles tasks whose area maps here; the caller passes the dir/area/project.
@@ -161,6 +162,9 @@ public final class AgentService {
             }
             try? bridge.archiveResult(path, workingDir: workingDir)
         }
+        // Hygiene (BAK-84): move any undecodable / empty-uid result aside so it isn't
+        // silently re-scanned every loop. (readResults already skipped it above.)
+        bridge.quarantineUndecodableResults(workingDir: workingDir)
     }
 
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {

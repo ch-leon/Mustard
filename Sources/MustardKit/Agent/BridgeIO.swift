@@ -10,6 +10,10 @@ public protocol BridgeIO {
     func cancelWorkOrder(uid: String, workingDir: String) throws
     func readResults(workingDir: String) -> [(result: AgentResult, path: String)]
     func archiveResult(_ path: String, workingDir: String) throws
+    /// Move undecodable / empty-uid `results/*.json` into `results/quarantine/` so they
+    /// aren't silently re-scanned every loop (BAK-84). Returns how many were moved.
+    @discardableResult
+    func quarantineUndecodableResults(workingDir: String) -> Int
 }
 
 public struct FileBridgeIO: BridgeIO {
@@ -59,5 +63,28 @@ public struct FileBridgeIO: BridgeIO {
         let dest = doneDir + "/" + (path as NSString).lastPathComponent
         if fm.fileExists(atPath: dest) { try fm.removeItem(atPath: dest) }
         try fm.moveItem(atPath: path, toPath: dest)
+    }
+
+    @discardableResult
+    public func quarantineUndecodableResults(workingDir: String) -> Int {
+        let p = workingDir + "/" + BridgeFolders.results
+        guard let files = try? fm.contentsOfDirectory(atPath: p) else { return 0 }
+        var moved = 0
+        for name in files.filter({ $0.hasSuffix(".json") }).sorted() {
+            let path = p + "/" + name
+            // "Decodable + non-empty uid" mirrors readResults' keep criterion exactly,
+            // so anything readResults would silently drop is what we move aside.
+            let usable = fm.contents(atPath: path)
+                .flatMap { try? BridgeCoding.decoder.decode(AgentResult.self, from: $0) }
+                .map { !$0.uid.isEmpty } ?? false
+            if usable { continue }
+            let qdir = workingDir + "/" + BridgeFolders.resultsQuarantine
+            guard (try? fm.createDirectory(atPath: qdir, withIntermediateDirectories: true)) != nil
+            else { continue }
+            let dest = qdir + "/" + name
+            if fm.fileExists(atPath: dest) { try? fm.removeItem(atPath: dest) }
+            if (try? fm.moveItem(atPath: path, toPath: dest)) != nil { moved += 1 }
+        }
+        return moved
     }
 }

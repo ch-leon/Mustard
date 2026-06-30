@@ -10,12 +10,14 @@ final class AgentBridgeServiceTests: XCTestCase {
         var live: Set<String> = []
         var liveResults: Set<String> = []
         var results: [(AgentResult, String)] = []
+        var quarantineCalls = 0
         func liveOutboxUIDs(workingDir: String) -> Set<String> { live }
         func liveResultUIDs(workingDir: String) -> Set<String> { liveResults }
         func writeWorkOrder(_ order: AgentWorkOrder, workingDir: String) throws { written.append(order) }
         func cancelWorkOrder(uid: String, workingDir: String) throws { cancelled.append(uid) }
         func readResults(workingDir: String) -> [(result: AgentResult, path: String)] { results.map { ($0.0, $0.1) } }
         func archiveResult(_ path: String, workingDir: String) throws { archived.append(path) }
+        func quarantineUndecodableResults(workingDir: String) -> Int { quarantineCalls += 1; return 0 }
     }
 
     @MainActor
@@ -69,5 +71,13 @@ final class AgentBridgeServiceTests: XCTestCase {
         XCTAssertEqual(t.stage, .needsReview)
         XCTAssertEqual(t.links.first?.url, "https://x")
         XCTAssertEqual(io.archived.count, 1)
+    }
+
+    // BAK-84: ingest sweeps undecodable result files aside each run.
+    @MainActor
+    func test_ingest_quarantinesUndecodableResults() throws {
+        let io = StubIO(); let (svc, _) = try service(io)
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+        XCTAssertEqual(io.quarantineCalls, 1)
     }
 }
