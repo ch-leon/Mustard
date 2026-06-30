@@ -61,14 +61,18 @@ public struct RootView: View {
         HStack(spacing: 0) {
             sidebar
             Divider().overlay(Theme.Palette.hairline)
-            Group {
-                switch screen {
-                case .today: TodayView(onPlan: { screen = .agent })
-                case .board: BoardView()
-                case .week: WeekView()
-                case .agent: AgentConsoleView()
-                case .lists: ListContentView(scope: selectedScope ?? .unfiled)
+            VStack(spacing: 0) {
+                Group {
+                    switch screen {
+                    case .today: TodayView(onPlan: { screen = .agent })
+                    case .board: BoardView()
+                    case .week: WeekView()
+                    case .agent: AgentConsoleView()
+                    case .lists: ListContentView(scope: selectedScope ?? .unfiled)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if screen != .agent { copilotDock }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -104,6 +108,33 @@ public struct RootView: View {
         // (TextEditor, DatePicker, pickers) don't render dark under macOS dark mode.
         // The notch is a separate panel with its own explicit dark colors — unaffected.
         .preferredColorScheme(.light)
+    }
+
+    /// Persistent agent co-pilot dock (BAK-106): shown on every screen except the Agent
+    /// console; surfaces what's waiting and links into the console.
+    private var copilotDock: some View {
+        let recs = AgentInbox.pendingRecCount(recommendations)
+        let outs = AgentInbox.outputCount(tasks)
+        return VStack(spacing: 0) {
+            Divider().overlay(Theme.Palette.hairline)
+            HStack(spacing: 8) {
+                Circle().fill(Theme.Palette.agent).frame(width: 7, height: 7)
+                Text("Agent")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.Palette.agentText)
+                Text(AgentInbox.dockText(recs: recs, outputs: outs))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                Spacer(minLength: 0)
+                Button("Open console →") { screen = .agent }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.Palette.agentText)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+        }
+        .background(Theme.Palette.sidebar)
     }
 
     private var sidebar: some View {
