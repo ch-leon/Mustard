@@ -51,6 +51,19 @@ public enum PersonalBoard {
         else { task.stage = stage; task.completedAt = nil }
     }
 
+    /// Target stage when the human approves a gate (BAK-100). needsApproval → queued
+    /// (gated, will run) or needsReview (non-gated, straight to output review);
+    /// needsReview → done. Nil when the task isn't on a gate stage. Reject/Discard
+    /// (deletion) and the reverse transitions (Hold→needsApproval, Request changes→
+    /// queued) are handled by the caller via `move`/delete.
+    public static func approveTarget(for task: MustardTask) -> TaskStage? {
+        switch task.stage {
+        case .needsApproval: return task.isGated ? .queued : .needsReview
+        case .needsReview: return .done
+        default: return nil
+        }
+    }
+
     /// Whether a task may be handed to the agent (For Agent / Queued). Requires a
     /// client area: the bridge export filters by area, so an area-less hand-off would
     /// silently never route (BAK-90). The single gate the views + `delegate` check.

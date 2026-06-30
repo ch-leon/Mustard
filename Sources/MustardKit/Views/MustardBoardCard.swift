@@ -7,6 +7,8 @@ import SwiftData
 /// `Theme` (the canonical token set — BAK-98); sizes are from the handoff.
 public struct MustardBoardCard: View {
     @Environment(AgentService.self) private var agent
+    @Environment(\.modelContext) private var context
+    @State private var hovering = false
     let task: MustardTask
     let showConfidence: Bool
 
@@ -29,6 +31,7 @@ public struct MustardBoardCard: View {
             confidenceRow
             statusPill
             blockedRow
+            gateActions
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
@@ -38,6 +41,7 @@ public struct MustardBoardCard: View {
         .overlay(alignment: .leading) { accentBorder }
         .clipShape(RoundedRectangle(cornerRadius: 9))
         .opacity(isDone ? 0.66 : 1)
+        .onHover { hovering = $0 }
     }
 
     // MARK: Left accent border (2.5px)
@@ -272,6 +276,51 @@ public struct MustardBoardCard: View {
                 .padding(.top, 8)
         }
     }
+
+    // MARK: Inline gate actions (hover-revealed on the two gate stages)
+
+    @ViewBuilder private var gateActions: some View {
+        if hovering, stage == .needsApproval || stage == .needsReview {
+            HStack(spacing: 6) {
+                Button(action: approveGate) {
+                    Text(primaryGateLabel)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Theme.Palette.agent, in: RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+                Button(action: rejectGate) {
+                    Text(secondaryGateLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.Palette.confidenceLow)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Theme.Palette.hairline, lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 9)
+        }
+    }
+
+    /// "✓ Approve & run" (gated approval) / "✓ Approve" (non-gated) / "✓ Accept" (review).
+    private var primaryGateLabel: String {
+        if stage == .needsReview { return "✓ Accept" }
+        return task.isGated ? "✓ Approve & run" : "✓ Approve"
+    }
+
+    private var secondaryGateLabel: String { stage == .needsReview ? "Discard" : "Deny" }
+
+    private func approveGate() {
+        guard let target = PersonalBoard.approveTarget(for: task) else { return }
+        PersonalBoard.move(task, to: target)
+    }
+
+    /// Deny (needsApproval) / Discard (needsReview) both drop the task.
+    private func rejectGate() { context.delete(task) }
 }
 
 /// Wrapping horizontal layout for the meta row (area/source/due may overflow the
