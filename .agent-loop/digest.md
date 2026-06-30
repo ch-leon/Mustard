@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-30 — MERGED · BAK-90 require a client area before agent hand-off (PR #33)
+- **Risk:** high (escalated — touches `AgentService.delegate`, the agent hand-off control path) · **Deep-review:** PASS (3/3 — correctness + security/risk + spec-faithfulness, all clear)
+- **Checks:** swift test 352 pass/1 skip (+4 tests) · swift build clean · CI (self-hosted) green 47s
+- **Review:** fresh-context NON-BLOCKING (mergeable); panel 3/3 clear
+- **Outward actions:** none · the change BLOCKS a hand-off; performs no send/deploy/delete
+- **Run:** `.agent-loop/runs/20260630-195959-bak90-require-area/` (artifacts stranded on the `leon/bak-82` branch — see note below)
+- **What landed:** pure `PersonalBoard.canHandOffToAgent` (area required); `AgentService.delegate` guards on it (chokepoint for all 4 "Ask agent" buttons) + `lastHint`/`clearHint`; BoardView drop-handler guard + amber hint banner.
+- **Follow-up filed:** BAK-95 — TaskDetailSheet Stage/Assignee pickers still bypass the gate (benign; export filters by area regardless).
+- **⚠️ Concurrency note:** this run collided with a parallel dev-loop session building BAK-82 in the SAME working tree — that session checked out `leon/bak-82` off this branch's tip, so the BAK-90 run-artifacts commit (5cdc3fe) and this entry's source landed via an isolated worktree. PR #33 itself was clean (single BAK-90 commit). Recommend per-session git worktrees/clones to prevent shared-HEAD stomping.
+- **Revert:** `git revert 7d4282d1ee1915824818ac0bedb189ddd6e3dba0`
+
 ## 2026-06-30 — MERGED · BAK-89 settable task actionType + export guard (PR #32)
 - **Risk:** medium (Feature; Logic + Views; no high path, no AgentService change) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift test 348 pass/1 skip (+3 tests) · swift build clean · CI (self-hosted) green 42s
