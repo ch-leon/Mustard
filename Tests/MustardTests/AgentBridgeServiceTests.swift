@@ -8,8 +8,10 @@ final class AgentBridgeServiceTests: XCTestCase {
         var cancelled: [String] = []
         var archived: [String] = []
         var live: Set<String> = []
+        var liveResults: Set<String> = []
         var results: [(AgentResult, String)] = []
         func liveOutboxUIDs(workingDir: String) -> Set<String> { live }
+        func liveResultUIDs(workingDir: String) -> Set<String> { liveResults }
         func writeWorkOrder(_ order: AgentWorkOrder, workingDir: String) throws { written.append(order) }
         func cancelWorkOrder(uid: String, workingDir: String) throws { cancelled.append(uid) }
         func readResults(workingDir: String) -> [(result: AgentResult, path: String)] { results.map { ($0.0, $0.1) } }
@@ -36,6 +38,23 @@ final class AgentBridgeServiceTests: XCTestCase {
         svc.exportWorkOrders(workingDir: "/kb/DL", area: "Digital Licence", project: "DL")
         XCTAssertEqual(io.written.map(\.uid), ["u1"])
         XCTAssertEqual(io.written.first?.mode, "execute")
+    }
+
+    // BAK-92 regression: a queued task whose result is written but NOT yet ingested
+    // (outbox already archived, so no live outbox) must not be re-exported — otherwise
+    // the worker runs it twice (e.g. a second Gmail draft / Shortcut story).
+    @MainActor
+    func test_export_skipsQueuedTask_whenLiveResultPending() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let area = Area(name: "Digital Licence")
+        let list = TaskList(name: "DL", area: area)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued; t.actionType = .ticket
+        t.list = list
+        ctx.insert(area); ctx.insert(list); ctx.insert(t)
+        io.live = []                 // worker already archived the outbox
+        io.liveResults = ["u1"]      // result written, not yet ingested
+        svc.exportWorkOrders(workingDir: "/kb/DL", area: "Digital Licence", project: "DL")
+        XCTAssertTrue(io.written.isEmpty, "must not re-issue a duplicate while a result is pending ingest")
     }
 
     @MainActor

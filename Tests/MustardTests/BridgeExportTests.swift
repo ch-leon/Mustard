@@ -34,6 +34,32 @@ final class BridgeExportTests: XCTestCase {
         XCTAssertTrue(plan.writes.isEmpty)
     }
 
+    // BAK-92: the worker archives the outbox file + writes a result before Mustard's
+    // next ingest tick. In that window the task is still `.queued` with no live outbox
+    // file — without a result guard the export re-issues a duplicate order (double-run).
+    func test_queuedTask_withLiveResult_isSkipped() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1")],
+                                     route: route, liveOutboxUIDs: [:],
+                                     liveResultUIDs: ["/kb/DL": ["u1"]], now: now)
+        XCTAssertTrue(plan.writes.isEmpty, "a live result for the uid must suppress re-issue")
+    }
+
+    // A live result for a DIFFERENT uid must not suppress an unrelated task's order.
+    func test_liveResultForOtherUID_doesNotSuppress() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1", action: .ticket)],
+                                     route: route, liveOutboxUIDs: [:],
+                                     liveResultUIDs: ["/kb/DL": ["u9"]], now: now)
+        XCTAssertEqual(plan.writes.map(\.order.uid), ["u1"])
+    }
+
+    // A result in another working dir must not suppress this dir's order.
+    func test_liveResultInOtherDir_doesNotSuppress() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1", action: .ticket)],
+                                     route: route, liveOutboxUIDs: [:],
+                                     liveResultUIDs: ["/kb/OTHER": ["u1"]], now: now)
+        XCTAssertEqual(plan.writes.map(\.order.uid), ["u1"])
+    }
+
     func test_nonAgentStage_isIgnored() {
         let plan = BridgeExport.plan(tasks: [task(.planned, uid: "u3")],
                                      route: route, liveOutboxUIDs: [:], now: now)
