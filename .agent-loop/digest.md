@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-130 agent console header subhead (PR)
+- **Risk:** low (Improvement; AgentConsoleView header) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 417 pass/1 skip
+- **Review:** fresh-context APPROVE — VStack-wrap balanced, agent.isSweeping valid, Theme tokens, no logic change
+- **Run:** `.agent-loop/runs/20260701-092456-bak-130-subhead/`
+- **What landed:** dynamic subhead under "Agent" ("reviewing your sources…"/"plans your day with you") + kept progress/toggle ("both").
+- **Revert:** `git revert 59e1ca1d25326bb861b8d6fda1619491eebb03e3`
+
+
 ## 2026-07-01 — MERGED · BAK-132 Trust segmented control (PR)
 - **Risk:** medium (Improvement; AgentConsoleView view-only — NOT TrustPolicy) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 417 pass/1 skip
