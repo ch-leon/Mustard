@@ -11,10 +11,17 @@ public enum BridgeExport {
 
     /// `route` maps a task to its KB target (nil = unroutable → skipped).
     /// `liveOutboxUIDs` = uids with a live (non-archived) outbox file, keyed by workingDir.
+    /// `liveResultUIDs` = uids with a live (non-archived) result file, keyed by workingDir.
+    /// A live result means the worker has finished and written `results/<uid>.json` but
+    /// Mustard hasn't ingested it yet — the task is still `.queued`/`.forAgent` with no
+    /// live outbox file. Re-issuing here would duplicate the order (BAK-92). We guard on
+    /// LIVE results only (not `results/done/`): a `failed` result is archived to done, so
+    /// the next export legitimately re-issues it — the intended retry path.
     public static func plan(
         tasks: [MustardTask],
         route: (MustardTask) -> RouteTarget?,
         liveOutboxUIDs: [String: Set<String>],
+        liveResultUIDs: [String: Set<String>] = [:],
         now: Date
     ) -> Plan {
         var writes: [Write] = []
@@ -23,7 +30,8 @@ public enum BridgeExport {
             guard let target = route(t) else { continue }
             activeByDir[target.workingDir, default: []].insert(t.uid)
             let live = liveOutboxUIDs[target.workingDir] ?? []
-            if !live.contains(t.uid) {
+            let pendingResults = liveResultUIDs[target.workingDir] ?? []
+            if !live.contains(t.uid) && !pendingResults.contains(t.uid) {
                 writes.append(Write(workingDir: target.workingDir, order: order(for: t, target: target, now: now)))
             }
         }

@@ -1,0 +1,11 @@
+.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/pr-body.md
+.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/review-report.md
+.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/risk-report.md
+.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/task.md
+.agent-loop/runs/20260630-191727-bak92-bridge-double-exec/verification.md
+Sources/Mustard/MustardApp.swift
+Sources/MustardKit/Agent/AgentService.swift
+Sources/MustardKit/Agent/BridgeIO.swift
+Sources/MustardKit/Logic/BridgeExport.swift
+Tests/MustardTests/AgentBridgeServiceTests.swift
+Tests/MustardTests/BridgeExportTests.swift

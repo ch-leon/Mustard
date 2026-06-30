@@ -141,7 +141,8 @@ public final class AgentService {
         let mine = all.filter { ($0.list?.area?.name ?? "") == area }
         let plan = BridgeExport.plan(
             tasks: mine, route: { _ in target },
-            liveOutboxUIDs: [workingDir: bridge.liveOutboxUIDs(workingDir: workingDir)], now: .now)
+            liveOutboxUIDs: [workingDir: bridge.liveOutboxUIDs(workingDir: workingDir)],
+            liveResultUIDs: [workingDir: bridge.liveResultUIDs(workingDir: workingDir)], now: .now)
         for w in plan.writes { try? bridge.writeWorkOrder(w.order, workingDir: workingDir) }
         for c in plan.cancels { try? bridge.cancelWorkOrder(uid: c.uid, workingDir: workingDir) }
     }

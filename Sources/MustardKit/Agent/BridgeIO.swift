@@ -3,6 +3,9 @@ import Foundation
 /// File operations the bridge needs; injected so the service is testable with a stub.
 public protocol BridgeIO {
     func liveOutboxUIDs(workingDir: String) -> Set<String>
+    /// uids with a live (non-archived) result file under `results/` — i.e. the worker
+    /// has finished but Mustard hasn't ingested yet. Used to suppress duplicate orders.
+    func liveResultUIDs(workingDir: String) -> Set<String>
     func writeWorkOrder(_ order: AgentWorkOrder, workingDir: String) throws
     func cancelWorkOrder(uid: String, workingDir: String) throws
     func readResults(workingDir: String) -> [(result: AgentResult, path: String)]
@@ -15,6 +18,14 @@ public struct FileBridgeIO: BridgeIO {
 
     public func liveOutboxUIDs(workingDir: String) -> Set<String> {
         let p = workingDir + "/" + BridgeFolders.outbox
+        guard let files = try? fm.contentsOfDirectory(atPath: p) else { return [] }
+        return Set(files.filter { $0.hasSuffix(".json") }.map { String($0.dropLast(5)) })
+    }
+
+    public func liveResultUIDs(workingDir: String) -> Set<String> {
+        // Non-recursive: lists `results/` top-level only, so archived `results/done/`
+        // files (and the `done` subdirectory itself) are excluded by the .json filter.
+        let p = workingDir + "/" + BridgeFolders.results
         guard let files = try? fm.contentsOfDirectory(atPath: p) else { return [] }
         return Set(files.filter { $0.hasSuffix(".json") }.map { String($0.dropLast(5)) })
     }

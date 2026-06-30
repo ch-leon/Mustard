@@ -78,6 +78,10 @@ struct MustardApp: App {
                                     // or code ("DL") — the config stores the folder name, the map is code-keyed.
                                     let areaName = AreaMapping.areaName(forProject: source.project) ?? ""
                                     if !areaName.isEmpty {
+                                        // Order is load-bearing (BAK-92): export must run BEFORE ingest
+                                        // so its live-result guard sees a worker-written result that
+                                        // ingest is about to consume — otherwise the still-queued task
+                                        // (outbox already archived) would get a duplicate order re-issued.
                                         agent.exportWorkOrders(workingDir: source.workingDirectory, area: areaName, project: source.project)
                                         agent.ingestAgentResults(workingDir: source.workingDirectory)
                                     }
