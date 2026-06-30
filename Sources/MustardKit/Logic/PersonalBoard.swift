@@ -24,6 +24,14 @@ public enum PersonalBoard {
     /// ("N waiting on you" → Exit review queue, BAK-101).
     public static let gateStages: [TaskStage] = [.needsApproval, .needsReview]
 
+    /// Whether an empty column should auto-collapse to a thin strip (BAK-102): only
+    /// in the Everyone lens, never while review-focused, and not if the user has
+    /// manually expanded it. Mine/Agent lenses keep empty columns full-width.
+    public static func shouldCollapseEmpty(view: BoardOwnerView, isEmpty: Bool,
+                                           expanded: Bool, reviewFocus: Bool) -> Bool {
+        view == .everyone && !reviewFocus && isEmpty && !expanded
+    }
+
     /// Tasks in a stage within the current owner + area scope, oldest first
     /// (done by most-recently-completed).
     public static func tasks(_ all: [MustardTask], in stage: TaskStage,

@@ -17,6 +17,7 @@ public struct BoardView: View {
     @State private var area: BoardArea = .all
     @State private var selectedTask: MustardTask?
     @State private var reviewFocus = false
+    @State private var expandedEmpty: Set<TaskStage> = []
 
     private let settings = BoardSettings()
     private var compact: Bool { settings.compact }
@@ -157,7 +158,12 @@ public struct BoardView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 11) {
                 ForEach(reviewFocus ? PersonalBoard.gateStages : PersonalBoard.columns(for: view), id: \.self) { stage in
-                    column(stage)
+                    if PersonalBoard.shouldCollapseEmpty(view: view, isEmpty: isColumnEmpty(stage),
+                                                         expanded: expandedEmpty.contains(stage), reviewFocus: reviewFocus) {
+                        collapsedStrip(stage)
+                    } else {
+                        column(stage)
+                    }
                 }
             }
             .padding(.horizontal, 24)
@@ -207,7 +213,7 @@ public struct BoardView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     if visible.isEmpty && older == 0 {
-                        Text("—")
+                        Text("Drop here")
                             .font(.system(size: 11.5))
                             .foregroundStyle(Color(hex: "#C8C3B7"))
                             .padding(.horizontal, 4)
@@ -260,6 +266,40 @@ public struct BoardView: View {
             }
             return true
         }
+    }
+
+    /// True when a column has nothing to show (done also accounts for the "+N older" tail).
+    private func isColumnEmpty(_ stage: TaskStage) -> Bool {
+        if stage == .done {
+            return PersonalBoard.tasks(allTasks, in: .done, view: view, area: area).isEmpty
+                && PersonalBoard.olderDoneCount(allTasks, view: view, area: area) == 0
+        }
+        return PersonalBoard.tasks(allTasks, in: stage, view: view, area: area).isEmpty
+    }
+
+    /// Collapsed empty-column strip (Everyone lens) — tap to expand. (BAK-102)
+    private func collapsedStrip(_ stage: TaskStage) -> some View {
+        let style = ColumnStyle(stage.kind)
+        return Button { expandedEmpty.insert(stage) } label: {
+            VStack(spacing: 10) {
+                Text("0")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(hex: "#C0BCB1"))
+                Text(stage.label.uppercased())
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(0.04 * 11)
+                    .foregroundStyle(style.head)
+                    .fixedSize()
+                    .rotationEffect(.degrees(-90))
+                    .frame(height: 96)
+            }
+            .frame(width: 40)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.vertical, 14)
+            .background(style.background, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .help("Expand \(stage.label)")
     }
 }
 
