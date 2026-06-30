@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-109 Week ✦ Balance + Undo (PR #46)
+- **Risk:** medium (Feature; WeekPlanner algorithm + WeekView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 409 pass/1 skip (+6 WeekBalanceTests) · CI (self-hosted)
+- **Review:** round 1 CHANGES-REQUESTED — greedy LPT could land on a peak ≥ input while toast claimed success (reviewer fuzz-found). **Fixed:** no-regression guard (commit only if newPeak < currentPeak; else "already balanced") + regression test ({30,30}|{20,20,20} → LPT would hit 70, guard holds 60). Round 2 APPROVE — guard apples-to-apples, no new edge bugs, regression test genuine.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-081411-bak-109-balance/`
+- **What landed:** `WeekPlanner.balance(_:weekdays:)` (LPT + no-regression guard, BalancePlan/BalanceMove with prior date for exact Undo, excludes done/meetings, preserves time-of-day); WeekView "✦ Balance" button + dark toast + Undo (auto-dismiss 6s).
+- **Known non-blocking:** when the heuristic can't improve an imbalanced layout it still says "already balanced" (cosmetic wording).
+- **For Leon's eye:** Balance button + toast + Undo restore.
+- **Revert:** `git revert 2f20549208e43dbda7e3f7f254d8dec35af75cdb`
+
 ## 2026-07-01 — MERGED · BAK-105 Week capacity + load bar + time-of-day grouping (PR #45)
 - **Risk:** medium (Feature; WeekPlanner logic + WeekView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 403 pass/1 skip (+5 WeekCapacityTests) · CI (self-hosted)
