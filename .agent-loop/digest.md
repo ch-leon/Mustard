@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-117 parity audit: Board + card (PR #51)
+- **Risk:** medium (Improvement; cosmetic card/board views + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
+- **Review:** fresh-context APPROVE — presentation-only, no logic change; overdue branch sound, tag chips + hover-toggle correct (agent still shown via left accent), "All" label display-only; strong parity post-polish, no regressions
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-084538-bak-117-parity-board/`
+- **What landed:** docs/design/redesign-2026/parity/board.md; inline fixes — overdue due red/amber+bold, tags as pill chips, owner toggle hover-revealed, "All areas"→"All". Follow-ups: BAK-134 (+New task + Search), BAK-135 (drag-over highlight).
+- **Revert:** `git revert d47de79a375c237b379f11a017069ca51f7bbc0c`
+
 ## 2026-07-01 — MERGED · BAK-112 parity audit: Settings + Trust (PR #50)
 - **Risk:** HIGH (path: TrustPolicy.swift) · **Deep-review:** PASS (3/3 clear — correctness, security/risk, spec)
 - **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
