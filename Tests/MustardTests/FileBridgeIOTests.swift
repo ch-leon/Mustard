@@ -57,6 +57,19 @@ final class FileBridgeIOTests: XCTestCase {
         XCTAssertEqual(io.readResults(workingDir: dir).count, 1)
     }
 
+    // Re-running quarantine when a same-named file already sits in quarantine/ must
+    // clobber the stale one and still report an accurate moved count (idempotent).
+    func test_quarantine_rerun_clobbersAndCountsAccurately() throws {
+        let io = FileBridgeIO()
+        let resultsDir = dir + "/" + BridgeFolders.results
+        try FileManager.default.createDirectory(atPath: resultsDir, withIntermediateDirectories: true)
+        try "garbage".write(toFile: resultsDir + "/bad.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(io.quarantineUndecodableResults(workingDir: dir), 1)
+        try "garbage again".write(toFile: resultsDir + "/bad.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(io.quarantineUndecodableResults(workingDir: dir), 1)   // clobbers, count accurate
+        XCTAssertFalse(FileManager.default.fileExists(atPath: resultsDir + "/bad.json"))
+    }
+
     func test_readResults_thenArchive() throws {
         let io = FileBridgeIO()
         let resultsDir = dir + "/" + BridgeFolders.results
