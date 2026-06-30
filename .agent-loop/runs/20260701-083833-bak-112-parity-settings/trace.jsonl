@@ -5,3 +5,4 @@
 {"event":"followups","issues":["BAK-132 trust segmented control","BAK-133 standalone settings screen + per-source connected"]}
 {"event":"checks","check":"swift build","result":"pass"}
 {"event":"checks","check":"swift test","result":"pass","summary":"417 pass, 1 skip, 0 failures"}
+{"event":"deep_review","verdicts":{"correctness":"clear","security":"clear","spec":"clear"},"result":"pass"}
