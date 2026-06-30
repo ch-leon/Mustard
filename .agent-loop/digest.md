@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-135 board drag-over column highlight (PR)
+- **Risk:** low (Improvement; BoardView only) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 417 pass/1 skip
+- **Review:** fresh-context APPROVE — isTargeted enter/leave guard avoids stuck dual-highlight; overlay scoped to full column (collapsed strips unaffected); drop handler unchanged; Theme.accent
+- **Run:** `.agent-loop/runs/20260701-091958-bak-135-drag-highlight/`
+- **What landed:** `.dropDestination(isTargeted:)` + `dropTargetStage` @State → 2px accent outline on the targeted column.
+- **Revert:** `git revert 87c28f6fb5471834644efa6ed1345ab578e621a1`
+
+
 ## 2026-07-01 — MERGED · BAK-118 parity audit: detail + create/edit form (PR #52)
 - **Risk:** medium (Improvement; TaskDetailSheet view edits + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
