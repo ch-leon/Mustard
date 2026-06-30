@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-100 board inline gate actions + reverse transitions (PR #40)
+- **Risk:** medium (Feature; Logic helper + 2 views) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 387 pass/1 skip (+5 GateTransitionTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — state machine reused (not forked), gated/non-gated branch correct, labels exact, no tap double-fire (Button beats ancestor onTapGesture), delete is .nullify-safe (subtasks/delegation), reverse transitions stage-gated
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-074219-bak-100-gate-actions/`
+- **What landed:** `PersonalBoard.approveTarget(for:)` (needsApproval→queued if gated else needsReview; needsReview→done); MustardBoardCard hover gate actions (✓ Approve & run / ✓ Approve / ✓ Accept + Deny/Discard-deletes); TaskDetailSheet Hold (queued→needsApproval) + Request changes (needsReview→queued).
+- **For Leon's eye:** confirm hover reveal + that tapping the buttons doesn't also open the detail panel.
+- **Revert:** `git revert 56b05ecbac91eeb96d966dc4799312244af3d06f`
+
 ## 2026-07-01 — MERGED · BAK-99 board card priority flag + Proposed pill + tags (PR #39)
 - **Risk:** medium (Feature; Sources/ — additive model + view) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 382 pass/1 skip (+5 BoardCardMetaTests) · CI (self-hosted)
