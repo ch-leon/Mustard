@@ -60,7 +60,7 @@ public struct MustardBoardCard: View {
         if !isDone {
             HStack(spacing: 6) {
                 priorityFlag
-                ownerToggle
+                if hovering { ownerToggle }   // hover-revealed (handoff); agent shown via the left accent
                 Spacer(minLength: 0)
                 if task.isProposed { proposedPill }
                 if task.isGated {
@@ -181,8 +181,10 @@ public struct MustardBoardCard: View {
                     .background(badge.bg, in: Capsule())
                 }
                 if let due {
+                    let overdue = due < .now && !isDone
                     Text("🗓 \(due.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
-                        .foregroundStyle(Theme.Palette.accent)
+                        .foregroundStyle(overdue ? Theme.Palette.warning : Theme.Palette.accent)
+                        .fontWeight(overdue ? .semibold : .regular)
                 }
             }
             .font(.system(size: 11.5))
@@ -201,6 +203,10 @@ public struct MustardBoardCard: View {
                     Text("#\(tag)")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.Palette.textSecondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Theme.Palette.statusMutedBg, in: RoundedRectangle(cornerRadius: 5))
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.Palette.hairline, lineWidth: 0.5))
                 }
             }
             .padding(.top, 6)
