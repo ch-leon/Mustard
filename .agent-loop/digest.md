@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-112 parity audit: Settings + Trust (PR #50)
+- **Risk:** HIGH (path: TrustPolicy.swift) · **Deep-review:** PASS (3/3 clear — correctness, security/risk, spec)
+- **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
+- **Deep-review:** copy-only change confirmed (gating predicates byte-for-byte unchanged; `blurb` is display-only); new blurb safety claims verified TRUE vs `isGated` model; all 5 strings byte-for-byte verbatim to the prototype. Report: deep-review-report.md.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-083833-bak-112-parity-settings/`
+- **What landed:** TrustPolicy.blurb aligned to handoff copy verbatim; always-visible trust blurb + gated footer note in the console; parity report. Follow-ups: BAK-132 (trust segmented control), BAK-133 (standalone Settings screen + per-source Connected).
+- **Note:** HIGH was purely the path trigger; actual change is display copy. Honoured the panel anyway.
+- **For Leon's eye:** trust blurb + gated footer note in the console.
+- **Revert:** `git revert 9b6c02ee42c5dcab59fccbdc5f1b1bf43abcc903`
+
 ## 2026-07-01 — MERGED · BAK-111 parity audit: Agent console (PR #49)
 - **Risk:** medium (Improvement; cosmetic views + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
