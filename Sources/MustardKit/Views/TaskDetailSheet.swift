@@ -198,6 +198,17 @@ public struct TaskDetailSheet: View {
                 .controlSize(.small)
                 .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
             }
+            // Reverse gate transitions (BAK-100): pull work back a stage.
+            if task.stage == .queued {
+                Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }
+                    .controlSize(.small)
+                    .help("Send this back to Needs Approval.")
+            }
+            if task.stage == .needsReview {
+                Button("Request changes") { PersonalBoard.move(task, to: .queued) }
+                    .controlSize(.small)
+                    .help("Send the output back to the queue for another pass.")
+            }
             Spacer()
             if task.stage != .done {
                 Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
