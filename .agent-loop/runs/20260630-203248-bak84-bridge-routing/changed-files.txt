@@ -1,0 +1,5 @@
+Sources/MustardKit/Agent/AgentService.swift
+Sources/MustardKit/Agent/BridgeIO.swift
+Sources/MustardKit/Logic/BridgeProtocol.swift
+Tests/MustardTests/AgentBridgeServiceTests.swift
+Tests/MustardTests/FileBridgeIOTests.swift

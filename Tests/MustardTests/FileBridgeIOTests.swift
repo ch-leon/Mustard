@@ -20,6 +20,56 @@ final class FileBridgeIOTests: XCTestCase {
         XCTAssertTrue(io.liveOutboxUIDs(workingDir: dir).isEmpty)
     }
 
+    // BAK-84: a malformed result file is dropped by readResults but was re-scanned
+    // every loop. Quarantine moves undecodable / empty-uid files aside so they aren't
+    // re-read, while valid results stay put.
+    func test_quarantine_movesUndecodable_keepsValid() throws {
+        let io = FileBridgeIO()
+        let resultsDir = dir + "/" + BridgeFolders.results
+        try FileManager.default.createDirectory(atPath: resultsDir, withIntermediateDirectories: true)
+        try #"{"uid":"u1","mode":"execute","status":"done"}"#
+            .write(toFile: resultsDir + "/u1.json", atomically: true, encoding: .utf8)
+        try "not json at all".write(toFile: resultsDir + "/bad.json", atomically: true, encoding: .utf8)
+        try #"{"uid":"","mode":"execute","status":"done"}"#
+            .write(toFile: resultsDir + "/empty-uid.json", atomically: true, encoding: .utf8)
+
+        let moved = io.quarantineUndecodableResults(workingDir: dir)
+
+        XCTAssertEqual(moved, 2)
+        XCTAssertEqual(io.readResults(workingDir: dir).map(\.result.uid), ["u1"])   // valid kept
+        let q = dir + "/" + BridgeFolders.resultsQuarantine
+        XCTAssertTrue(FileManager.default.fileExists(atPath: q + "/bad.json"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: q + "/empty-uid.json"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: resultsDir + "/bad.json"))
+    }
+
+    func test_quarantine_noResultsDir_returnsZero() {
+        XCTAssertEqual(FileBridgeIO().quarantineUndecodableResults(workingDir: dir), 0)
+    }
+
+    func test_quarantine_allValid_movesNothing() throws {
+        let io = FileBridgeIO()
+        let resultsDir = dir + "/" + BridgeFolders.results
+        try FileManager.default.createDirectory(atPath: resultsDir, withIntermediateDirectories: true)
+        try #"{"uid":"u1","mode":"execute","status":"done"}"#
+            .write(toFile: resultsDir + "/u1.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(io.quarantineUndecodableResults(workingDir: dir), 0)
+        XCTAssertEqual(io.readResults(workingDir: dir).count, 1)
+    }
+
+    // Re-running quarantine when a same-named file already sits in quarantine/ must
+    // clobber the stale one and still report an accurate moved count (idempotent).
+    func test_quarantine_rerun_clobbersAndCountsAccurately() throws {
+        let io = FileBridgeIO()
+        let resultsDir = dir + "/" + BridgeFolders.results
+        try FileManager.default.createDirectory(atPath: resultsDir, withIntermediateDirectories: true)
+        try "garbage".write(toFile: resultsDir + "/bad.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(io.quarantineUndecodableResults(workingDir: dir), 1)
+        try "garbage again".write(toFile: resultsDir + "/bad.json", atomically: true, encoding: .utf8)
+        XCTAssertEqual(io.quarantineUndecodableResults(workingDir: dir), 1)   // clobbers, count accurate
+        XCTAssertFalse(FileManager.default.fileExists(atPath: resultsDir + "/bad.json"))
+    }
+
     func test_readResults_thenArchive() throws {
         let io = FileBridgeIO()
         let resultsDir = dir + "/" + BridgeFolders.results

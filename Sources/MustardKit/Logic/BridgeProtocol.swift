@@ -5,6 +5,9 @@ public enum BridgeFolders {
     public static let outboxDone = "_agent/outbox/done"
     public static let results = "_agent/results"
     public static let resultsDone = "_agent/results/done"
+    /// Undecodable / empty-uid result files are moved here so they aren't re-scanned
+    /// every loop (BAK-84). Non-recursive listings exclude this subdir by the .json filter.
+    public static let resultsQuarantine = "_agent/results/quarantine"
 }
 
 public enum BridgeCoding {
