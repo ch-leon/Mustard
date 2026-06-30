@@ -1,0 +1,6 @@
+{"event":"run_start","run_id":"20260701-061603-bak-97-vendor-handoff","issue":"BAK-97","title":"Vendor design handoff + write redesign PRD","branch":"leon/bak-97-vendor-design-handoff","base":"main"}
+{"event":"risk_classify","class":"low","reason":"docs-only; paths under docs/ + .agent-loop/runs/; no Sources/Package/config; no outward actions"}
+{"event":"implement","action":"vendor_files","added":["docs/design/redesign-2026/Mustard.dc.html","docs/design/redesign-2026/Mustard Mobile.dc.html","docs/design/redesign-2026/MustardBoardCard.dc.html","docs/design/redesign-2026/README.md"],"excluded":["support.js","ios-frame.jsx"]}
+{"event":"implement","action":"write_doc","added":["docs/design/redesign-2026/PRD.md"]}
+{"event":"checks","check":"swift build","result":"pass"}
+{"event":"checks","check":"swift test","result":"pass","summary":"366 passed, 1 skipped, 0 failures"}
