@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-104 Today dismissible agent nudge (PR #44)
+- **Risk:** medium (Feature; shared Logic helper + TodayView + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 398 pass/1 skip (+3 AgentInboxTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — no ✕/card double-fire (Button wins hit-test), helper composes RecommendationQueue.pending + needsReview, RootView badge refactor makes it consistent with NotchSurface/HoverPanel (which already used the pending formula), pluralization + auto-hide correct
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-080209-bak-104-nudge/`
+- **What landed:** `AgentInbox.waitingCount(recommendations:tasks:now:)`; TodayView dismissible "Agent has N things for you" nudge (tap→console, ✕ dismiss, auto-hide at 0); RootView waitingCount now shares the helper (snooze/ignore-aware).
+- **Known non-blocking:** dismiss is session-scoped (won't reappear on new items same session); NotchSurface/HoverPanel still inline the same formula (future cleanup to route through AgentInbox).
+- **Revert:** `git revert 8a19dbb5914d43fd53718066e1e33dc58ef36ff7`
+
 ## 2026-07-01 — MERGED · BAK-103 Today day-progress bar + Plan entry (PR #43)
 - **Risk:** medium (Feature; DayPlanner helper + TodayView + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 395 pass/1 skip (+2 DayProgressTests) · CI (self-hosted)
