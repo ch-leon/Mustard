@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-134 board + New task + Search (PR)
+- **Risk:** medium (Feature; BoardView + PersonalBoard helper) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 419 pass/1 skip (+2 filterBySearch tests)
+- **Review:** fresh-context APPROVE — filterBySearch pure+tested (empty→all, case-insensitive), +New task insert-then-edit consistent with QuickColumnAdd, layout balanced; folded in the reviewer's nit (suppress Done "+N older" tail while searching)
+- **Run:** `.agent-loop/runs/20260701-092926-bak-134-newtask-search/`
+- **What landed:** header "+ New task" (insert inbox task + open sheet) + Search field filtering each column via `PersonalBoard.filterBySearch`.
+- **Revert:** `git revert abcbf0cac025a73c9d91faa8f704609ce55616fb`
+
+
 ## 2026-07-01 — MERGED · BAK-131 contextual 'Approve & run' label (PR)
 - **Risk:** low (Improvement; RecommendationDetailView label) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 417 pass/1 skip
