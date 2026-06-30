@@ -132,26 +132,41 @@ public struct WeekView: View {
         let listTasks = tasks.filter { !($0.isTimed && ($0.scheduledAt.map(inWindow) ?? false)) }
         let listEvents = evts.filter { $0.isAllDay || !inWindow($0.start) }
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 5) {
-                Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                    .font(.system(size: 12, weight: isToday ? .semibold : .regular))
-                    .foregroundStyle(isToday ? Theme.Palette.accent : Theme.Palette.textSecondary)
-                Text(day.formatted(.dateTime.day()))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.Palette.textTertiary)
+        let capMinutes = WeekPlanner.capacityMinutes(allTasks, on: day, calendar: cal)
+        let tier = WeekPlanner.loadTier(minutes: capMinutes)
+        return VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Text(day.formatted(.dateTime.weekday(.abbreviated)))
+                        .font(.system(size: 12, weight: isToday ? .semibold : .regular))
+                        .foregroundStyle(isToday ? Theme.Palette.accent : Theme.Palette.textSecondary)
+                    Text(day.formatted(.dateTime.day()))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                    Spacer(minLength: 0)
+                    Text(WeekPlanner.capacityLabel(minutes: capMinutes))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(loadColor(tier))
+                }
+                loadBar(minutes: capMinutes, tier: tier)
             }
-            .frame(height: 18)
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     axis(events: axisEvents, tasks: axisTasks)
                     ForEach(listEvents) { MeetingBlock(event: $0) }
-                    ForEach(listTasks) { task in
-                        WeekBlock(task: task,
-                                  onOpen: { selectedTask = task },
-                                  onToggle: { toggle(task) })
-                            .draggable(task.uid)
-                            .contextMenu { menu(for: task) }
+                    ForEach(WeekPlanner.groupByTimeOfDay(listTasks, calendar: cal), id: \.0) { group in
+                        Text(group.0.label.uppercased())
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(0.08 * 9)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                            .padding(.top, 2)
+                        ForEach(group.1) { task in
+                            WeekBlock(task: task,
+                                      onOpen: { selectedTask = task },
+                                      onToggle: { toggle(task) })
+                                .draggable(task.uid)
+                                .contextMenu { menu(for: task) }
+                        }
                     }
                     QuickCaptureField(scheduleOnto: day, placeholder: "Add…")
                 }
@@ -168,6 +183,27 @@ public struct WeekView: View {
             if task.stage == .inbox { task.stage = .planned }
             return true
         }
+    }
+
+    /// Load-bar colour by tier (handoff: green / amber / red).
+    private func loadColor(_ tier: WeekPlanner.LoadTier) -> Color {
+        switch tier {
+        case .green: Theme.Palette.doneHead
+        case .amber: Theme.Palette.warnText
+        case .red: Theme.Palette.priorityUrgentBg
+        }
+    }
+
+    /// Thin per-day load bar; fill is capacity ÷ an 8h day, capped at full.
+    private func loadBar(minutes: Int, tier: WeekPlanner.LoadTier) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.Palette.hairline)
+                Capsule().fill(loadColor(tier))
+                    .frame(width: geo.size.width * min(1, CGFloat(minutes) / 480))
+            }
+        }
+        .frame(height: 3)
     }
 
     /// The time axis: faint 30-min hairlines with meetings and timed tasks
