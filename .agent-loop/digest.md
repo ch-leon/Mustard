@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-102 board auto-collapse empty columns (PR #42)
+- **Risk:** medium (Improvement; BoardView + PersonalBoard helper) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 393 pass/1 skip (+5 collapse-rule tests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — collapse predicate pure + all-branch tested, done "+N older" tail handled, no stuck/duplicate-key state, QuickColumnAdd not duplicated
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-075244-bak-102-column-polish/`
+- **What landed:** `PersonalBoard.shouldCollapseEmpty(...)`; BoardView collapses empty columns to tap-to-expand strips (Everyone lens only, not Mine/Agent/review-focus); empty columns read "Drop here". Per-column "+ Add" was already QuickColumnAdd.
+- **Known non-blocking:** a collapsed strip isn't a drop target (must click-to-expand first) — matches spec.
+- **For Leon's eye:** strip appearance + click-to-expand.
+- **Revert:** `git revert 1c73feb5f34defb357b78df4db17366e4ecc2785`
+
 ## 2026-07-01 — MERGED · BAK-101 board review-focus mode + caption (PR #41)
 - **Risk:** medium (Feature; BoardView + PersonalBoard constant) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 388 pass/1 skip (+1 BoardFocusTests) · CI (self-hosted)
