@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-131 contextual 'Approve & run' label (PR)
+- **Risk:** low (Improvement; RecommendationDetailView label) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 417 pass/1 skip
+- **Review:** fresh-context APPROVE — label-only, dispatch unchanged
+- **Run:** `.agent-loop/runs/20260701-092733-bak-131-approve-labels/`
+- **What landed:** rec-detail primary "Approve" → "Approve & run"; "& schedule" variant is the existing Schedule button.
+- **Revert:** `git revert cd485be9409c879036e5d2b9459b698cca5f0965`
+
+
 ## 2026-07-01 — MERGED · BAK-130 agent console header subhead (PR)
 - **Risk:** low (Improvement; AgentConsoleView header) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 417 pass/1 skip
