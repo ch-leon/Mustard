@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-99 board card priority flag + Proposed pill + tags (PR #39)
+- **Risk:** medium (Feature; Sources/ — additive model + view) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 382 pass/1 skip (+5 BoardCardMetaTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — enum reorder rawValue-stable (no migration), only exhaustive switch still exhaustive, no order-dependent consumers; flag hex matches handoff; isProposed + done-card gating correct
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-073543-bak-99-card-meta/`
+- **What landed:** `TaskPriority.urgent` (reordered Low→Urgent, stable rawValues) + derived `MustardTask.isProposed` (agent+inbox); MustardBoardCard top-row priority flag (HIGH/URGENT) + ✦ Proposed pill + tags row (#tag, max 3), all Theme tokens. Create/edit Priority picker auto-gains Urgent via allCases.
+- **For Leon's eye:** confirm HIGH/URGENT pill + Proposed pill + tags read well on a dense card.
+- **Revert:** `git revert 85d9ec477de0938e7b329ecfcb66b2206ad5f922`
+
 ## 2026-07-01 — MERGED · BAK-98 design-token consolidation + confidence colour (PR #38)
 - **Risk:** medium (Improvement; `Sources/` — Theme + 4 views + seed; no auth/trust/ClaudeRunner) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 377 pass/1 skip (+3 ThemeTests) · CI (self-hosted)
