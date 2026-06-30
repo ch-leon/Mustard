@@ -2,6 +2,18 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-105 Week capacity + load bar + time-of-day grouping (PR #45)
+- **Risk:** medium (Feature; WeekPlanner logic + WeekView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 403 pass/1 skip (+5 WeekCapacityTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — tier boundaries (360/480) + label + timeOfDay + grouping all tested; capacityMinutes clock-independent (no done/double-count); Theme bar colours match handoff; ForEach id:\.0 safe
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-080709-bak-105-week-capacity/`
+- **What landed:** `WeekPlanner.capacityMinutes/loadTier/capacityLabel/timeOfDay/groupByTimeOfDay`; WeekView day header capacity label (tier-coloured) + load bar; non-axis tasks grouped Morning/Afternoon/Evening/Anytime. Shared logic mobile Week (BAK-116) reuses.
+- **Known non-blocking:** header capacity counts open tasks incl. agent-owned + a past-day-vs-column edge (spec says "open tasks"); String(format) locale separator (en-only app).
+- **Unblocks:** BAK-109 (Week ✦ Balance).
+- **For Leon's eye:** load bar colours + time-of-day section headers.
+- **Revert:** `git revert 05f79d3a68807b7ba8b9dfae0acfe43651eb6cbd`
+
 ## 2026-07-01 — MERGED · BAK-104 Today dismissible agent nudge (PR #44)
 - **Risk:** medium (Feature; shared Logic helper + TodayView + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 398 pass/1 skip (+3 AgentInboxTests) · CI (self-hosted)
