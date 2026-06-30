@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-132 Trust segmented control (PR)
+- **Risk:** medium (Improvement; AgentConsoleView view-only — NOT TrustPolicy) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 417 pass/1 skip
+- **Review:** fresh-context APPROVE — selection set closure byte-for-byte same dispatch (trustRaw + agent.applyTrust); no gating path touched (TrustPolicy/RecommendationAction diff empty); binding sound, no loop; Theme.agent tint
+- **Run:** `.agent-loop/runs/20260701-092220-bak-132-trust-seg/`
+- **What landed:** Trust dropdown Menu → `.segmented` Picker (active=purple); per-item blurb necessarily dropped (segmented has no subtitle) but the always-visible blurb card from BAK-112 covers it.
+- **Revert:** `git revert afa6da4f251c480adb33fb6e2a2a34ad6e41730a`
+
+
 ## 2026-07-01 — MERGED · BAK-135 board drag-over column highlight (PR)
 - **Risk:** low (Improvement; BoardView only) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 417 pass/1 skip
