@@ -46,4 +46,20 @@ final class TaskLinkExtractorTests: XCTestCase {
         let links = TaskLinkExtractor.referencedLinks(in: ["docs at https://example.com/page"])
         XCTAssertEqual(links.first?.label, "example.com")
     }
+
+    // Review follow-up: label on host boundaries, not substrings, so look-alikes
+    // don't get mislabelled as Shortcut/Jira.
+    func test_lookalikeHosts_notMislabelled() {
+        let links = TaskLinkExtractor.referencedLinks(in: [
+            "https://notshortcut.com.evil.example/x",
+            "https://mycompany.jira.example.com/y"
+        ])
+        XCTAssertEqual(links.map(\.label), ["notshortcut.com.evil.example", "mycompany.jira.example.com"])
+    }
+
+    // Self-hosted Jira at jira.<company>.com (first host label "jira") still labels Jira.
+    func test_selfHostedJira_labelledJira() {
+        let links = TaskLinkExtractor.referencedLinks(in: ["https://jira.codeheroes.com/browse/AB-1"])
+        XCTAssertEqual(links.first?.label, "Jira")
+    }
 }

@@ -23,8 +23,13 @@ public enum TaskLinkExtractor {
 
     static func label(for url: URL) -> String {
         let host = url.host?.lowercased() ?? ""
-        if host.contains("shortcut.com") { return "Shortcut" }
-        if host.contains("atlassian.net") || host.contains("jira") { return "Jira" }
+        // Match on host boundaries, not substrings, so look-alikes like
+        // "notshortcut.com.evil.example" / "mycompany.jira.example.com" don't misfire.
+        if host == "shortcut.com" || host.hasSuffix(".shortcut.com") { return "Shortcut" }
+        let labels = host.split(separator: ".")
+        if host == "atlassian.net" || host.hasSuffix(".atlassian.net") || labels.first == "jira" {
+            return "Jira"
+        }
         return host.isEmpty ? "Link" : host
     }
 }
