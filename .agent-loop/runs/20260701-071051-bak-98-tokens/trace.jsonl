@@ -1,0 +1,9 @@
+{"event":"run_start","run_id":"20260701-071051-bak-98-tokens","issue":"BAK-98","title":"Design-token consolidation + confidence threshold + Admin dot","branch":"leon/bak-98-design-token-consolidation","base":"main"}
+{"event":"risk_classify","class":"medium","reason":"touches Sources/ (Theme + 4 views + seed); no high paths (no TrustPolicy/RecommendationAction/auth/ClaudeRunner)"}
+{"event":"tdd","action":"write_failing_test","file":"Tests/MustardTests/ThemeTests.swift","unit":"Theme.confidenceTier","cases":"high>=0.7, medium>=0.5, low<0.5 incl 0.40"}
+{"event":"implement","action":"theme_tokens","file":"Sources/MustardKit/Logic/Theme.swift","added":"surfaces, agent tints, confidence tier+color, source-badge map, priority, area dots"}
+{"event":"checks","check":"swift test --filter ThemeTests","result":"pass","summary":"3 tests"}
+{"event":"implement","action":"refactor_callsites","files":["RecommendationDetailView.swift","AgentConsoleView.swift","MustardBoardCard.swift","BoardView.swift"],"note":"confidenceColor unified (0.4->0.5 drift fixed); inline handoff hex -> Theme tokens; source badge centralised; ColumnStyle -> tokens"}
+{"event":"implement","action":"seed_fix","file":"PreviewData.swift","note":"Admin dot green #3E8E7E via own Area; per-list-colour gap documented in PRD"}
+{"event":"checks","check":"swift build","result":"pass"}
+{"event":"checks","check":"swift test","result":"pass","summary":"377 passed, 1 skipped, 0 failures"}
