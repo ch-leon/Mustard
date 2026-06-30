@@ -86,6 +86,53 @@ final class MeetingTaskParserTests: XCTestCase {
             MeetingTaskParser.originKey(notePath: "meetings/sync.md", line: done))
     }
 
+    func test_skillLine_titleIsActionClauseOnly() {
+        let note = """
+        ## Code Heroes tasks
+        - [ ] Move credentials to production — desc: "Promote the traffic-controller and dangerous-goods-driver credentials.", owner: Code Heroes, due: 2026-07-15 #task #creds #ch — [T: "targeting production imminently"]
+        """
+        let t = MeetingTaskParser.parse(note, notePath: "DL/m.md")[0]
+        XCTAssertEqual(t.title, "Move credentials to production")
+        XCTAssertEqual(t.desc, "Promote the traffic-controller and dangerous-goods-driver credentials.")
+        XCTAssertEqual(t.owner, "Code Heroes")
+        XCTAssertEqual(t.dueText, "2026-07-15")
+        XCTAssertEqual(t.due, at("2026-07-15T00:00:00Z"))
+        XCTAssertEqual(t.tags, ["creds"])
+        XCTAssertEqual(t.transcriptQuote, "targeting production imminently")
+    }
+
+    func test_dueTextForms_nonDateLeavesDueNil() {
+        let note = """
+        ## Code Heroes tasks
+        - [ ] Progress the launch — owner: Code Heroes, due: not stated #task #ch — [T: "q"]
+        - [ ] Ship it — owner: Code Heroes, due: imminent #task #ch — [T: "q2"]
+        """
+        let ts = MeetingTaskParser.parse(note, notePath: "DL/m.md")
+        XCTAssertEqual(ts[0].dueText, "not stated"); XCTAssertNil(ts[0].due)
+        XCTAssertEqual(ts[1].dueText, "imminent");   XCTAssertNil(ts[1].due)
+    }
+
+    func test_wikilinkStrippedFromTitle_andOwner() {
+        let note = """
+        ## Code Heroes tasks
+        - [ ] Request [[Kamil]] to send the SDK spec — owner: [[Leon Creed-Baker]], due: not stated #task #ch — [T: "q"]
+        """
+        let t = MeetingTaskParser.parse(note, notePath: "DL/m.md")[0]
+        XCTAssertEqual(t.title, "Request Kamil to send the SDK spec")
+        XCTAssertEqual(t.owner, "Leon Creed-Baker")
+    }
+
+    func test_plainLine_noEmDash_backwardCompatible() {
+        let note = """
+        ## Code Heroes tasks
+        - [ ] Email Kamil the SDK spec 📅 2026-06-20
+        """
+        let t = MeetingTaskParser.parse(note, notePath: "m.md")[0]
+        XCTAssertEqual(t.title, "Email Kamil the SDK spec")
+        XCTAssertEqual(t.due, at("2026-06-20T00:00:00Z"))
+        XCTAssertNil(t.desc); XCTAssertNil(t.transcriptQuote); XCTAssertEqual(t.tags, [])
+    }
+
     func test_originKey_differsByNoteAndByLine() {
         let line = "- [ ] Same text"
         XCTAssertNotEqual(

@@ -69,6 +69,16 @@ public final class MeetingTaskSync {
             let subtitle = meetingSubtitle(text: text, path: path)
             for parsed in MeetingTaskParser.parse(text, notePath: path) {
                 if let task = byKey[parsed.originKey] {
+                    // Heal legacy giant-title imports once: only when notes was never
+                    // populated and the freshly-parsed concise title differs. Gated to
+                    // live (non-archived) meeting tasks so manual edits and pruned rows
+                    // are never clobbered.
+                    if task.source == "meeting", task.notes.isEmpty, task.title != parsed.title {
+                        task.title = parsed.title
+                        task.notes = Self.composeNotes(parsed, subtitle: subtitle)
+                        task.tags = parsed.tags
+                        if task.dueAt == nil { task.dueAt = parsed.due }
+                    }
                     if parsed.isDone && task.stage.isOpen {
                         // Line ticked in the vault while the task was open → vault won.
                         task.markDone(now: now)
@@ -100,10 +110,38 @@ public final class MeetingTaskSync {
         task.sourceContext = subtitle
         task.originKey = p.originKey
         task.dueAt = p.due
+        task.notes = Self.composeNotes(p, subtitle: subtitle)
+        task.tags = p.tags
         task.list = defaultList(forClient: clientName(forNotePath: p.notePath))
         // Already ticked in the vault → import as done, don't resurrect it open.
         if p.isDone { task.markDone(now: now) }
         return task
+    }
+
+    /// Notes body = description (or transcript-quote fallback), then a provenance
+    /// footer referencing the meeting, the quote, and owner/due.
+    static func composeNotes(_ p: ParsedMeetingTask, subtitle: String) -> String {
+        let body = (p.desc?.isEmpty == false ? p.desc! : (p.transcriptQuote ?? ""))
+            .trimmingCharacters(in: .whitespaces)
+        var footer: [String] = []
+        var from = subtitle
+        if let d = noteDate(p.notePath) { from += from.isEmpty ? d : " (\(d))" }
+        if !from.isEmpty { footer.append("From: \(from)") }
+        if let q = p.transcriptQuote, !q.isEmpty, q != body { footer.append("Context: \"\(q)\"") }
+        var meta: [String] = []
+        if let o = p.owner, !o.isEmpty { meta.append("Owner: \(o)") }
+        if let d = p.dueText, !d.isEmpty { meta.append("Due: \(d)") }
+        if !meta.isEmpty { footer.append(meta.joined(separator: " · ")) }
+        var out: [String] = []
+        if !body.isEmpty { out.append(body) }
+        if !footer.isEmpty { if !out.isEmpty { out.append("") }; out.append(contentsOf: footer) }
+        return out.joined(separator: "\n")
+    }
+
+    /// Best-effort `YYYY-MM-DD` lifted from the meeting note path.
+    static func noteDate(_ path: String) -> String? {
+        guard let r = path.range(of: #"\d{4}-\d{2}-\d{2}"#, options: .regularExpression) else { return nil }
+        return String(path[r])
     }
 
     // MARK: Write-back (Mustard → vault)
