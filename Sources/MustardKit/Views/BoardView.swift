@@ -9,6 +9,7 @@ import SwiftData
 /// Scope note: only the board content right of the existing app sidebar lives here.
 public struct BoardView: View {
     @Environment(\.modelContext) private var context
+    @Environment(AgentService.self) private var agent
     @Query private var allTasks: [MustardTask]
     @Query(sort: \Area.name) private var areas: [Area]
 
@@ -28,11 +29,28 @@ public struct BoardView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let hint = agent.lastHint { handoffHintBanner(hint) }
             columns
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
         .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
+    }
+
+    // MARK: Hand-off hint (BAK-90) — area required before agent hand-off
+
+    private func handoffHintBanner(_ hint: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 11))
+            Text(hint).font(Theme.Fonts.meta)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color(hex: "#B07A29"))
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "#FBF1E2"))
+        .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: "#EFE2C9")).frame(height: 0.5) }
     }
 
     // MARK: Header
@@ -214,13 +232,23 @@ public struct BoardView: View {
             guard let uid = uids.first,
                   let task = allTasks.first(where: { $0.uid == uid }) else { return false }
             guard task.stage != stage else { return true }
+            // BAK-90: dropping into an agent lane is a hand-off — require a client area
+            // first, or the bridge export silently won't route it. Reject + surface a hint.
+            let isAgentLane = stage == .forAgent || stage == .needsApproval
+                || stage == .queued || stage == .needsReview
+            if isAgentLane && !PersonalBoard.canHandOffToAgent(task) {
+                agent.delegate(task)   // no-ops the hand-off and sets the hint banner
+                return false
+            }
             if stage == .done {
                 TaskCompletion.complete(task, in: context)
             } else {
                 PersonalBoard.move(task, to: stage)
                 // Keep owner coherent with the lane dropped into; Inbox/Done are shared.
                 switch stage {
-                case .forAgent, .needsApproval, .queued, .needsReview: task.owner = .agent
+                case .forAgent, .needsApproval, .queued, .needsReview:
+                    task.owner = .agent
+                    agent.clearHint()   // successful hand-off clears any prior hint
                 case .planned, .scheduled, .inProgress, .blocked: task.owner = .me
                 case .inbox, .done: break
                 }

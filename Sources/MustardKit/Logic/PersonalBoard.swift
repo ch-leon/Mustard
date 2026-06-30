@@ -51,6 +51,13 @@ public enum PersonalBoard {
         else { task.stage = stage; task.completedAt = nil }
     }
 
+    /// Whether a task may be handed to the agent (For Agent / Queued). Requires a
+    /// client area: the bridge export filters by area, so an area-less hand-off would
+    /// silently never route (BAK-90). The single gate the views + `delegate` check.
+    public static func canHandOffToAgent(_ task: MustardTask) -> Bool {
+        task.list?.area != nil
+    }
+
     /// Card owner toggle: to agent → forAgent; to me → planned; done keeps its stage.
     public static func reassign(_ task: MustardTask, to owner: TaskOwner) {
         guard task.owner != owner else { return }
