@@ -1,0 +1,5 @@
+Sources/MustardKit/Agent/AgentService.swift
+Sources/MustardKit/Logic/TaskLinkExtractor.swift
+Sources/MustardKit/Views/TaskDetailSheet.swift
+Tests/MustardTests/AgentTests.swift
+Tests/MustardTests/TaskLinkExtractorTests.swift
