@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-106 agent co-pilot dock (PR #47)
+- **Risk:** medium (Feature; AgentInbox helpers + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 413 pass/1 skip (+4 dockText tests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — dockText pluralization/empty/joiner correct + tested, counts consistent with sidebar badge by construction (same helpers), dock hidden on .agent (no loop), layout sound (sibling in VStack, fills height)
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-082308-bak-106-dock/`
+- **What landed:** `AgentInbox.pendingRecCount/outputCount/dockText`; RootView persistent bottom co-pilot dock (purple dot + Agent + derived text + "Open console →") on every screen except the Agent console. (Prototype surface not in the README.)
+- **For Leon's eye:** dock bar placement + Open console link.
+- **Revert:** `git revert 00979c1d9772ea1bc77b86901bf8a4e395280ac8`
+
 ## 2026-07-01 — MERGED · BAK-109 Week ✦ Balance + Undo (PR #46)
 - **Risk:** medium (Feature; WeekPlanner algorithm + WeekView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 409 pass/1 skip (+6 WeekBalanceTests) · CI (self-hosted)
