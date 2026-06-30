@@ -1,0 +1,4 @@
+{"event":"run_start","issue":"BAK-132","branch":"leon/bak-132-trust-segmented"}
+{"event":"risk_classify","class":"medium","reason":"AgentConsoleView view-only; not TrustPolicy path"}
+{"event":"implement","note":"Menu -> segmented Picker tinted purple; same applyTrust dispatch"}
+{"event":"checks","check":"swift test","result":"pass","summary":"417 pass"}
