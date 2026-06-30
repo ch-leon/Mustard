@@ -1,0 +1,3 @@
+{"event":"run_start","issue":"BAK-131","branch":"leon/bak-131-approve-labels"}
+{"event":"implement","note":"Approve -> Approve & run; dispatch unchanged"}
+{"event":"checks","check":"swift test","result":"pass","summary":"417 pass"}

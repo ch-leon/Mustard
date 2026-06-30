@@ -121,7 +121,9 @@ struct RecommendationDetailView: View {
                     .controlSize(.small)
                     .help("You've seen it — remove it. Nothing is stored.")
             } else {
-                Button("Approve") { Task { await agent.decide(rec, .approved) } }
+                // "Approve & run" — approving executes the action (the prototype's
+                // contextual "Approve & schedule" variant is the separate Schedule button).
+                Button("Approve & run") { Task { await agent.decide(rec, .approved) } }
                     .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
                     .controlSize(.small).disabled(agent.isExecuting)
                 Button("Comment") { commenting.toggle(); commentText = rec.comment }
