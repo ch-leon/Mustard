@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-107 blockedByTask dependency (PR #48)
+- **Risk:** medium (Feature; additive SwiftData relationship + detail/form) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 417 pass/1 skip (+4 BlockedByTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — additive optional relationship is lightweight-migration-safe (existing stores decode nil; container model list unchanged), third self-ref unambiguous (no inverse), isBlocked non-recursive, .nullify delete-safe, cycle can't hang
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-082656-bak-107-blockedby/`
+- **What landed:** `MustardTask.blockedByTask` (`@Relationship(.nullify)`, optional, CloudKit-safe); isBlocked derives from an unfinished blocker (free-text path kept); `BlockedByPicker` + "Blocked by" row in the detail/create-edit form (search, excludes self+done).
+- **For Leon's eye:** Blocked-by picker + blocked treatment on the board.
+- **Revert:** `git revert 63203df21edc9103a778278603ddd5672d5815e8`
+
 ## 2026-07-01 — MERGED · BAK-106 agent co-pilot dock (PR #47)
 - **Risk:** medium (Feature; AgentInbox helpers + RootView) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 413 pass/1 skip (+4 dockText tests) · CI (self-hosted)
