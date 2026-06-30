@@ -1,0 +1,7 @@
+{"event":"run_start","run_id":"20260701-080209-bak-104-nudge","issue":"BAK-104","branch":"leon/bak-104-today-agent-nudge","base":"main"}
+{"event":"risk_classify","class":"medium","reason":"Sources/ shared Logic helper + 2 views; no high paths"}
+{"event":"tdd","file":"Tests/MustardTests/AgentInboxTests.swift","unit":"AgentInbox.waitingCount"}
+{"event":"implement","action":"logic","note":"AgentInbox.waitingCount = RecommendationQueue.pending + needsReview"}
+{"event":"implement","action":"view","note":"TodayView agentNudge (dismissible, tap->onPlan); RootView waitingCount uses shared helper"}
+{"event":"checks","check":"swift build","result":"pass"}
+{"event":"checks","check":"swift test","result":"pass","summary":"398 pass, 1 skip, 0 failures"}

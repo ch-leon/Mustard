@@ -53,8 +53,8 @@ public struct RootView: View {
     public init() {}
 
     private var waitingCount: Int {
-        recommendations.filter { $0.decision == .pending }.count
-            + tasks.filter { $0.stage == .needsReview }.count   // board review (ADR-0010)
+        // Shared with Today's nudge + the dock (BAK-104); respects snooze/ignore.
+        AgentInbox.waitingCount(recommendations: recommendations, tasks: tasks)
     }
 
     public var body: some View {

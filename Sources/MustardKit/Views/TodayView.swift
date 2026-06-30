@@ -4,7 +4,9 @@ import SwiftData
 public struct TodayView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
+    @Query private var recommendations: [Recommendation]
     @State private var selectedTask: MustardTask?
+    @State private var nudgeDismissed = false
     private let today = Date.now
     /// Navigate to the Agent console (the header "✦ Plan with agent" entry).
     private let onPlan: () -> Void
@@ -12,6 +14,7 @@ public struct TodayView: View {
     public init(onPlan: @escaping () -> Void = {}) { self.onPlan = onPlan }
 
     private var progress: (done: Int, total: Int) { DayPlanner.dayProgress(allTasks, day: today) }
+    private var nudgeCount: Int { AgentInbox.waitingCount(recommendations: recommendations, tasks: allTasks) }
 
     private var scheduled: [MustardTask] { DayPlanner.tasksForDay(allTasks, day: today) }
     private var unscheduled: [MustardTask] { DayPlanner.unscheduled(allTasks) }
@@ -21,6 +24,7 @@ public struct TodayView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 progressBar
+                agentNudge
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(scheduled) { task in
                         TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
@@ -80,6 +84,46 @@ public struct TodayView: View {
             .help("Open the Agent console to plan your day.")
         }
         .padding(.bottom, 12)
+    }
+
+    /// Dismissible nudge shown when the agent has items waiting (recs + review).
+    /// Auto-hides when the queue empties; tap opens the Agent console.
+    @ViewBuilder private var agentNudge: some View {
+        let n = nudgeCount
+        if n > 0 && !nudgeDismissed {
+            HStack(spacing: 10) {
+                Text("✦")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.agentText)
+                    .frame(width: 24, height: 24)
+                    .background(Theme.Palette.agentTintLight, in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Agent has \(n) thing\(n == 1 ? "" : "s") for you")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                    Text("Tap to review in the Agent console")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    nudgeDismissed = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Theme.Palette.agentTintFaint, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Palette.agentTintMid, lineWidth: 0.5))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture(perform: onPlan)
+            .padding(.bottom, 16)
+        }
     }
 
     /// Thin day-progress bar — "N of M done" over today's scheduled tasks.
