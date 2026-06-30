@@ -13,6 +13,14 @@ public struct WeekView: View {
     @Query private var events: [CalendarEvent]
     @State private var weekOffset = 0
     @State private var selectedTask: MustardTask?
+    @State private var toast: BalanceToast?
+
+    /// A Balance result toast; `moves` non-empty carries an exact-restore Undo.
+    private struct BalanceToast: Equatable {
+        let id = UUID()
+        let message: String
+        let moves: [WeekPlanner.BalanceMove]
+    }
 
     // Time axis configuration.
     private let axisStartHour = 8
@@ -56,6 +64,60 @@ public struct WeekView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
         .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
+        .overlay(alignment: .bottom) { toastView }
+        .animation(.easeInOut(duration: 0.2), value: toast)
+        .task(id: toast?.id) {
+            guard toast != nil else { return }
+            try? await Task.sleep(for: .seconds(6))
+            toast = nil
+        }
+    }
+
+    @ViewBuilder private var toastView: some View {
+        if let toast {
+            HStack(spacing: 12) {
+                Text("✦ \(toast.message)")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white)
+                if !toast.moves.isEmpty {
+                    Button("Undo") { undoBalance(toast.moves) }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.agentTintStrong)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Theme.Palette.textPrimary, in: Capsule())
+            .padding(.bottom, 20)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    /// ✦ Balance: flatten Mon–Fri load, then offer an exact Undo.
+    private func balance() {
+        let monFri = Array(days.prefix(5))
+        let plan = WeekPlanner.balance(allTasks, weekdays: monFri, calendar: cal)
+        guard !plan.moves.isEmpty else {
+            toast = BalanceToast(message: "Your week is already balanced", moves: [])
+            return
+        }
+        for m in plan.moves where allTasks.contains(where: { $0.uid == m.uid }) {
+            allTasks.first { $0.uid == m.uid }?.scheduledAt = m.to
+        }
+        let n = plan.moves.count
+        let peak = WeekPlanner.capacityLabel(minutes: plan.peakMinutes)
+        toast = BalanceToast(
+            message: "Balanced your week · moved \(n) task\(n == 1 ? "" : "s"), peak day now \(peak)",
+            moves: plan.moves
+        )
+    }
+
+    private func undoBalance(_ moves: [WeekPlanner.BalanceMove]) {
+        for m in moves {
+            allTasks.first { $0.uid == m.uid }?.scheduledAt = m.from
+        }
+        toast = nil
     }
 
     private var header: some View {
@@ -73,6 +135,15 @@ public struct WeekView: View {
                     .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
             }
             Spacer()
+            Button(action: balance) {
+                Text("✦ Balance")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.Palette.agentText)
+                    .padding(.horizontal, 11).padding(.vertical, 5)
+                    .background(Theme.Palette.agentTintLight, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Let the agent even out your overloaded days.")
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
     }

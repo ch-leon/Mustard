@@ -119,6 +119,70 @@ public enum WeekPlanner {
         }
     }
 
+    // MARK: ✦ Balance (BAK-109)
+
+    public struct BalanceMove: Equatable {
+        public let uid: String
+        public let from: Date?
+        public let to: Date
+    }
+
+    public struct BalancePlan: Equatable {
+        public let moves: [BalanceMove]
+        public let peakMinutes: Int
+    }
+
+    /// Redistribute movable (non-done) tasks scheduled within `weekdays` across those
+    /// days to flatten the peak load (greedy LPT: largest estimate first into the
+    /// least-loaded day; ties prefer the task's current day to minimise churn). Returns
+    /// only the tasks that change day, each carrying its prior `scheduledAt` for an exact
+    /// Undo. Pure — the caller applies the moves and keeps the snapshot. Meetings
+    /// (calendar events) and done tasks are never moved.
+    public static func balance(
+        _ all: [MustardTask], weekdays: [Date], calendar: Calendar = .current
+    ) -> BalancePlan {
+        func dayIndex(_ d: Date) -> Int? {
+            weekdays.firstIndex { calendar.isDate($0, inSameDayAs: d) }
+        }
+        let movable = all
+            .filter { t in
+                guard t.stage != .done, let when = t.scheduledAt else { return false }
+                return dayIndex(when) != nil
+            }
+            .sorted { $0.estimateMinutes > $1.estimateMinutes }
+
+        // Current per-day load, for the no-regression guard below.
+        var currentLoads = Array(repeating: 0, count: weekdays.count)
+        for t in movable {
+            if let i = t.scheduledAt.flatMap(dayIndex) { currentLoads[i] += t.estimateMinutes }
+        }
+        let currentPeak = currentLoads.max() ?? 0
+
+        var loads = Array(repeating: 0, count: weekdays.count)
+        var moves: [BalanceMove] = []
+        for t in movable {
+            let current = t.scheduledAt.flatMap(dayIndex)
+            // Least-loaded bin; on a tie keep the task on its current day.
+            var best = 0
+            for i in 1..<loads.count where loads[i] < loads[best] { best = i }
+            if let current, loads[current] == loads[best] { best = current }
+            loads[best] += t.estimateMinutes
+            if best != current {
+                let to = scheduleDate(on: weekdays[best], keepingTimeFrom: t.scheduledAt) ?? weekdays[best]
+                moves.append(BalanceMove(uid: t.uid, from: t.scheduledAt, to: to))
+            }
+        }
+        let newPeak = loads.max() ?? 0
+        // No-regression guard: greedy LPT packs from scratch and can occasionally land
+        // on a *worse* (or equal) peak than the existing layout. Only commit when we
+        // strictly lower the peak — otherwise report "already balanced" (no moves), so
+        // Balance never increases load or churns tasks for no gain.
+        guard newPeak < currentPeak else {
+            return BalancePlan(moves: [], peakMinutes: currentPeak)
+        }
+        return BalancePlan(moves: moves, peakMinutes: newPeak)
+    }
+
     /// Date for scheduling onto `day`, keeping a task's existing time-of-day (default 9:00).
     public static func scheduleDate(
         on day: Date, keepingTimeFrom existing: Date?, calendar: Calendar = .current
