@@ -344,12 +344,29 @@ final class AgentServiceTests: XCTestCase {
         let ctx = try! makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
         let task = MustardTask(title: "Do this", owner: .me)
+        task.list = TaskList(name: "DL", area: Area(name: "Digital Licence"))  // BAK-90: area required
         ctx.insert(task)
 
         service.delegate(task)
 
         XCTAssertEqual(task.owner, .agent)
         XCTAssertEqual(task.stage, .forAgent)
+        XCTAssertNil(service.lastHint)
+    }
+
+    // BAK-90: an area-less task can't be handed off (the bridge export filters by area,
+    // so it would silently never route). Block it and surface a hint instead.
+    func test_delegate_areaLessTask_isBlocked_withHint() {
+        let ctx = try! makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "Prep release DLV 2.21.0", owner: .me)  // no area
+        ctx.insert(task)
+
+        service.delegate(task)
+
+        XCTAssertEqual(task.owner, .me, "owner must not flip without an area")
+        XCTAssertNotEqual(task.stage, .forAgent, "must not stage for the agent")
+        XCTAssertNotNil(service.lastHint, "should surface a 'needs an area' hint")
     }
 
     // MARK: - applyTrust

@@ -18,6 +18,9 @@ public final class AgentService {
     public private(set) var currentTitle: String?
     /// Digest of the last meeting-task import (e.g. "imported 3 meeting tasks (2 clients)").
     public private(set) var lastMeetingSummary: String?
+    /// Transient guidance for the user (not a failure) — e.g. a blocked hand-off needing
+    /// a client area first (BAK-90). Surfaced as a calm banner, cleared on the next success.
+    public private(set) var lastHint: String?
 
     private let context: ModelContext
     private let claude: ClaudeRun
@@ -336,9 +339,20 @@ public final class AgentService {
     /// board model (ADR-0010): the task simply hands off to the agent at `.forAgent`;
     /// a prep session picks it up, fleshes it out, and moves it to `.needsApproval`.
     public func delegate(_ task: MustardTask) {
+        // BAK-90: require a client area first — the bridge export filters by area, so an
+        // area-less hand-off would silently never route. Block it and surface a hint.
+        guard PersonalBoard.canHandOffToAgent(task) else {
+            lastHint = "“\(task.title)” needs a client area before the agent can take it — "
+                + "file it under Digital Licence / Sales Buddi / Sandvik / Code Heroes first."
+            return
+        }
+        lastHint = nil
         task.owner = .agent
         task.stage = .forAgent
     }
+
+    /// Clear the transient hand-off hint (e.g. after a successful drop into an agent lane).
+    public func clearHint() { lastHint = nil }
 
     /// Run an approved in-vault note headless via claude (it CAN reach the vault).
     /// Promote a board task either way; on success mark it DONE, on failure leave it
