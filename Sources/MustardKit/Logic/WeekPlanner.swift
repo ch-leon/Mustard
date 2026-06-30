@@ -47,6 +47,78 @@ public enum WeekPlanner {
             .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }
     }
 
+    // MARK: Capacity + load (BAK-105)
+
+    public enum LoadTier { case green, amber, red }
+
+    public enum TimeOfDay: String, CaseIterable {
+        case morning, afternoon, evening, anytime
+        public var label: String {
+            switch self {
+            case .morning: "Morning"
+            case .afternoon: "Afternoon"
+            case .evening: "Evening"
+            case .anytime: "Anytime"
+            }
+        }
+    }
+
+    /// Summed estimate minutes of non-done tasks scheduled on `day`. Clock-independent
+    /// (same-day filter, no overdue coupling) so it stays stable for the header bar.
+    public static func capacityMinutes(
+        _ all: [MustardTask], on day: Date, calendar: Calendar = .current
+    ) -> Int {
+        all.filter { t in
+            guard let when = t.scheduledAt, calendar.isDate(when, inSameDayAs: day) else { return false }
+            return t.stage != .done
+        }.reduce(0) { $0 + $1.estimateMinutes }
+    }
+
+    /// Load tier from minutes: green ≤ 6h, amber > 6h, red (overloaded) > 8h.
+    public static func loadTier(minutes: Int) -> LoadTier {
+        if minutes > 480 { return .red }
+        if minutes > 360 { return .amber }
+        return .green
+    }
+
+    /// "—" for empty, "45m" under an hour, else hours ("1h", "1.5h", "3.5h").
+    public static func capacityLabel(minutes: Int) -> String {
+        guard minutes > 0 else { return "—" }
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = Double(minutes) / 60.0
+        let s = hours.rounded() == hours ? String(format: "%.0f", hours) : String(format: "%.1f", hours)
+        return "\(s)h"
+    }
+
+    /// Time-of-day bucket for a timestamp: Morning < 12:00, Afternoon < 17:00, else Evening.
+    public static func timeOfDay(for date: Date, calendar: Calendar = .current) -> TimeOfDay {
+        let h = calendar.component(.hour, from: date)
+        if h < 12 { return .morning }
+        if h < 17 { return .afternoon }
+        return .evening
+    }
+
+    /// Group tasks into Morning/Afternoon/Evening/Anytime (untimed → Anytime),
+    /// preserving that order and omitting empty buckets.
+    public static func groupByTimeOfDay(
+        _ tasks: [MustardTask], calendar: Calendar = .current
+    ) -> [(TimeOfDay, [MustardTask])] {
+        var buckets: [TimeOfDay: [MustardTask]] = [:]
+        for t in tasks {
+            let key: TimeOfDay
+            if t.isTimed, let when = t.scheduledAt {
+                key = timeOfDay(for: when, calendar: calendar)
+            } else {
+                key = .anytime
+            }
+            buckets[key, default: []].append(t)
+        }
+        return TimeOfDay.allCases.compactMap { tod in
+            guard let items = buckets[tod], !items.isEmpty else { return nil }
+            return (tod, items)
+        }
+    }
+
     /// Date for scheduling onto `day`, keeping a task's existing time-of-day (default 9:00).
     public static func scheduleDate(
         on day: Date, keepingTimeFrom existing: Date?, calendar: Calendar = .current
