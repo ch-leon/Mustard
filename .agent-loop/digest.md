@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-06-30 — MERGED · BAK-91 capture + surface referenced Shortcut/Jira link (PR #35)
+- **Risk:** medium (Feature; new Logic helper + a 2-line `materializeTask` change + a View; the AgentService touch carries no dispatch/gating logic) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift test 361 pass/1 skip (+9 tests) · swift build clean · CI (self-hosted) green 44s
+- **Review:** fresh-context no blockers; its one finding (host-substring label false positives) fixed in commit a07e461 + regression tests
+- **Outward actions:** none · reads/parses text + stamps fields on a new inbox task
+- **Run:** `.agent-loop/runs/20260630-201835-bak91-task-links/`
+- **What landed:** pure `TaskLinkExtractor` (NSDataDetector → Shortcut/Jira/host labels, host-boundary match, dedupe); `materializeTask` carries `rec.sourceURL` + `task.links`; `TaskDetailSheet` Links section (show/open/remove/add).
+- **Process note:** built in an ISOLATED git worktree off `origin/main` (per the BAK-90 concurrency lesson) — no shared-HEAD collision this time.
+- **Leon — visual confirm pending:** Links section shows/opens carried links; manual add works (UI build-verified only).
+- **Revert:** `git revert 52a89e7669273c87f581f37dc1b6f3b7fc5e24fb`
+
 ## 2026-06-30 — MERGED · BAK-90 require a client area before agent hand-off (PR #33)
 - **Risk:** high (escalated — touches `AgentService.delegate`, the agent hand-off control path) · **Deep-review:** PASS (3/3 — correctness + security/risk + spec-faithfulness, all clear)
 - **Checks:** swift test 352 pass/1 skip (+4 tests) · swift build clean · CI (self-hosted) green 47s
