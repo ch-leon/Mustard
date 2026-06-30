@@ -2,6 +2,18 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-98 design-token consolidation + confidence colour (PR #38)
+- **Risk:** medium (Improvement; `Sources/` — Theme + 4 views + seed; no auth/trust/ClaudeRunner) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 377 pass/1 skip (+3 ThemeTests) · CI (self-hosted)
+- **Review:** fresh-context APPROVE — render-identity verified hex-by-hex (every migrated token == original literal), drift fix matches README canonical, source-badge map reproduces handoff, ThemeTests pin thresholds
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-071051-bak-98-tokens/`
+- **What landed:** `Theme` is now the canonical handoff token home (surfaces, agent tints, done/review, warn, status, confidence, priority, area dots); single `Theme.confidenceColor` (≥0.7/≥0.5) + `confidenceTier`; centralised `Theme.sourceBadge`. MustardBoardCard + BoardView.ColumnStyle inline hex → tokens (renders identically). Drift fix: RecommendationDetailView + AgentConsoleView dropped their ≥0.4 amber cutoff (0.40–0.49 now red). Seed Admin dot green #3E8E7E.
+- **Behaviour change:** confidence 0.40–0.49 shifts amber→red in rec-detail + console (intended). Preview-only: a seeded gmail-source card now shows the Gmail badge (was KB grey) — toward spec.
+- **Deferred:** exact handoff per-list dot colours under one group header need a per-list `TaskList.colorHex` (model change) — documented in the PRD, not done here.
+- **For Leon's eye:** confirm board/console look unchanged + the gmail preview card badge reads right.
+- **Revert:** `git revert 501e8d6284faad64693b9acb406f822d1ca6784e`
+
 ## 2026-07-01 — MERGED · BAK-97 vendor 2026 redesign handoff + PRD (PR #37)
 - **Risk:** low (docs-only; `docs/design/redesign-2026/**` + run artifacts; no Sources/Package/config) · **Deep-review:** n/a (low auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 366 pass/1 skip (baseline; no behaviour changed) · CI (self-hosted)
