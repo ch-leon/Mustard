@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-118 parity audit: detail + create/edit form (PR #52)
+- **Risk:** medium (Improvement; TaskDetailSheet view edits + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
+- **Review:** fresh-context APPROVE — interactive subtasks toggle/remove correct + delete-safe (.nullify), progress recomputes, no ForEach-mutation reentrancy; assignee accent cosmetic; create/edit form strong parity
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-085104-bak-118-parity-detail/`
+- **What landed:** docs/design/redesign-2026/parity/detail-form.md; inline fixes — interactive subtasks (toggle done + remove), assignee accent purple for agent. Follow-ups: BAK-136 (stage-adaptive footer matrix), BAK-137 (read-mode approval view).
+- **Milestone:** completes the desktop-delta *audits*. Desktop redesign delta done except the spun-out polish follow-ups (BAK-130/131/132/133/134/135/136/137) + reused BAK-49/51.
+- **Revert:** `git revert edaf153bde5c008505249ca180344363b8bbb7db`
+
 ## 2026-07-01 — MERGED · BAK-117 parity audit: Board + card (PR #51)
 - **Risk:** medium (Improvement; cosmetic card/board views + docs) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift build clean · swift test 417 pass/1 skip · CI (self-hosted)
