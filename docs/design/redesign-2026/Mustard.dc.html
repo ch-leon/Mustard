@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: #d8d1c3;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,114,100,0.28); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(120,114,100,0.45); background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  input { font-family: inherit; }
+  @keyframes mustardFade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  @keyframes mustardSlideIn { from { transform: translateX(100%); } to { transform: none; } }
+  .bcard .bcard-hover { opacity: 0; transition: opacity .12s ease; }
+  .bcard:hover .bcard-hover { opacity: 1; }
+  .bcard.dragging { opacity: 0.4; }
+  .bcol-drop.drop-over { background: rgba(45,127,249,0.09); box-shadow: inset 0 0 0 1.5px rgba(45,127,249,0.4); }
+</style>
+</helmet>
+<div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(150deg,#e7e1d5 0%,#d6cfc0 55%,#cfc7b6 100%);">
+  <div style="width:min(1280px,97vw);height:min(820px,94vh);background:#FBFAF7;border-radius:13px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 32px 80px -24px rgba(40,34,24,0.45),0 4px 14px rgba(40,34,24,0.16);border:0.5px solid rgba(40,34,24,0.10);">
+
+    <!-- Title bar -->
+    <div style="height:40px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 16px;background:#F4F1EA;border-bottom:0.5px solid #E7E3DA;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></div>
+        <div style="width:12px;height:12px;border-radius:50%;background:#28c840;"></div>
+      </div>
+      <div style="flex:1;text-align:center;font-size:13px;font-weight:500;color:#B0ACA1;letter-spacing:0.01em;">Mustard</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#9A968B;">
+        <div style="width:7px;height:7px;border-radius:50%;background:{{ agentDotColor }};"></div>
+        <span>{{ agentStatusText }}</span>
+      </div>
+    </div>
+
+    <!-- Body: sidebar + content -->
+    <div style="flex:1;display:flex;min-height:0;">
+
+      <!-- Sidebar -->
+      <div style="width:204px;flex-shrink:0;display:flex;flex-direction:column;padding:14px 10px;background:#F7F4ED;border-right:0.5px solid #E7E3DA;overflow-y:auto;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <sc-for list="{{ nav }}" as="item" hint-placeholder-count="4">
+            <div onClick="{{ item.onClick }}" style="{{ item.style }}">
+              <div style="width:17px;display:flex;justify-content:center;color:{{ item.iconColor }};">{{ item.icon }}</div>
+              <span style="flex:1;">{{ item.label }}</span>
+              <sc-if value="{{ item.showBadge }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:12px;font-weight:600;color:#fff;background:#7F77DD;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;">{{ item.badge }}</span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#C0BCB1;padding:20px 10px 8px;">AREAS</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <sc-for list="{{ areaRows }}" as="row" hint-placeholder-count="4">
+            <div onClick="{{ row.onClick }}" style="{{ row.style }}">
+              <div style="width:8px;height:8px;border-radius:2px;background:{{ row.dot }};flex-shrink:0;"></div>
+              <span style="flex:1;{{ row.labelStyle }}">{{ row.label }}</span>
+              <sc-if value="{{ row.showCount }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:12px;color:#C0BCB1;">{{ row.count }}</span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex:1;"></div>
+        <div onClick="{{ goSettings }}" style="{{ settingsNavStyle }}">
+          <div style="width:17px;display:flex;justify-content:center;color:{{ settingsNavColor }};">⚙</div>
+          <span style="flex:1;">Settings</span>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;position:relative;">
+        <div style="flex:1;min-height:0;min-width:0;display:flex;">
+
+          <!-- TODAY -->
+          <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;overflow-y:auto;">
+              <div style="max-width:720px;margin:0 auto;padding:26px 30px 40px;">
+                <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+                  <h1 style="font-size:24px;font-weight:600;color:#2B2A26;margin:0;letter-spacing:-0.01em;">Today</h1>
+                  <span style="font-size:15px;color:#9A968B;">{{ todayDate }}</span>
+                  <div style="flex:1;"></div>
+                  <button onClick="{{ planWithAgent }}" style="display:flex;align-items:center;gap:6px;border:0.5px solid #D8D2E6;background:#F3F1FA;color:#6A61C9;font-size:12.5px;font-weight:500;padding:5px 11px;border-radius:8px;cursor:pointer;">✦ Plan with agent</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:20px;">
+                  <div style="flex:1;max-width:160px;height:4px;border-radius:3px;background:#EFEBE2;overflow:hidden;">
+                    <div style="height:100%;width:{{ todayProgressPct }};background:#1D9E75;border-radius:3px;"></div>
+                  </div>
+                  <span style="font-size:12.5px;color:#B0ACA1;">{{ todayProgressLabel }}</span>
+                </div>
+
+                <sc-for list="{{ todayTasks }}" as="t" hint-placeholder-count="5">
+                  <div onClick="{{ t.onOpen }}" style="{{ t.rowStyle }}">
+                    <div style="width:54px;flex-shrink:0;font-size:13px;color:#B0ACA1;padding-top:1px;">{{ t.timeLabel }}</div>
+                    <div onClick="{{ t.onToggle }}" style="{{ t.circleStyle }}">{{ t.circleGlyph }}</div>
+                    <div style="flex:1;min-width:0;">
+                      <div style="{{ t.titleStyle }}">{{ t.title }}</div>
+                      <sc-if value="{{ t.hasMeta }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:3px;font-size:12.5px;color:#9A968B;">
+                          <sc-if value="{{ t.isAgent }}" hint-placeholder-val="{{ false }}">
+                            <span style="display:flex;align-items:center;gap:4px;color:#7F77DD;">⌁ {{ t.agentLabel }}</span>
+                          </sc-if>
+                          <sc-if value="{{ t.showList }}" hint-placeholder-val="{{ false }}">
+                            <span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:2px;background:{{ t.listColor }};"></span>{{ t.listName }}</span>
+                          </sc-if>
+                          <sc-if value="{{ t.showEstimate }}" hint-placeholder-val="{{ false }}">
+                            <span>{{ t.estimateLabel }}</span>
+                          </sc-if>
+                          <sc-if value="{{ t.joinable }}" hint-placeholder-val="{{ false }}">
+                            <span style="color:#2D7FF9;">Join ↗</span>
+                          </sc-if>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <div style="height:0.5px;background:#E7E3DA;margin-left:66px;"></div>
+                </sc-for>
+
+                <div style="display:flex;align-items:center;gap:12px;padding:13px 0 13px 12px;margin-top:2px;">
+                  <span style="color:#C8C3B7;font-size:16px;">+</span>
+                  <span style="font-size:14.5px;color:#C0BCB1;">Add a task — Enter schedules it onto today</span>
+                </div>
+
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#C0BCB1;margin:26px 0 6px;">INBOX</div>
+                <sc-for list="{{ inboxTasks }}" as="t" hint-placeholder-count="2">
+                  <div onClick="{{ t.onOpen }}" style="{{ t.rowStyle }}">
+                    <div style="width:54px;flex-shrink:0;"></div>
+                    <div onClick="{{ t.onToggle }}" style="{{ t.circleStyle }}">{{ t.circleGlyph }}</div>
+                    <div style="flex:1;min-width:0;">
+                      <div style="{{ t.titleStyle }}">{{ t.title }}</div>
+                      <sc-if value="{{ t.hasMeta }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:3px;font-size:12.5px;color:#9A968B;">
+                          <sc-if value="{{ t.showList }}" hint-placeholder-val="{{ false }}">
+                            <span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:2px;background:{{ t.listColor }};"></span>{{ t.listName }}</span>
+                          </sc-if>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <div style="height:0.5px;background:#E7E3DA;margin-left:66px;"></div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- AGENT -->
+          <sc-if value="{{ isAgent }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+              <!-- shared header -->
+              <div style="flex-shrink:0;display:flex;align-items:center;gap:12px;padding:22px 24px 16px;border-bottom:0.5px solid #E7E3DA;">
+                <div style="flex:1;min-width:0;">
+                  <h1 style="font-size:24px;font-weight:600;color:#2B2A26;margin:0;letter-spacing:-0.01em;">Agent</h1>
+                  <div style="font-size:13px;color:#9A968B;margin-top:2px;">{{ agentSubhead }}</div>
+                </div>
+                <span onClick="{{ goSettings }}" title="Sources & trust" style="font-size:12.5px;color:#9A968B;cursor:pointer;white-space:nowrap;">⚙ Settings</span>
+                <button onClick="{{ sweep }}" style="{{ sweepBtnStyle }}">{{ sweepLabel }}</button>
+              </div>
+              <div style="flex:1;display:flex;min-height:0;">
+                <!-- master -->
+                <div style="flex:1.05;min-width:0;overflow-y:auto;border-right:0.5px solid #E7E3DA;">
+                  <div style="padding:18px 24px 34px;">
+
+                  <!-- recommendations -->
+                  <div style="display:flex;align-items:center;gap:7px;margin:0 0 4px;">
+                    <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;">RECOMMENDATIONS</span>
+                    <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;font-weight:600;color:#7F77DD;">{{ pendingCount }}</span></sc-if>
+                  </div>
+                  <sc-if value="{{ noPending }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12.5px;color:#B0ACA1;padding:14px 0;">Nothing waiting on you. Run a sweep.</div>
+                  </sc-if>
+                  <sc-for list="{{ recs }}" as="r" hint-placeholder-count="3">
+                    <div onClick="{{ r.onSelect }}" style="{{ r.rowStyle }}">
+                      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+                        <sc-if value="{{ r.badgeVisible }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-size:10px;font-weight:600;letter-spacing:0.03em;color:{{ r.badgeFg }};background:{{ r.badgeBg }};padding:2px 7px;border-radius:20px;display:flex;align-items:center;gap:4px;">{{ r.badgeIcon }} {{ r.badgeLabel }}</span>
+                        </sc-if>
+                        <span style="font-size:11.5px;color:#B0ACA1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">· {{ r.context }}</span>
+                      </div>
+                      <div style="display:flex;align-items:flex-start;gap:6px;">
+                        <span style="color:#7F77DD;font-size:12px;padding-top:1px;">✦</span>
+                        <span style="flex:1;font-size:14px;font-weight:500;color:#2B2A26;line-height:1.35;">{{ r.title }}</span>
+                        <sc-if value="{{ r.gated }}" hint-placeholder-val="{{ false }}">
+                          <span title="Always gated regardless of trust" style="font-size:11px;color:#B0ACA1;padding-top:1px;">🔒</span>
+                        </sc-if>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-top:7px;padding-left:18px;">
+                        <span style="font-size:11px;font-weight:600;color:{{ r.confColor }};">{{ r.confText }}</span>
+                        <div style="display:flex;gap:2px;">
+                          <sc-for list="{{ r.segs }}" as="s" hint-placeholder-count="5"><div style="{{ s.style }}"></div></sc-for>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="height:0.5px;background:#E7E3DA;"></div>
+                  </sc-for>
+
+                  <!-- review -->
+                  <div style="display:flex;align-items:center;gap:7px;margin:26px 0 4px;">
+                    <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;">REVIEW</span>
+                    <sc-if value="{{ hasCards }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;font-weight:600;color:#1D9E75;">{{ cardCount }}</span></sc-if>
+                  </div>
+                  <sc-if value="{{ noCards }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12.5px;color:#B0ACA1;padding:14px 0;">No output waiting for review.</div>
+                  </sc-if>
+                  <sc-for list="{{ cards }}" as="c" hint-placeholder-count="2">
+                    <div style="padding:13px 2px;animation:mustardFade 0.2s ease;">
+                      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+                        <span style="color:#1D9E75;font-size:13px;">✓</span>
+                        <span style="flex:1;font-size:14px;font-weight:500;color:#2B2A26;">{{ c.title }}</span>
+                        <sc-if value="{{ c.gated }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#B0ACA1;">🔒</span></sc-if>
+                      </div>
+                      <div style="font-size:12.5px;color:#8A8579;line-height:1.5;margin-bottom:9px;">{{ c.content }}</div>
+                      <div style="display:flex;gap:7px;">
+                        <button onClick="{{ c.onAccept }}" style="font-size:12.5px;font-weight:500;color:#fff;background:#1D9E75;border:none;padding:5px 13px;border-radius:7px;cursor:pointer;">Accept</button>
+                        <button style="font-size:12.5px;color:#7B776C;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:5px 12px;border-radius:7px;cursor:pointer;">Revise</button>
+                        <button onClick="{{ c.onDiscard }}" style="font-size:12.5px;color:#B0735A;background:transparent;border:0.5px solid #E7D6CC;padding:5px 12px;border-radius:7px;cursor:pointer;">Discard</button>
+                      </div>
+                    </div>
+                    <div style="height:0.5px;background:#E7E3DA;"></div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <!-- detail -->
+              <div style="flex:0.95;min-width:0;overflow-y:auto;background:#FBFAF7;">
+                <sc-if value="{{ hasSelected }}" hint-placeholder-val="{{ true }}">
+                  <div style="padding:18px 24px;">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+                      <span style="font-size:10px;font-weight:600;letter-spacing:0.03em;color:{{ sel.badgeFg }};background:{{ sel.badgeBg }};padding:2px 8px;border-radius:20px;display:flex;align-items:center;gap:4px;">{{ sel.badgeIcon }} {{ sel.badgeLabel }}</span>
+                      <span style="font-size:12px;color:#B0ACA1;">{{ sel.context }}</span>
+                      <div style="flex:1;"></div>
+                      <span style="font-size:11.5px;color:#2D7FF9;cursor:pointer;">Open ↗</span>
+                    </div>
+
+                    <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;">
+                      <h2 style="flex:1;font-size:18px;font-weight:600;color:#2B2A26;margin:0;line-height:1.3;letter-spacing:-0.01em;">{{ sel.title }}</h2>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                      <span style="font-size:11px;font-weight:600;color:#6A61C9;background:#EEEBFA;padding:3px 10px;border-radius:20px;">✦ {{ sel.actionPill }}</span>
+                    </div>
+                    <sc-if value="{{ sel.gated }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8A8579;background:#F4F1EA;border:0.5px solid #E7E3DA;padding:6px 10px;border-radius:8px;margin:10px 0;">🔒 {{ sel.actionType }} — always reviewed by you, regardless of trust level.</div>
+                    </sc-if>
+
+                    <div style="display:flex;align-items:center;gap:9px;margin:14px 0 18px;">
+                      <span style="font-size:12px;color:#9A968B;">Confidence</span>
+                      <span style="font-size:12.5px;font-weight:600;color:{{ sel.confColor }};">{{ sel.confText }}</span>
+                      <div style="display:flex;gap:2px;">
+                        <sc-for list="{{ sel.segs }}" as="s" hint-placeholder-count="5"><div style="{{ s.style }}"></div></sc-for>
+                      </div>
+                    </div>
+
+                    <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin-bottom:6px;">WHY</div>
+                    <div style="font-size:13.5px;color:#5C584E;line-height:1.6;margin-bottom:20px;">{{ sel.reasoning }}</div>
+
+                    <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin-bottom:9px;">RE-BUCKET</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:22px;">
+                      <sc-for list="{{ sel.buckets }}" as="bk" hint-placeholder-count="7"><span onClick="{{ bk.onClick }}" style="{{ bk.style }}">{{ bk.label }}</span></sc-for>
+                    </div>
+
+                    <sc-if value="{{ sel.hasDraft }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin-bottom:6px;">PROPOSED DRAFT</div>
+                      <div style="font-size:13px;color:#3F3C35;line-height:1.6;white-space:pre-wrap;background:#FCFBF8;border:0.5px solid #E7E3DA;border-radius:9px;padding:13px 14px;margin-bottom:16px;">{{ sel.draft }}</div>
+                    </sc-if>
+
+                    <input value="{{ sel.feedback }}" onInput="{{ sel.onFeedback }}" placeholder="Feedback to the agent…" style="width:100%;font-family:inherit;font-size:13px;color:#3F3C35;border:0.5px solid #E1DCD1;border-radius:9px;background:#FCFBF8;padding:10px 12px;outline:none;margin-bottom:18px;" />
+
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                      <button onClick="{{ sel.onApprove }}" style="font-size:13px;font-weight:600;color:#fff;background:#7F77DD;border:none;padding:8px 16px;border-radius:9px;cursor:pointer;">{{ sel.approveLabel }}</button>
+                      <button onClick="{{ sel.onComment }}" style="font-size:13px;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:8px 14px;border-radius:9px;cursor:pointer;">Comment</button>
+                      <div style="position:relative;">
+                        <button onClick="{{ sel.onSnoozeToggle }}" style="font-size:13px;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:8px 12px;border-radius:9px;cursor:pointer;">Snooze ▾</button>
+                        <sc-if value="{{ sel.snoozeOpen }}" hint-placeholder-val="{{ false }}">
+                          <div style="position:absolute;top:38px;left:0;z-index:10;background:#FFF;border:0.5px solid #E7E3DA;border-radius:10px;box-shadow:0 8px 24px -8px rgba(40,34,24,0.3);padding:5px;display:flex;flex-direction:column;min-width:128px;">
+                            <sc-for list="{{ sel.snoozeOptions }}" as="o" hint-placeholder-count="3"><span onClick="{{ o.onClick }}" style="font-size:13px;color:#3F3C35;padding:7px 10px;border-radius:6px;cursor:pointer;" style-hover="background:#F1EDE4;">{{ o.label }}</span></sc-for>
+                          </div>
+                        </sc-if>
+                      </div>
+                      <button onClick="{{ sel.onSchedule }}" style="font-size:13px;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:8px 14px;border-radius:9px;cursor:pointer;">Schedule</button>
+                      <button onClick="{{ sel.onMine }}" style="font-size:13px;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:8px 14px;border-radius:9px;cursor:pointer;">I'll do it</button>
+                      <div style="flex:1;"></div>
+                      <button onClick="{{ sel.onDeny }}" style="font-size:13px;color:#B0735A;background:transparent;border:0.5px solid #E7D6CC;padding:8px 14px;border-radius:9px;cursor:pointer;">Reject</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noSelected }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#C0BCB1;">
+                    <span style="font-size:28px;">✦</span>
+                    <span style="font-size:13px;">Nothing waiting on you.</span>
+                  </div>
+                </sc-if>
+              </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- SETTINGS -->
+          <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;overflow-y:auto;">
+              <div style="max-width:640px;margin:0 auto;padding:26px 30px 40px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                  <span onClick="{{ goAgentFromSettings }}" style="font-size:13px;color:#9A968B;cursor:pointer;">‹ Agent</span>
+                </div>
+                <h1 style="font-size:24px;font-weight:600;color:#2B2A26;margin:0 0 22px;letter-spacing:-0.01em;">Settings</h1>
+
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin-bottom:9px;">SOURCES</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                  <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:0.5px solid #E7E3DA;border-radius:10px;background:#FCFBF8;">
+                    <span style="font-size:15px;">📚</span>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:13px;color:#2B2A26;">~/Obsidian/Code Heroes</div>
+                      <div style="font-size:11.5px;color:#B0ACA1;margin-top:1px;">Knowledge base · last swept 2h ago</div>
+                    </div>
+                    <span style="font-size:11px;color:#1D9E75;display:flex;align-items:center;gap:5px;">● Connected</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:0.5px solid #E7E3DA;border-radius:10px;background:#FCFBF8;">
+                    <span style="font-size:15px;">👥</span>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:13px;color:#2B2A26;">~/Codeheroes work/Meetings</div>
+                      <div style="font-size:11.5px;color:#B0ACA1;margin-top:1px;">Meeting notes · {{ meetingDigest }}</div>
+                    </div>
+                    <span style="font-size:11px;color:#1D9E75;display:flex;align-items:center;gap:5px;">● Connected</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;font-size:12.5px;color:#C0BCB1;cursor:pointer;"><span style="font-size:15px;">+</span>Connect a source</div>
+                </div>
+                <button onClick="{{ sweep }}" style="{{ sweepBtnStyle }}">{{ sweepLabel }}</button>
+
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:30px 0 4px;">TRUST</div>
+                <div style="font-size:12.5px;color:#8A8579;margin-bottom:12px;">How much the agent runs without you.</div>
+                <div style="display:flex;gap:0;border:0.5px solid #E1DCD1;border-radius:8px;overflow:hidden;background:#F1EDE4;max-width:440px;">
+                  <sc-for list="{{ trustOptions }}" as="o" hint-placeholder-count="4">
+                    <button onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:13px;color:#5C584E;line-height:1.55;background:#FCFBF8;border:0.5px solid #E7E3DA;border-radius:10px;padding:12px 14px;">
+                  <span style="color:#7F77DD;">●</span><span>{{ trustBlurb }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:#8A8579;">🔒 Email, Slack and tickets are always reviewed by you — at every trust level.</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- BOARD -->
+          <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0;position:relative;">
+              <div style="flex-shrink:0;padding:24px 26px 0;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <h1 style="font-size:24px;font-weight:600;color:#2B2A26;margin:0;letter-spacing:-0.01em;">Board</h1>
+                  <sc-if value="{{ boardShowWaiting }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ boardToggleFocus }}" style="{{ boardWaitingStyle }}">● {{ boardWaitingLabel }}</span>
+                  </sc-if>
+                  <div style="flex:1;"></div>
+                  <span style="font-size:12.5px;color:#C0BCB1;">⌕ Search</span>
+                  <span onClick="{{ boardNewTask }}" style="font-size:12.5px;font-weight:500;color:#fff;background:#2B2A26;padding:6px 14px;border-radius:8px;cursor:pointer;">+ New task</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap;">
+                  <div style="display:flex;border:0.5px solid #E1DCD1;border-radius:10px;overflow:hidden;">
+                    <sc-for list="{{ boardOwnerOptions }}" as="o" hint-placeholder-count="3"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for>
+                  </div>
+                  <div style="width:0.5px;height:22px;background:#E1DCD1;"></div>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <sc-for list="{{ boardAreaOptions }}" as="a" hint-placeholder-count="4"><span onClick="{{ a.onClick }}" style="{{ a.style }}">{{ a.label }}</span></sc-for>
+                  </div>
+                </div>
+                <div style="font-size:12.5px;color:#8A8579;margin-top:12px;display:flex;align-items:center;gap:6px;"><span style="color:#7F77DD;">●</span>{{ boardCaption }}</div>
+              </div>
+              <div style="flex:1;min-height:0;display:flex;gap:11px;align-items:stretch;overflow-x:auto;padding:14px 26px 22px;">
+                <sc-for list="{{ boardCols }}" as="col" hint-placeholder-count="7">
+                  <sc-if value="{{ col.collapsed }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ col.onExpand }}" class="bcol-drop" onDragOver="{{ col.onDragOver }}" onDragLeave="{{ col.onDragLeave }}" onDrop="{{ col.onDrop }}" style="{{ col.colStyle }}" title="{{ col.label }}">
+                      <span style="font-size:11px;color:#C0BCB1;margin-bottom:8px;">{{ col.count }}</span>
+                      <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:{{ col.headColor }};text-transform:uppercase;white-space:nowrap;">{{ col.label }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ col.expanded }}" hint-placeholder-val="{{ true }}">
+                    <div class="bcol-drop" onDragOver="{{ col.onDragOver }}" onDragLeave="{{ col.onDragLeave }}" onDrop="{{ col.onDrop }}" style="{{ col.colStyle }}">
+                      <div style="{{ col.accentStyle }}"></div>
+                      <div style="padding:0 3px 9px;flex-shrink:0;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                          <span style="font-size:11px;font-weight:700;letter-spacing:0.04em;color:{{ col.headColor }};text-transform:uppercase;">{{ col.label }}</span>
+                          <span style="font-size:11px;color:#C0BCB1;">{{ col.count }}</span>
+                        </div>
+                        <div style="font-size:10px;color:#B0ACA1;margin-top:2px;min-height:14px;">{{ col.sub }}</div>
+                      </div>
+                      <div style="{{ col.bodyStyle }}">
+                        <sc-for list="{{ col.cards }}" as="c" hint-placeholder-count="2"><dc-import name="MustardBoardCard" card="{{ c }}" hint-size="100%,86px"></dc-import></sc-for>
+                        <sc-if value="{{ col.empty }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px;color:#C8C3B7;padding:6px 4px;">Drop here</div></sc-if>
+                        <div onClick="{{ col.onAdd }}" style="display:flex;align-items:center;gap:6px;padding:7px 4px 2px;font-size:12px;color:#C0BCB1;cursor:pointer;flex-shrink:0;"><span>+</span><span>Add</span></div>
+                      </div>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+
+
+            </div>
+          </sc-if>
+
+          <!-- WEEK -->
+          <sc-if value="{{ isWeek }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+              <div style="display:flex;align-items:center;gap:11px;padding:24px 24px 14px;">
+                <h1 style="font-size:24px;font-weight:600;color:#2B2A26;margin:0;letter-spacing:-0.01em;">Week</h1>
+                <span style="color:#B0ACA1;cursor:pointer;font-size:15px;">‹</span>
+                <span style="font-size:12.5px;color:#B0ACA1;cursor:pointer;">Today</span>
+                <span style="color:#B0ACA1;cursor:pointer;font-size:15px;">›</span>
+                <span style="font-size:12.5px;color:#9A968B;">22 Jun – 28 Jun</span>
+                <div style="flex:1;"></div>
+                <div style="display:flex;border:0.5px solid #E1DCD1;border-radius:9px;overflow:hidden;">
+                  <sc-for list="{{ weekOwnerOptions }}" as="o" hint-placeholder-count="3"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for>
+                </div>
+                <div style="display:flex;gap:5px;align-items:center;">
+                  <sc-for list="{{ weekAreaOptions }}" as="a" hint-placeholder-count="4"><span onClick="{{ a.onClick }}" style="{{ a.style }}">{{ a.label }}</span></sc-for>
+                </div>
+                <button onClick="{{ balanceWeek }}" title="Let the agent even out your overloaded days" style="display:flex;align-items:center;gap:5px;border:0.5px solid #D8D2E6;background:#F3F1FA;color:#6A61C9;font-size:12.5px;font-weight:500;padding:5px 11px;border-radius:8px;cursor:pointer;white-space:nowrap;">✦ Balance</button>
+              </div>
+              <div style="flex:1;display:flex;min-height:0;border-top:0.5px solid #E7E3DA;">
+                <!-- rail -->
+                <div class="wk-drop" onDragOver="{{ railDragOver }}" onDragLeave="{{ railDragLeave }}" onDrop="{{ railDrop }}" style="width:178px;flex-shrink:0;overflow-y:auto;background:rgba(239,235,226,0.4);border-right:0.5px solid #E7E3DA;padding:13px 11px;">
+                  <div style="font-size:10px;font-weight:600;letter-spacing:0.07em;color:#B0ACA1;margin-bottom:9px;">UNSCHEDULED</div>
+                  <div style="display:flex;flex-direction:column;gap:7px;">
+                    <sc-for list="{{ railTasks }}" as="t" hint-placeholder-count="3">
+                      <div draggable="true" onDragStart="{{ t.onDragStart }}" onDragEnd="{{ t.onDragEnd }}" onClick="{{ t.onOpen }}" class="bcard" style="background:#FBFAF7;border:0.5px solid #E7E3DA;border-radius:8px;padding:9px 10px;font-size:12.5px;color:#2B2A26;line-height:1.35;cursor:grab;">{{ t.title }}</div>
+                    </sc-for>
+                    <sc-if value="{{ railEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#C8C3B7;padding:8px 2px;line-height:1.4;">All scheduled. Drag tasks here to unschedule.</div></sc-if>
+                  </div>
+                </div>
+                <!-- day columns -->
+                <div style="flex:1;display:flex;overflow-x:auto;min-width:0;">
+                  <sc-for list="{{ weekDays }}" as="d" hint-placeholder-count="7">
+                    <div class="wk-drop bcol-drop" onDragOver="{{ d.onDragOver }}" onDragLeave="{{ d.onDragLeave }}" onDrop="{{ d.onDrop }}" style="{{ d.colStyle }}">
+                      <div style="{{ d.headStyle }}">
+                        <div style="display:flex;align-items:baseline;gap:5px;">
+                          <span style="font-size:12px;font-weight:600;color:{{ d.labelColor }};">{{ d.dow }}</span>
+                          <span style="font-size:12px;color:#C0BCB1;">{{ d.dom }}</span>
+                          <div style="flex:1;"></div>
+                          <span style="font-size:10.5px;font-weight:600;color:{{ d.capColor }};">{{ d.capLabel }}</span>
+                        </div>
+                        <div style="{{ d.capBarTrackStyle }}"><div style="{{ d.capBarFillStyle }}"></div></div>
+                      </div>
+                      <div style="flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px;">
+                        <sc-for list="{{ d.sections }}" as="sec" hint-placeholder-count="2">
+                          <div style="font-size:9px;font-weight:600;letter-spacing:0.07em;color:#C0BCB1;text-transform:uppercase;margin:5px 2px 2px;">{{ sec.label }}</div>
+                          <sc-for list="{{ sec.blocks }}" as="b" hint-placeholder-count="2">
+                            <div draggable="true" onDragStart="{{ b.onDragStart }}" onDragEnd="{{ b.onDragEnd }}" onClick="{{ b.onOpen }}" class="bcard" style="{{ b.style }}">
+                              <sc-if value="{{ b.hasTime }}" hint-placeholder-val="{{ false }}"><div style="font-size:9.5px;font-weight:600;color:{{ b.timeColor }};margin-bottom:2px;">{{ b.timeLabel }}</div></sc-if>
+                              <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+                            </div>
+                          </sc-for>
+                        </sc-for>
+                        <sc-if value="{{ d.empty }}" hint-placeholder-val="{{ false }}"><div style="flex:1;min-height:40px;"></div></sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <!-- agent co-pilot dock -->
+        <sc-if value="{{ showDock }}" hint-placeholder-val="{{ false }}">
+          <div style="flex-shrink:0;display:flex;align-items:center;gap:10px;padding:9px 18px;background:#F4F1EA;border-top:0.5px solid #E7E3DA;font-size:12.5px;color:#8A8579;">
+            <div style="width:7px;height:7px;border-radius:50%;background:{{ agentDotColor }};"></div>
+            <span style="color:#6A61C9;font-weight:500;">Agent</span>
+            <span>{{ dockText }}</span>
+            <div style="flex:1;"></div>
+            <span onClick="{{ goAgent }}" style="color:#7F77DD;cursor:pointer;font-weight:500;">Open console →</span>
+          </div>
+        </sc-if>
+
+        <!-- triage → board toast -->
+        <sc-if value="{{ toastShow }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;background:#2B2A26;color:#fff;font-size:13px;padding:10px 14px 10px 16px;border-radius:11px;box-shadow:0 10px 30px -8px rgba(40,34,24,0.5);animation:mustardFade 0.18s ease;">
+            <span style="color:#B9B2EC;">✦</span>
+            <span>{{ toastText }}</span>
+            <sc-if value="{{ toastHasLink }}" hint-placeholder-val="{{ true }}"><span onClick="{{ toastGoBoard }}" style="color:#B9B2EC;font-weight:600;cursor:pointer;white-space:nowrap;">View →</span></sc-if>
+            <sc-if value="{{ toastHasUndo }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#B9B2EC;font-weight:600;cursor:pointer;white-space:nowrap;">Undo</span></sc-if>
+          </div>
+        </sc-if>
+
+              <!-- Detail / approval slide-over -->
+              <sc-if value="{{ boardDetailOpen }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ boardDetail.close }}" style="position:absolute;inset:0;z-index:20;background:rgba(40,34,24,0.18);animation:mustardFade 0.15s ease;"></div>
+                <div style="position:absolute;top:0;right:0;bottom:0;z-index:21;width:430px;max-width:86%;background:#FBFAF7;border-left:0.5px solid #E7E3DA;box-shadow:-18px 0 48px -22px rgba(40,34,24,0.4);display:flex;flex-direction:column;animation:mustardSlideIn 0.24s cubic-bezier(.2,.8,.3,1);">
+                  <div style="flex:1;overflow-y:auto;padding:22px 24px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+                      <span style="font-size:11px;font-weight:600;letter-spacing:0.03em;color:{{ boardDetail.stageColor }};background:{{ boardDetail.stageBg }};padding:3px 10px;border-radius:20px;">{{ boardDetail.stageLabel }}</span>
+                      <div style="flex:1;"></div>
+                      <sc-if value="{{ boardDetail.canEdit }}" hint-placeholder-val="{{ true }}"><span onClick="{{ boardDetail.onEdit }}" style="font-size:12.5px;color:#2D7FF9;cursor:pointer;">Edit</span></sc-if>
+                      <span onClick="{{ boardDetail.close }}" style="font-size:18px;color:#B0ACA1;cursor:pointer;line-height:1;">✕</span>
+                    </div>
+
+                    <h2 style="font-size:19px;font-weight:600;color:#2B2A26;margin:0;line-height:1.32;letter-spacing:-0.01em;">{{ boardDetail.title }}</h2>
+
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:#9A968B;">
+                      <sc-if value="{{ boardDetail.areaShow }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:{{ boardDetail.areaColor }};"></span>{{ boardDetail.areaName }}</span></sc-if>
+                      <sc-if value="{{ boardDetail.sourceShow }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:4px;color:{{ boardDetail.sourceFg }};background:{{ boardDetail.sourceBg }};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">{{ boardDetail.sourceIcon }} {{ boardDetail.sourceLabel }}</span></sc-if>
+                      <sc-if value="{{ boardDetail.actionType }}" hint-placeholder-val="{{ false }}"><span>{{ boardDetail.actionType }}</span></sc-if>
+                    </div>
+
+                    <sc-if value="{{ boardDetail.gated }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#8A8579;background:#F4F1EA;border:0.5px solid #E7E3DA;padding:8px 11px;border-radius:9px;margin-top:14px;line-height:1.45;">🔒 Gated action — always reviewed by you, whatever the trust level.</div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.confShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:9px;margin-top:16px;">
+                        <span style="font-size:12px;color:#9A968B;">Confidence</span>
+                        <span style="font-size:12.5px;font-weight:600;color:{{ boardDetail.confColor }};">{{ boardDetail.confText }}</span>
+                        <div style="display:flex;gap:2px;"><sc-for list="{{ boardDetail.segs }}" as="s" hint-placeholder-count="5"><div style="{{ s.style }}"></div></sc-for></div>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.reasonShow }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:22px 0 6px;">WHY</div>
+                      <div style="font-size:13.5px;color:#5C584E;line-height:1.6;">{{ boardDetail.reasoning }}</div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.askShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:22px 0 6px;">WHAT THE AGENT WILL DO</div>
+                      <div style="font-size:13.5px;color:#3F3C35;line-height:1.6;background:#FCFBF8;border:0.5px solid #E7E3DA;border-radius:10px;padding:12px 14px;">{{ boardDetail.ask }}</div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.draftShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:22px 0 6px;">{{ boardDetail.draftLabel }}</div>
+                      <div style="font-size:13px;color:#3F3C35;line-height:1.6;white-space:pre-wrap;background:#FCFBF8;border:0.5px solid #E7E3DA;border-radius:10px;padding:13px 14px;">{{ boardDetail.draft }}</div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.descShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:13.5px;color:#5C584E;line-height:1.6;white-space:pre-wrap;margin-top:14px;">{{ boardDetail.description }}</div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.propsShow }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:22px 0 4px;">DETAILS</div>
+                      <div style="display:flex;flex-direction:column;">
+                        <sc-for list="{{ boardDetail.propsList }}" as="p" hint-placeholder-count="5"><div style="{{ p.rowStyle }}"><span style="width:96px;flex-shrink:0;font-size:12px;color:#9A968B;">{{ p.label }}</span><span style="flex:1;font-size:13px;color:#3F3C35;">{{ p.value }}</span></div></sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.tagsShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">
+                        <sc-for list="{{ boardDetail.tagList }}" as="t" hint-placeholder-count="2"><span style="font-size:11.5px;color:#5C584E;background:#FCFBF8;border:0.5px solid #E1DCD1;border-radius:20px;padding:3px 10px;"># {{ t.label }}</span></sc-for>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{ boardDetail.subShow }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;color:#B0ACA1;margin:22px 0 9px;">{{ boardDetail.subLabel }}</div>
+                      <div style="display:flex;flex-direction:column;gap:8px;">
+                        <sc-for list="{{ boardDetail.subList }}" as="s" hint-placeholder-count="2">
+                          <div style="display:flex;align-items:flex-start;gap:9px;"><div onClick="{{ s.onToggle }}" style="{{ s.boxStyle }}">{{ s.glyph }}</div><span style="{{ s.titleStyle }}">{{ s.title }}</span></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+
+                  <sc-if value="{{ boardDetail.hasPrimary }}" hint-placeholder-val="{{ true }}">
+                    <div style="flex-shrink:0;border-top:0.5px solid #E7E3DA;background:#F7F4ED;padding:14px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                      <button onClick="{{ boardDetail.primaryBtn.onClick }}" style="{{ boardDetail.primaryBtn.style }}">{{ boardDetail.primaryBtn.label }}</button>
+                      <sc-for list="{{ boardDetail.secondaryBtns }}" as="btn" hint-placeholder-count="2"><button onClick="{{ btn.onClick }}" style="{{ btn.style }}">{{ btn.label }}</button></sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <!-- Create / edit form slide-over -->
+              <sc-if value="{{ boardEditOpen }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ boardEditForm.cancel }}" style="position:absolute;inset:0;z-index:22;background:rgba(40,34,24,0.18);animation:mustardFade 0.15s ease;"></div>
+                <div style="position:absolute;top:0;right:0;bottom:0;z-index:23;width:430px;max-width:86%;background:#FBFAF7;border-left:0.5px solid #E7E3DA;box-shadow:-18px 0 48px -22px rgba(40,34,24,0.4);display:flex;flex-direction:column;animation:mustardSlideIn 0.24s cubic-bezier(.2,.8,.3,1);">
+                  <div style="flex:1;overflow-y:auto;padding:22px 24px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+                      <span style="font-size:13px;font-weight:600;color:#2B2A26;">{{ boardEditForm.heading }}</span>
+                      <div style="flex:1;"></div>
+                      <span onClick="{{ boardEditForm.cancel }}" style="font-size:18px;color:#B0ACA1;cursor:pointer;line-height:1;">✕</span>
+                    </div>
+
+                    <input value="{{ boardEditForm.title }}" onInput="{{ boardEditForm.onTitle }}" placeholder="What needs doing?" style="width:100%;font-size:18px;font-weight:600;color:#2B2A26;border:none;outline:none;background:transparent;letter-spacing:-0.01em;padding:0;" />
+                    <textarea value="{{ boardEditForm.description }}" onInput="{{ boardEditForm.onDescription }}" placeholder="Add a description…" style="width:100%;min-height:44px;font-family:inherit;font-size:13.5px;color:#5C584E;line-height:1.55;border:none;outline:none;background:transparent;resize:none;margin-top:8px;padding:0;"></textarea>
+                    <div style="height:0.5px;background:#E7E3DA;margin:6px 0 4px;"></div>
+
+                    <!-- property rows -->
+                    <div style="display:flex;flex-direction:column;">
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">STAGE</div>
+                        <select value="{{ boardEditForm.stage }}" onChange="{{ boardEditForm.onStage }}" style="font-family:inherit;font-size:13px;color:#2B2A26;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:7px;padding:5px 9px;cursor:pointer;outline:none;"><sc-for list="{{ boardEditForm.stageOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">PRIORITY</div>
+                        <select value="{{ boardEditForm.priority }}" onChange="{{ boardEditForm.onPriority }}" style="font-family:inherit;font-size:13px;color:#2B2A26;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:7px;padding:5px 9px;cursor:pointer;outline:none;"><sc-for list="{{ boardEditForm.priorityOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">ASSIGNEE</div>
+                        <div style="display:flex;gap:2px;background:#EFEBE2;border-radius:9px;padding:2px;"><sc-for list="{{ boardEditForm.ownerOpts }}" as="o" hint-placeholder-count="2"><span onClick="{{ o.onClick }}" style="{{ o.style }}">{{ o.label }}</span></sc-for></div>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">DUE</div>
+                        <div onClick="{{ boardEditForm.onDueToggle }}" style="{{ boardEditForm.dueStyle }}"><div style="{{ boardEditForm.dueKnob }}"></div></div>
+                        <sc-if value="{{ boardEditForm.due }}" hint-placeholder-val="{{ false }}"><input value="{{ boardEditForm.dueDate }}" onInput="{{ boardEditForm.onDueDate }}" placeholder="e.g. Fri 11:30" style="flex:1;font-family:inherit;font-size:13px;color:#3F3C35;border:0.5px solid #E1DCD1;border-radius:7px;background:#FCFBF8;padding:5px 9px;outline:none;" /></sc-if>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">SCHEDULED</div>
+                        <div onClick="{{ boardEditForm.onSchedToggle }}" style="{{ boardEditForm.schedStyle }}"><div style="{{ boardEditForm.schedKnob }}"></div></div>
+                        <sc-if value="{{ boardEditForm.scheduled }}" hint-placeholder-val="{{ false }}"><input value="{{ boardEditForm.schedDate }}" onInput="{{ boardEditForm.onSchedDate }}" placeholder="e.g. Thu 09:00" style="flex:1;font-family:inherit;font-size:13px;color:#3F3C35;border:0.5px solid #E1DCD1;border-radius:7px;background:#FCFBF8;padding:5px 9px;outline:none;" /></sc-if>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">ESTIMATE</div>
+                        <select value="{{ boardEditForm.estimate }}" onChange="{{ boardEditForm.onEstimate }}" style="font-family:inherit;font-size:13px;color:#2B2A26;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:7px;padding:5px 9px;cursor:pointer;outline:none;"><sc-for list="{{ boardEditForm.estimateOpts }}" as="o" hint-placeholder-count="7"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">PARENT</div>
+                        <input value="{{ boardEditForm.parent }}" onInput="{{ boardEditForm.onParent }}" placeholder="search by title…" style="flex:1;font-family:inherit;font-size:13px;color:#3F3C35;border:none;background:transparent;padding:5px 0;outline:none;" />
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">RECURRENCE</div>
+                        <select value="{{ boardEditForm.recurrence }}" onChange="{{ boardEditForm.onRecurrence }}" style="font-family:inherit;font-size:13px;color:#2B2A26;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:7px;padding:5px 9px;cursor:pointer;outline:none;"><sc-for list="{{ boardEditForm.recurrenceOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                      </div>
+                      <div style="display:flex;align-items:flex-start;min-height:42px;gap:14px;padding:9px 0;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;padding-top:5px;">TAGS</div>
+                        <div style="flex:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                          <sc-for list="{{ boardEditForm.tags }}" as="t" hint-placeholder-count="2"><span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#5C584E;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:20px;padding:3px 6px 3px 10px;">{{ t.label }}<span onClick="{{ t.onRemove }}" style="cursor:pointer;color:#B0ACA1;font-size:13px;">×</span></span></sc-for>
+                          <input onKeyDown="{{ boardEditForm.onTagKey }}" placeholder="+ tag" style="font-family:inherit;font-size:13px;color:#3F3C35;border:none;background:transparent;padding:4px 0;outline:none;width:70px;" />
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">BLOCKED BY</div>
+                        <input value="{{ boardEditForm.blockedBy }}" onInput="{{ boardEditForm.onBlockedBy }}" placeholder="reason (optional)" style="flex:1;font-family:inherit;font-size:13px;color:#3F3C35;border:none;background:transparent;padding:5px 0;outline:none;" />
+                      </div>
+                      <div style="display:flex;align-items:center;min-height:42px;gap:14px;"><div style="width:96px;flex-shrink:0;font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;">AREA</div>
+                        <select value="{{ boardEditForm.area }}" onChange="{{ boardEditForm.onArea }}" style="font-family:inherit;font-size:13px;color:#2B2A26;background:#EFEBE2;border:0.5px solid #E1DCD1;border-radius:7px;padding:5px 9px;cursor:pointer;outline:none;"><sc-for list="{{ boardEditForm.areaOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o.value }}">{{ o.label }}</option></sc-for></select>
+                      </div>
+                    </div>
+
+                    <!-- subtasks -->
+                    <div style="margin-top:18px;padding-top:16px;border-top:0.5px solid #E7E3DA;">
+                      <div style="font-size:11px;font-weight:600;letter-spacing:0.05em;color:#9A968B;margin-bottom:10px;">{{ boardEditForm.subtasksLabel }}</div>
+                      <div style="display:flex;flex-direction:column;gap:6px;">
+                        <sc-for list="{{ boardEditForm.subtasks }}" as="s" hint-placeholder-count="2">
+                          <div style="display:flex;align-items:center;gap:9px;">
+                            <div onClick="{{ s.onToggle }}" style="{{ s.boxStyle }}">{{ s.glyph }}</div>
+                            <input value="{{ s.title }}" onInput="{{ s.onTitle }}" placeholder="Subtask…" style="{{ s.inputStyle }}" />
+                            <span onClick="{{ s.onRemove }}" style="cursor:pointer;color:#C0BCB1;font-size:15px;">×</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div onClick="{{ boardEditForm.addSubtask }}" style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13.5px;font-weight:500;color:#2D7FF9;cursor:pointer;"><span style="font-size:16px;">+</span>Add subtask</div>
+                    </div>
+                  </div>
+                  <div style="flex-shrink:0;border-top:0.5px solid #E7E3DA;background:#F7F4ED;padding:14px 18px;display:flex;align-items:center;gap:8px;">
+                    <button onClick="{{ boardEditForm.save }}" style="{{ boardEditForm.saveStyle }}">{{ boardEditForm.saveLabel }}</button>
+                    <button onClick="{{ boardEditForm.cancel }}" style="font-size:13px;font-weight:500;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:9px 14px;border-radius:9px;cursor:pointer;">Cancel</button>
+                    <div style="flex:1;"></div>
+                    <sc-if value="{{ boardEditForm.showDelete }}" hint-placeholder-val="{{ false }}"><button onClick="{{ boardEditForm.onDelete }}" style="font-size:13px;font-weight:500;color:#B0735A;background:transparent;border:0.5px solid #E7D6CC;padding:9px 13px;border-radius:9px;cursor:pointer;">Delete</button></sc-if>
+                  </div>
+                </div>
+              </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820},&quot;agentDock&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'agent',
+    selectedRecId: 'r1',
+    recFeedback: {},
+    snoozeOpen: false,
+    trust: 'supervised',
+    sweeping: false,
+    boardOwner: 'everyone',   // everyone | me | agent
+    boardDetailId: null,      // open task detail panel
+    boardEdit: null,          // open create/edit form (draft object)
+    boardReviewFocus: false,  // pill → show only the two gate columns
+    boardExpanded: {},        // collapsed-empty columns the user expanded
+    boardArea: 'all',         // all | dla | admin | personal
+    boardToast: null,         // ephemeral ‘added to board’ confirmation
+    weekOwner: 'everyone',    // everyone | me | agent
+    weekBalanceUndo: null,    // snapshot for undoing a balance
+    weekArea: 'all',          // all | dla | admin | personal
+    tasks: [
+      // -- scheduled on today (Fri, day 4) — drive the Today timeline + Week
+      { id:'m7', title:'Morning review', list:null, owner:'me', stage:'done', day:4, time:525, est:30 },
+      { id:'m4', title:'Team standup', list:'admin', owner:'me', stage:'scheduled', day:4, time:570, est:15, meeting:true, due:'Daily 9:30' },
+      { id:'m2', title:'Outline DLA 5.2 release scope', list:'dla', owner:'me', stage:'scheduled', day:4, time:600, est:90, priority:'high', tags:['5.2'] },
+      { id:'m3', title:'Thales SDK sync', list:'dla', owner:'me', stage:'scheduled', day:4, time:690, est:30, due:'Fri 11:30' },
+      { id:'m10', title:'Sprint planning', list:null, owner:'me', stage:'scheduled', day:4, time:780, est:60, meeting:true, joinable:true },
+      { id:'a8', title:'Review PR #482 — BLE retry logic', list:'dla', owner:'agent', stage:'queued', day:4, time:870, est:30, conf:0.70 },
+      // -- other days (Week)
+      { id:'m11', title:'1:1 with Priya', list:null, owner:'me', stage:'scheduled', day:2, time:900, est:30, meeting:true },
+      { id:'m5', title:'Fix flaky BLE handshake test', list:'dla', owner:'me', stage:'inProgress', day:3, est:60, tags:['bug'] },
+      { id:'m8', title:'Update onboarding docs', list:'admin', owner:'me', stage:'done', day:0, time:660, est:30 },
+      // -- my backlog
+      { id:'m12', title:'Write Q3 OKRs', list:'dla', owner:'me', stage:'planned', priority:'high' },
+      { id:'m9', title:'Renew codeheroes.com.au domain', list:'errands', owner:'me', stage:'planned', due:'20 Jun', overdue:true },
+      { id:'m6', title:'Ship 5.2 to TestFlight', list:'dla', owner:'me', stage:'blocked', reason:'Waiting on QA sign-off', priority:'urgent', tags:['5.2','release'] },
+      // -- my inbox
+      { id:'m1', title:'Pay AWS invoice', list:'admin', owner:'me', stage:'inbox' },
+      { id:'m13', title:'Reply to Kamil re: BLE issue', list:null, owner:'me', stage:'inbox' },
+      // -- agent proposals (inbox)
+      { id:'p1', title:'Archive 14 resolved Linear tickets', list:'dla', owner:'agent', stage:'inbox', proposed:true, source:'linear', conf:0.69, actionType:'Bulk update',
+        reasoning:'14 tickets have sat in Done for over two weeks and are cluttering the active board. Archiving keeps this sprint\u2019s view focused.',
+        outcome:'Moves 14 Done tickets to Archived on the DLA board.' },
+      { id:'p2', title:'Summarise Thales renewal terms into Plans', list:'dla', owner:'agent', stage:'inbox', proposed:true, source:'vault', conf:0.63, actionType:'Write summary',
+        reasoning:'The Thales contract renews in 30 days. Pulling the key terms into a one-pager now gives you a head start before the renewal conversation.',
+        outcome:'Creates Plans/Thales-renewal-2026.md with pricing, term length and exit clauses.' },
+      // -- agent hand-off (For Agent)
+      { id:'h1', title:'Investigate BLE disconnect reports from the field', list:'dla', owner:'agent', stage:'forAgent', actionType:'Research & draft',
+        reasoning:'You handed this over for the agent to pull together context before deciding what to do.',
+        ask:'Gather the disconnect reports from support, cross-reference firmware versions, and draft a summary of likely causes for your review.' },
+      { id:'h2', title:'Compile Q2 support ticket themes for review', list:'admin', owner:'agent', stage:'forAgent', preparing:true, actionType:'Research & draft',
+        reasoning:'Handed to the agent to prepare. It is reading Q2 tickets now and will surface the top themes for you to approve.',
+        ask:'Cluster Q2 support tickets by theme and produce a ranked summary with example tickets.' },
+      // -- agent gate 1
+      { id:'a1', title:'Reply to Kamil re: BLE handshake regression', list:'dla', owner:'agent', stage:'needsApproval', source:'gmail', conf:0.82, gated:true, actionType:'Send email', priority:'high',
+        reasoning:'Kamil flagged a regression and asked for a status by EOD. The tracker shows the fix moved to In Review yesterday, so a short confirmation is the right move.',
+        draftLabel:'DRAFT REPLY', draft:'Hi Kamil,\n\nConfirming the BLE handshake regression is now in review — the fix landed yesterday and QA is verifying today. You\u2019ll have a verified build by EOD tomorrow.\n\nCheers,\nLeon' },
+      { id:'a2', title:'Chase overdue invoice INV-1043 (Thales)', list:'admin', owner:'agent', stage:'needsApproval', source:'xero', conf:0.74, gated:true, actionType:'Send email',
+        reasoning:'Xero shows INV-1043 ($4,200) is 14 days overdue and the last reminder went out three weeks ago. A polite nudge to their accounts team is warranted.',
+        draftLabel:'DRAFT REMINDER', draft:'Hi Accounts team,\n\nA gentle follow-up on INV-1043 ($4,200), now 14 days overdue. Could you confirm the expected payment date?\n\nThanks,\nLeon' },
+      // -- agent queued
+      { id:'a3', title:'Post 5.2 status update to #dla-team', list:'dla', owner:'agent', stage:'queued', source:'slack', conf:0.71, gated:true, actionType:'Post to Slack',
+        reasoning:'The team asked for a 5.2 status yesterday and the milestone shifted. A short update keeps everyone aligned before Monday\u2019s release.',
+        draftLabel:'DRAFT MESSAGE', draft:'5.2 on track for Monday 👍 BLE regression fix is in review, QA verifying today. Release notes landing tomorrow. Shout if anything\u2019s blocking you.' },
+      { id:'a4', title:'Draft DLA 5.2 release notes', list:'dla', owner:'agent', stage:'queued', conf:0.66, actionType:'Write document',
+        reasoning:'Release notes are due Monday. The agent will draft them from the merged PRs and changelog for your review before publishing.',
+        ask:'Draft DLA 5.2 release notes from merged PRs since 5.1, grouped by Features / Fixes / Known issues.' },
+      { id:'a7', title:'Cross-link API docs to changelog', list:'dla', owner:'agent', stage:'queued', conf:0.70, actionType:'Edit docs',
+        reasoning:'Several changelog entries reference API methods that aren\u2019t linked. The agent will add cross-links for easier navigation.',
+        ask:'Add anchor links from changelog entries to the matching API reference sections.' },
+      // -- agent gate 2
+      { id:'a5', title:'Summarised sprint planning notes', list:'dla', owner:'agent', stage:'needsReview', source:'meeting', actionType:'Summary',
+        reasoning:'You asked the agent to capture the sprint planning meeting. Here\u2019s what it produced for your review.',
+        outputLabel:'AGENT OUTPUT', output:'Extracted 12 action items; 3 assigned to you — finalise 5.2 scope, confirm the QA window, reply to Kamil. Full summary saved to Plans/Sprint-2026-06.md.' },
+      { id:'a6', title:'Drafted reply to Sarah re: onboarding docs', list:'admin', owner:'agent', stage:'needsReview', source:'gmail', gated:true, actionType:'Send email',
+        reasoning:'Sarah asked when the new onboarding flow ships. The agent drafted a reply — review before it sends.',
+        outputLabel:'DRAFTED REPLY', output:'Hi Sarah,\n\nThe new onboarding flow ships with 5.2 on Monday. Updated docs are here: /docs/onboarding. Happy to walk the team through it Tuesday if useful.\n\nBest,\nLeon' },
+    ],
+    recs: [
+      { id:'r1', title:'Reply to Kamil re: BLE handshake regression', source:'gmail', context:'Thales SDK · kamil@thalesgroup.com', conf:0.82, gated:true, actionType:'Draft email', bucket:'draftEmail',
+        reasoning:'Kamil flagged a regression and asked for a status by EOD. The tracker shows the fix moved to In Review yesterday, so a short confirmation is the right move.',
+        draftLabel:'DRAFT REPLY', draft:'Hi Kamil,\n\nConfirming the BLE handshake regression is now in review — the fix landed yesterday and QA is verifying today. You\u2019ll have a verified build by EOD tomorrow.\n\nCheers,\nLeon', decided:false },
+      { id:'r2', title:'Block 90 min tomorrow for DLA 5.2 release notes', source:'vault', context:'Plans · DLA 5.2', conf:0.66, gated:false, actionType:'Schedule focus block', bucket:'createTask',
+        reasoning:'Release notes are due Monday and there\u2019s no focus block on the calendar. Tomorrow 10:00\u201311:30 is open and matches your usual deep-work window.',
+        draftLabel:null, draft:null, decided:false },
+      { id:'r3', title:'Chase overdue invoice INV-1043 (Thales)', source:'xero', context:'Accounts · 14 days overdue', conf:0.74, gated:true, actionType:'Draft email', bucket:'draftEmail',
+        reasoning:'Xero shows INV-1043 ($4,200) is 14 days overdue and the last reminder went out three weeks ago. A polite nudge to accounts is warranted.',
+        draftLabel:'DRAFT REMINDER', draft:'Hi Accounts team,\n\nA gentle follow-up on INV-1043 ($4,200), now 14 days overdue. Could you confirm the expected payment date?\n\nThanks,\nLeon', decided:false },
+      { id:'r4', title:'Add \u201cBLE regression\u201d to Monday standup agenda', source:'meeting', context:'Codeheroes work · Standup', conf:0.58, gated:false, actionType:'Edit agenda doc', bucket:'updateVault',
+        reasoning:'It\u2019s the top risk this sprint and isn\u2019t on the current standup agenda. Adding it keeps the team aligned on the fix timeline.',
+        draftLabel:null, draft:null, decided:false },
+    ],
+    cards: [
+      { id:'c1', title:'Summarised sprint planning notes', gated:false,
+        content:'Extracted 12 action items; 3 assigned to you — finalise 5.2 scope, confirm the QA window, reply to Kamil. Full summary saved to Plans/Sprint-2026-06.md.' },
+      { id:'c2', title:'Drafted reply to Sarah re: onboarding docs', gated:true,
+        content:'Drafted a two-paragraph reply confirming the new onboarding flow ships with 5.2 and pointing her to the updated docs. Sitting in Gmail drafts, ready to send.' },
+    ],
+  };
+
+  // ---- palette
+  P = { bg:'#FBFAF7', surface:'#EFEBE2', hair:'#E7E3DA', tp:'#2B2A26', ts:'#9A968B', tt:'#B0ACA1', accent:'#2D7FF9', agent:'#7F77DD', done:'#1D9E75', warn:'#D98A29' };
+  lists = {
+    dla:{ name:'DLA SDK', color:'#2D7FF9' },
+    admin:{ name:'Admin', color:'#2D7FF9' },
+    errands:{ name:'Errands', color:'#7F77DD' },
+    reading:{ name:'Reading', color:'#B0ACA1' },
+  };
+  trustDefs = [
+    { key:'manual', label:'Manual', blurb:'You approve everything. The agent only proposes — nothing runs on its own.' },
+    { key:'supervised', label:'Supervised', blurb:'Non-gated work runs automatically; you review every output before it counts. Email, Slack and tickets stay gated.' },
+    { key:'trusted', label:'Trusted', blurb:'The agent runs non-gated work and auto-accepts the output. Gated actions still wait for you.' },
+    { key:'autonomous', label:'Autonomous', blurb:'Maximum autonomy. Only the always-gated actions (email, Slack, tickets) ever pause for you.' },
+  ];
+
+  fmtTime(min) {
+    if (min == null) return '';
+    let h = Math.floor(min/60), m = min%60;
+    const ap = h >= 12 ? 'PM' : 'AM';
+    let hh = h % 12; if (hh === 0) hh = 12;
+    return hh + (m ? ':' + String(m).padStart(2,'0') : ':00') + ' ' + ap;
+  }
+  estLabel(est) { return est >= 60 ? (est/60) + ' hr' + (est>=120?'s':'') : est + ' min'; }
+  confColor(c) { return c >= 0.7 ? this.P.done : c >= 0.4 ? '#BA7517' : '#D85A30'; }
+  segStyle(c) {
+    const filled = Math.round(c*5), col = this.confColor(c);
+    return Array.from({length:5}, (_,i) => ({ style:`width:13px;height:4px;border-radius:1px;background:${i<filled?col:'#E7E3DA'};` }));
+  }
+  badge(src) {
+    const m = {
+      gmail:{ label:'Gmail', icon:'✉', fg:'#A8442E', bg:'#FBEAE4' },
+      xero:{ label:'Xero', icon:'$', fg:'#1B6FA8', bg:'#E4F0FA' },
+      meeting:{ label:'Meeting notes', icon:'◷', fg:'#6A61C9', bg:'#EEEBFA' },
+      vault:{ label:'Knowledge base', icon:'📚', fg:'#7B776C', bg:'#F1EDE4' },
+    };
+    return m[src] || m.vault;
+  }
+
+  get pending() { return this.state.recs.filter(r => !r.decided); }
+
+  setScreen(s) { this.setState({ screen: s }); }
+  toggleTask(id) {
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, stage: t.stage==='done' ? (t.day!=null?'scheduled':'inbox') : 'done' } : t) }));
+  }
+  selectRec(id) { this.setState({ selectedRecId: id, snoozeOpen:false }); }
+  bucketDefs = [
+    { key:'draftEmail', label:'Draft email' }, { key:'draftSlack', label:'Draft Slack' }, { key:'createTask', label:'Create task' },
+    { key:'updateVault', label:'Update vault' }, { key:'shortcutTicket', label:'Shortcut ticket' }, { key:'fyi', label:'FYI' }, { key:'ignore', label:'Ignore' },
+  ];
+  setBucket(id, key) { this.setState(st => ({ recs: st.recs.map(r => r.id===id ? { ...r, bucket:key } : r) })); }
+  setRecFeedback(id, val) { this.setState(st => ({ recFeedback: { ...st.recFeedback, [id]:val } })); }
+  toggleSnooze() { this.setState(st => ({ snoozeOpen: !st.snoozeOpen })); }
+  snoozeRec(id) { this.setState({ snoozeOpen:false }); this.decideRec(id, 'snooze'); }
+  commentRec(id) { this.setState(st => ({ recFeedback: { ...st.recFeedback, [id]:'' } })); }
+  recToStage(rec, decision) {
+    const bucket = rec.bucket || 'createTask';
+    const agentBuckets = ['draftEmail','draftSlack','shortcutTicket','updateVault'];
+    const isAgentAction = agentBuckets.includes(bucket);
+    if (decision==='mine') return { owner:'me', stage:'planned' };
+    if (decision==='schedule') return { owner:'me', stage:'scheduled' };
+    // approve
+    if (isAgentAction) return { owner:'agent', stage: rec.gated ? 'needsApproval' : 'queued' };
+    return { owner:'me', stage:'planned' };
+  }
+  decideRec(id, decision) {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.setState(st => {
+      const rec = st.recs.find(r => r.id===id);
+      let tasks = st.tasks, toast = null;
+      const noSpawn = decision==='deny' || decision==='snooze';
+      if (rec && !noSpawn) {
+        const { owner, stage } = this.recToStage(rec, decision);
+        const nt = { id:'rt'+Date.now(), title:rec.title, list:null, owner, stage,
+          source:rec.source, conf:rec.conf, gated:rec.gated, actionType:rec.actionType,
+          reasoning:rec.reasoning, draft:rec.draft, draftLabel:rec.draftLabel, outcome:rec.outcome, ask:rec.ask,
+          fromAgent:true };
+        tasks = [...st.tasks, nt];
+        const stageLabel = (this.stageMeta[stage]||{}).label || stage;
+        toast = { text: `Added to board · ${stageLabel}`, taskId: nt.id };
+      } else if (rec && decision==='snooze') { toast = { text:'Snoozed', taskId:null }; }
+      const recs = st.recs.map(r => r.id===id ? { ...r, decided:true } : r);
+      const stillPending = recs.filter(r => !r.decided);
+      const sel = st.selectedRecId===id ? (stillPending[0] ? stillPending[0].id : null) : st.selectedRecId;
+      return { recs, tasks, selectedRecId: sel, snoozeOpen:false, boardToast: toast };
+    });
+    this.toastTimer = setTimeout(()=>this.setState({ boardToast:null }), 3500);
+  }
+  setTrust(k) { this.setState({ trust: k }); }
+  resolveCard(id) { this.setState(st => ({ cards: st.cards.filter(c => c.id!==id) })); }
+  sweep() {
+    if (this.state.sweeping) return;
+    this.setState({ sweeping:true });
+    setTimeout(() => this.setState({ sweeping:false }), 1600);
+  }
+
+  // ===== BOARD (Option C pipeline) =====
+  stageMeta = {
+    inbox:{ label:'Inbox', kind:'default' },
+    planned:{ label:'Planned', kind:'default' },
+    scheduled:{ label:'Scheduled', kind:'default' },
+    forAgent:{ label:'For Agent', kind:'handoff', sub:'agent picks up & preps' },
+    needsApproval:{ label:'Needs Approval', kind:'gate', sub:'approve before it runs' },
+    queued:{ label:'Approved · Queued', kind:'agent' },
+    needsReview:{ label:'Needs Review', kind:'gate', sub:'check the output' },
+    inProgress:{ label:'In Progress', kind:'default' },
+    blocked:{ label:'Blocked', kind:'warn' },
+    done:{ label:'Done', kind:'done' },
+  };
+  colAll = ['inbox','planned','scheduled','forAgent','needsApproval','queued','needsReview','inProgress','blocked','done'];
+  colMine = ['inbox','planned','scheduled','inProgress','blocked','done'];
+  colAgent = ['inbox','forAgent','needsApproval','queued','needsReview','done'];
+
+  boardBadge(src) {
+    const m = { gmail:{label:'Gmail',icon:'✉',fg:'#A8442E',bg:'#FBEAE4'}, xero:{label:'Xero',icon:'$',fg:'#1B6FA8',bg:'#E4F0FA'},
+      meeting:{label:'Notes',icon:'◷',fg:'#6A61C9',bg:'#EEEBFA'}, slack:{label:'Slack',icon:'#',fg:'#6A4FA0',bg:'#EFEAF7'},
+      linear:{label:'Linear',icon:'◐',fg:'#54599A',bg:'#ECEDF7'}, vault:{label:'KB',icon:'📚',fg:'#7B776C',bg:'#F1EDE4'} };
+    return m[src] || m.vault;
+  }
+  boardSeg(c) { if (c==null) return []; const f=Math.round(c*5), col=this.confColor(c); return Array.from({length:5},(_,i)=>({ style:`width:11px;height:4px;border-radius:1px;background:${i<f?col:'#E4DFD5'};` })); }
+  boardTab(active, which) {
+    const base='font-size:10px;padding:2px 8px;cursor:pointer;line-height:1.5;';
+    if (!active) return base+'color:#BBB6AA;background:transparent;';
+    return which==='agent' ? base+'color:#fff;background:#7F77DD;font-weight:600;' : base+'color:#46433B;background:#EAE5DB;font-weight:600;';
+  }
+  setBoardOwner = (o) => this.setState({ boardOwner:o });
+  setBoardArea = (a) => this.setState({ boardArea:a });
+  toggleReviewFocus = () => this.setState(st => ({ boardReviewFocus: !st.boardReviewFocus }));
+  expandCol = (key) => this.setState(st => ({ boardExpanded: { ...st.boardExpanded, [key]:true } }));
+  setWeekOwner = (o) => this.setState({ weekOwner:o });
+  setWeekArea = (a) => this.setState({ weekArea:a });
+  balanceWeek = () => {
+    const WORKDAY = 480;
+    const cur = this.state.tasks;
+    const snapshot = cur.map(t=>({...t}));
+    const isMovable = (t)=> !t.meeting && t.stage!=='done' && t.day!=null && t.day<=4;
+    const movable = cur.filter(isMovable);
+    const load = {0:0,1:0,2:0,3:0,4:0};
+    cur.forEach(t=>{ if(t.day!=null && t.day<=4 && t.meeting && t.stage!=='done') load[t.day]+=this.estMin(t); });
+    const order = movable.slice().sort((a,b)=>this.estMin(b)-this.estMin(a));
+    const newDay = {};
+    order.forEach(t=>{ let best=0; for(let d=1;d<=4;d++){ if(load[d]<load[best]) best=d; } newDay[t.id]=best; load[best]+=this.estMin(t); });
+    const moved = order.filter(t=>newDay[t.id]!==t.day).length;
+    const peak = Math.max(load[0],load[1],load[2],load[3],load[4]);
+    const tasks = cur.map(t=> newDay[t.id]!=null ? {...t, day:newDay[t.id]} : t);
+    this._balanceUndo = moved ? snapshot : null;
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(()=>this.setState({ boardToast:null }), 6000);
+    const text = moved ? `Balanced your week · moved ${moved} task${moved===1?'':'s'}, peak day now ${(Math.round(peak/6)/10)}h` : 'Your week is already balanced';
+    this.setState({ tasks, boardToast: { text, undo: moved>0 } });
+  };
+  undoBalance = () => { if (this._balanceUndo) { this.setState({ tasks: this._balanceUndo, boardToast:null }); this._balanceUndo = null; } else { this.setState({ boardToast:null }); } };
+  openDetail = (id) => this.setState({ boardDetailId:id, boardEdit:null });
+  closeDetail = () => this.setState({ boardDetailId:null });
+  newTask = (stage) => {
+    const a = this.state.boardArea, list = (a==='all'||a==='personal') ? null : a;
+    this.setState({ boardEdit: { id:'new', isNew:true, title:'', description:'',
+      stage: stage||'inbox', priority:'normal', owner: this.state.boardOwner==='agent'?'agent':'me',
+      due:false, dueDate:'', scheduled:false, schedDate:'', estimate:'30m', parent:'',
+      recurrence:'none', tags:[], blockedBy:'', list, subtasks:[] }, boardDetailId:null });
+  };
+  editTask = (id) => {
+    const t = this.state.tasks.find(x=>x.id===id); if(!t) return;
+    this.setState({ boardEdit: { id:t.id, isNew:false, title:t.title, description:t.description||'',
+      stage:t.stage, priority:t.priority||'normal', owner:t.owner,
+      due:!!t.due, dueDate:t.due||'', scheduled:!!t.scheduled, schedDate:t.scheduled||'',
+      estimate:t.estimate||'30m', parent:t.parent||'', recurrence:t.recurrence||'none',
+      tags:(t.tags||[]).slice(), blockedBy:t.blockedBy||t.reason||'', list:t.list||null,
+      subtasks:(t.subtasks||[]).map(s=>({...s})) }, boardDetailId:null });
+  };
+  updateDraft = (field, val) => this.setState(st => ({ boardEdit: { ...st.boardEdit, [field]:val } }));
+  toggleDraft = (field) => this.setState(st => ({ boardEdit: { ...st.boardEdit, [field]:!st.boardEdit[field] } }));
+  addTag = (val) => { const v=(val||'').trim(); if(!v) return; this.setState(st => ({ boardEdit:{ ...st.boardEdit, tags:[...st.boardEdit.tags, v] } })); };
+  removeTag = (i) => this.setState(st => ({ boardEdit:{ ...st.boardEdit, tags: st.boardEdit.tags.filter((_,j)=>j!==i) } }));
+  addSubtask = () => this.setState(st => ({ boardEdit:{ ...st.boardEdit, subtasks:[...st.boardEdit.subtasks, { title:'', done:false }] } }));
+  updateSubtask = (i, title) => this.setState(st => ({ boardEdit:{ ...st.boardEdit, subtasks: st.boardEdit.subtasks.map((s,j)=>j===i?{...s,title}:s) } }));
+  toggleSubtask = (i) => this.setState(st => ({ boardEdit:{ ...st.boardEdit, subtasks: st.boardEdit.subtasks.map((s,j)=>j===i?{...s,done:!s.done}:s) } }));
+  removeSubtask = (i) => this.setState(st => ({ boardEdit:{ ...st.boardEdit, subtasks: st.boardEdit.subtasks.filter((_,j)=>j!==i) } }));
+  cancelEdit = () => this.setState({ boardEdit:null });
+  saveDraft = () => {
+    const d = this.state.boardEdit; if (!d || !d.title.trim()) return;
+    const clean = (t) => ({ ...t,
+      title:d.title.trim(), description:d.description||undefined,
+      stage:d.stage, priority:d.priority, owner:d.owner,
+      due: d.due ? (d.dueDate||'Due') : undefined,
+      scheduled: d.scheduled ? (d.schedDate||'Scheduled') : undefined,
+      estimate:d.estimate, parent:d.parent||undefined, recurrence: d.recurrence==='none'?undefined:d.recurrence,
+      tags: d.tags.length?d.tags:undefined, blockedBy:d.blockedBy||undefined, reason: d.stage==='blocked'?(d.blockedBy||t.reason):t.reason,
+      list:d.list, subtasks: d.subtasks.filter(s=>s.title.trim()).length ? d.subtasks.filter(s=>s.title.trim()) : undefined });
+    this.setState(st => {
+      let tasks, openId;
+      if (d.isNew) { openId='n'+Date.now(); tasks=[...st.tasks, clean({ id:openId })]; }
+      else { openId=d.id; tasks=st.tasks.map(t => t.id===d.id ? clean(t) : t); }
+      return { tasks, boardEdit:null, boardDetailId: openId };
+    });
+  };
+  deleteTask = (id) => this.setState(st => ({ tasks: st.tasks.filter(t=>t.id!==id), boardDetailId:null, boardEdit:null }));
+  toggleTaskSubtask = (id, i) => this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, subtasks: (t.subtasks||[]).map((s,j)=>j===i?{...s,done:!s.done}:s) } : t) }));
+  advanceStage(id, to) {
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, stage:to, proposed:false } : t), boardDetailId:null }));
+  }
+  scheduleTask(id) {
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, stage:'scheduled', proposed:false } : t), boardDetailId:null }));
+  }
+  takeOver(id) {
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, owner:'me', stage:'planned', proposed:false } : t), boardDetailId:null }));
+  }
+  reassignAndClose(id) {
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, owner:'agent', stage:'forAgent', proposed:false } : t), boardDetailId:null }));
+  }
+  denyTask(id) {
+    this.setState(st => ({ tasks: st.tasks.filter(t => t.id!==id), boardDetailId:null }));
+  }
+  // gate quick-actions (inline on card)
+  approveCard(t) {
+    if (t.stage==='needsApproval') this.advanceStage(t.id, t.gated ? 'queued' : 'needsReview');
+    else if (t.stage==='needsReview') this.advanceStage(t.id, 'done');
+  }
+  rejectCard(t) { this.denyTask(t.id); }
+  // drag between columns
+  onCardDragStart = (id, e) => {
+    this.draggingId = id;
+    if (e && e.dataTransfer) { try { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed='move'; } catch(_){} }
+    if (e && e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.add('dragging');
+  };
+  onCardDragEnd = (e) => {
+    this.draggingId = null;
+    if (e && e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.bcol-drop.drop-over').forEach(el=>el.classList.remove('drop-over'));
+  };
+  onColDragOver = (e) => { if(e){ e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect='move'; if(e.currentTarget&&e.currentTarget.classList) e.currentTarget.classList.add('drop-over'); } };
+  onColDragLeave = (e) => { if(e&&e.currentTarget&&e.currentTarget.classList) e.currentTarget.classList.remove('drop-over'); };
+  onColDrop = (stageKey, e) => {
+    if (e) { e.preventDefault(); if(e.currentTarget&&e.currentTarget.classList) e.currentTarget.classList.remove('drop-over'); }
+    const id = this.draggingId || (e&&e.dataTransfer&&e.dataTransfer.getData('text/plain'));
+    if (!id) return;
+    this.draggingId = null;
+    const agentStages = ['forAgent','needsApproval','queued','needsReview'];
+    this.setState(st => ({ tasks: st.tasks.map(t => {
+      if (t.id!==id || t.stage===stageKey) return t;
+      const owner = agentStages.includes(stageKey) ? 'agent' : t.owner;
+      return { ...t, stage:stageKey, owner, proposed:false };
+    }) }));
+  };
+  // ---- WEEK drag-to-schedule
+  estMin(t) { if (typeof t.est==='number') return t.est; const m={'15m':15,'30m':30,'45m':45,'1h':60,'2h':120,'4h':240,'1d':480}; return m[t.estimate]||30; }
+  onWeekDragStart = (id, e) => {
+    this.weekDragId = id;
+    if (e && e.dataTransfer) { try { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed='move'; } catch(_){} }
+    if (e && e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.add('dragging');
+  };
+  onWeekDragEnd = (e) => {
+    this.weekDragId = null;
+    if (e && e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.wk-drop.drop-over').forEach(el=>el.classList.remove('drop-over'));
+  };
+  onWeekDayDrop = (dayIndex, e) => {
+    if (e) { e.preventDefault(); if(e.currentTarget&&e.currentTarget.classList) e.currentTarget.classList.remove('drop-over'); }
+    const id = this.weekDragId || (e&&e.dataTransfer&&e.dataTransfer.getData('text/plain'));
+    if (!id) return; this.weekDragId = null;
+    this.setState(st => ({ tasks: st.tasks.map(t => {
+      if (t.id!==id) return t;
+      const stage = (t.stage==='inbox'||t.stage==='someday') ? 'scheduled' : t.stage;
+      return { ...t, day:dayIndex, stage };
+    }) }));
+  };
+  onWeekRailDrop = (e) => {
+    if (e) { e.preventDefault(); if(e.currentTarget&&e.currentTarget.classList) e.currentTarget.classList.remove('drop-over'); }
+    const id = this.weekDragId || (e&&e.dataTransfer&&e.dataTransfer.getData('text/plain'));
+    if (!id) return; this.weekDragId = null;
+    this.setState(st => ({ tasks: st.tasks.map(t => t.id===id ? { ...t, day:null, time:undefined } : t) }));
+  };
+  reassign(id, owner) {
+    this.setState(st => ({ tasks: st.tasks.map(t => {
+      if (t.id!==id || t.owner===owner) return t;
+      const stage = t.stage==='done' ? 'done' : (owner==='agent' ? 'forAgent' : 'planned');
+      return { ...t, owner, stage, proposed:false };
+    }) }));
+  }
+  priorityMeta(p) {
+    const m = { urgent:{label:'URGENT', name:'Urgent', fg:'#fff', bg:'#C2603F'}, high:{label:'HIGH', name:'High priority', fg:'#A8502E', bg:'#F7E4D8'} };
+    return m[p] || null;
+  }
+  boardCardVM(t) {
+    const P=this.P, agent=t.owner==='agent', area=t.list?this.lists[t.list]:null, done=t.stage==='done', b=t.source?this.boardBadge(t.source):null;
+    let shell = 'background:#FBFAF7;border:0.5px solid #E7E3DA;border-radius:9px;padding:10px 11px;cursor:grab;display:flex;flex-direction:column;transition:border-color .12s;';
+    if (t.stage==='blocked') shell += 'border-left:2.5px solid #D98A29;padding-left:9px;';
+    else if (agent) shell += 'border-left:2.5px solid #7F77DD;padding-left:9px;';
+    if (done) shell += 'opacity:0.66;';
+    let statusShow=false, statusText='', statusFg='', statusBg='', dueShow=false, dueText='', reasonShow=false, reasonText='', confShow=false;
+    switch (t.stage) {
+      case 'forAgent':
+        if (t.preparing) { statusShow=true; statusText='✦ Preparing · gathering context'; statusFg='#6A61C9'; statusBg='#EEEBFA'; }
+        else { statusShow=true; statusText='Waiting for agent to pick up'; statusFg='#8A8579'; statusBg='#F1EDE4'; }
+        break;
+      case 'needsApproval': statusShow=true; statusText='Your move · approve to run'; statusFg='#6A61C9'; statusBg='#EEEBFA'; confShow=true; break;
+      case 'queued': statusShow=true; statusText='Queued to run'; statusFg='#8A8579'; statusBg='#F1EDE4'; break;
+      case 'needsReview': statusShow=true; statusText='Review output'; statusFg='#1B7A57'; statusBg='#E3F2EB'; break;
+      case 'blocked': reasonShow=true; reasonText=t.reason||'Blocked'; break;
+      case 'planned': case 'scheduled': if (t.due){ dueShow=true; dueText=t.due; } break;
+    }
+    if (t.proposed && t.conf!=null) confShow=true;
+    const areaShow=!!area, sourceShow=!!b;
+    const prio = this.priorityMeta(t.priority);
+    const tags = (t.tags||[]).slice(0,3).map(x=>({ label:x }));
+    const overdue = !!t.overdue;
+    // gate quick-actions
+    const isGate = t.stage==='needsApproval' || t.stage==='needsReview';
+    const approveLabel = t.stage==='needsApproval' ? (t.gated?'✓ Approve & run':'✓ Approve') : '✓ Accept';
+    const rejectLabel = t.stage==='needsReview' ? 'Discard' : 'Deny';
+    return {
+      shellStyle: shell, title: t.title,
+      titleStyle: `font-size:13.5px;line-height:1.35;color:${done?'#A6A296':P.tp};${done?'text-decoration:line-through;text-decoration-color:#C8C3B7;':''}`,
+      showOwnerToggle: !done, meTabStyle: this.boardTab(!agent,'me'), agentTabStyle: this.boardTab(agent,'agent'),
+      setMe: (e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.reassign(t.id,'me'); },
+      setAgent: (e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.reassign(t.id,'agent'); },
+      proposedShow: !!t.proposed, gated: !!t.gated,
+      priorityShow: !!prio, priorityLabel: prio?prio.label:'', priorityName: prio?prio.name:'', priorityFg: prio?prio.fg:'', priorityBg: prio?prio.bg:'',
+      tagsShow: tags.length>0, tags,
+      onOpen: ()=>this.openDetail(t.id),
+      onDragStart: (e)=>this.onCardDragStart(t.id, e), onDragEnd: this.onCardDragEnd,
+      showMeta: areaShow||sourceShow||dueShow,
+      areaShow, areaColor: area?area.color:P.tt, areaName: area?area.name:'',
+      sourceShow, sourceIcon: b?b.icon:'', sourceLabel: b?b.label:'', sourceFg: b?b.fg:'', sourceBg: b?b.bg:'',
+      dueShow, dueText, dueStyle: `color:${overdue?'#C2603F':'#2D7FF9'};font-weight:${overdue?'600':'400'};`,
+      confShow, confText: t.conf!=null?t.conf.toFixed(2):'', confColor: this.confColor(t.conf), segs: this.boardSeg(t.conf),
+      statusShow, statusText, statusFg, statusBg, reasonShow, reasonText,
+      gateShow: isGate, approveLabel, rejectLabel,
+      onApprove: (e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.approveCard(t); },
+      onReject: (e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.rejectCard(t); },
+      approveStyle: `font-size:11.5px;font-weight:600;color:#fff;background:${t.stage==='needsReview'?'#1D9E75':'#7F77DD'};border:none;border-radius:7px;padding:5px 11px;cursor:pointer;`,
+    };
+  }
+  buildBoardColumn(stageKey, scope, collapsed) {
+    const meta=this.stageMeta[stageKey];
+    const cards = scope.filter(t=>t.stage===stageKey).map(t=>this.boardCardVM(t));
+    const kinds = {
+      default:{ bg:'rgba(239,235,226,0.55)', accent:'none', head:'#9A968B' },
+      handoff:{ bg:'rgba(127,119,221,0.05)', accent:'#CFC9F0', head:'#8079C6' },
+      gate:   { bg:'rgba(127,119,221,0.085)', accent:'#7F77DD', head:'#6A61C9' },
+      agent:  { bg:'rgba(127,119,221,0.05)', accent:'#BCB6EC', head:'#8079C6' },
+      warn:   { bg:'rgba(217,138,41,0.07)', accent:'#D98A29', head:'#B07A29' },
+      done:   { bg:'rgba(29,158,117,0.05)', accent:'#9BD0BD', head:'#6A9C84' },
+    };
+    const k = kinds[meta.kind] || kinds.default;
+    if (collapsed) {
+      return {
+        collapsed:true, expanded:false, stageKey, label: meta.label, count: String(cards.length),
+        onExpand: ()=>this.expandCol(stageKey),
+        onDragOver: this.onColDragOver, onDragLeave: this.onColDragLeave, onDrop: (e)=>this.onColDrop(stageKey, e),
+        colStyle: `width:40px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;background:${k.bg};border-radius:12px;padding:12px 4px;cursor:pointer;`,
+        headColor: k.head,
+      };
+    }
+    return {
+      collapsed:false, expanded:true, stageKey,
+      label: meta.label, count: String(cards.length), cards, empty: cards.length===0,
+      showSub: !!meta.sub, sub: meta.sub||'',
+      onDragOver: this.onColDragOver, onDragLeave: this.onColDragLeave, onDrop: (e)=>this.onColDrop(stageKey, e),
+      colStyle: `width:182px;flex-shrink:0;display:flex;flex-direction:column;background:${k.bg};border-radius:12px;padding:10px;max-height:100%;`,
+      headColor: k.head, onAdd: ()=>this.newTask(stageKey),
+      accentStyle: `height:3px;border-radius:3px;background:${k.accent==='none'?'transparent':k.accent};margin:0 2px 9px;flex-shrink:0;`,
+      bodyStyle: 'flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;',
+    };
+  }
+
+  renderVals() {
+    const P = this.P, st = this.state;
+    const navDefs = [
+      { key:'today', label:'Today', icon:'☀' },
+      { key:'board', label:'Board', icon:'▦' },
+      { key:'week', label:'Week', icon:'▤' },
+      { key:'agent', label:'Agent', icon:'✦' },
+    ];
+    const waiting = this.pending.length + st.cards.length;
+    const nav = navDefs.map(n => {
+      const active = st.screen === n.key;
+      return {
+        label:n.label, icon:n.icon,
+        iconColor: active ? (n.key==='agent'?P.agent:P.tp) : P.tt,
+        onClick: () => this.setScreen(n.key),
+        style:`display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:14.5px;color:${active?P.tp:P.ts};background:${active?'#EDE9E0':'transparent'};font-weight:${active?'500':'400'};`,
+        showBadge: n.key==='agent' && waiting>0,
+        badge: String(waiting),
+      };
+    });
+
+    const openCount = (lid) => st.tasks.filter(t => t.list===lid && t.stage!=='done').length;
+    const areaRows = [
+      { kind:'header', label:'Code Heroes', dot:'#2D7FF9' },
+      { kind:'list', area:'dla', label:'DLA SDK', dot:'#2D7FF9', count:openCount('dla') },
+      { kind:'list', area:'admin', label:'Admin', dot:'#2D7FF9', count:openCount('admin') },
+      { kind:'header', label:'Personal', dot:'#7F77DD' },
+      { kind:'list', area:'personal', label:'Errands', dot:'#7F77DD', count:openCount('errands') },
+      { kind:'list', area:'personal', label:'Reading', dot:'#B0ACA1', count:openCount('reading') },
+    ].map(r => ({
+      label:r.label, dot:r.dot, count:String(r.count||0), showCount: r.kind==='list' && (r.count||0)>0,
+      onClick: () => { if(r.kind==='list') this.setState({ boardArea:r.area, screen:'board' }); },
+      labelStyle: r.kind==='header' ? `font-weight:500;color:${P.tp};` : `color:${P.ts};`,
+      style:`display:flex;align-items:center;gap:9px;padding:5px 10px 5px ${r.kind==='list'?'18px':'10px'};border-radius:7px;cursor:pointer;font-size:13.5px;`,
+    }));
+
+    // ---- TODAY
+    const rowStyle = 'display:flex;align-items:flex-start;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;';
+    const taskVM = (t) => {
+      const done = t.stage==='done';
+      const list = t.list ? this.lists[t.list] : null;
+      const showEst = t.est !== 30 && !t.meeting;
+      const hasMeta = !!list || t.owner==='agent' || showEst || t.joinable;
+      let circleStyle, circleGlyph;
+      if (t.meeting) { circleStyle='width:18px;height:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#9A968B;font-size:13px;'; circleGlyph='🗓'; }
+      else if (done) { circleStyle='width:18px;height:18px;flex-shrink:0;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;cursor:pointer;'; circleGlyph='✓'; }
+      else { circleStyle=`width:17px;height:17px;flex-shrink:0;border-radius:50%;border:1.5px solid ${t.owner==='agent'?P.agent:'#CFCABF'};cursor:pointer;margin-top:1px;`; circleGlyph=''; }
+      return {
+        title:t.title, timeLabel:this.fmtTime(t.time),
+        onToggle:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); if(!t.meeting) this.toggleTask(t.id); },
+        onOpen:()=>this.openDetail(t.id),
+        rowStyle, circleStyle, circleGlyph,
+        titleStyle:`font-size:15px;color:${done?P.ts:P.tp};${done?'text-decoration:line-through;text-decoration-color:#C8C3B7;':''}font-weight:${done?'400':'450'};line-height:1.35;`,
+        hasMeta, isAgent:t.owner==='agent', agentLabel:'Agent',
+        showList:!!list, listName:list?list.name:'', listColor:list?list.color:P.tt,
+        showEstimate:showEst, estimateLabel:this.estLabel(t.est),
+        joinable:!!t.joinable,
+      };
+    };
+    const todayTasks = st.tasks.filter(t => t.day===4).sort((a,b)=>(a.time||0)-(b.time||0)).map(taskVM);
+    const inboxTasks = st.tasks.filter(t => t.stage==='inbox' && t.owner==='me').map(taskVM);
+    const todayList = st.tasks.filter(t => t.day===4);
+    const doneToday = todayList.filter(t => t.stage==='done').length;
+    const totToday = todayList.length;
+
+    // ---- AGENT
+    const pending = this.pending;
+    const recs = pending.map(r => {
+      const b = this.badge(r.source);
+      return {
+        title:r.title, context:r.context, gated:r.gated,
+        badgeVisible:true, badgeLabel:b.label, badgeIcon:b.icon, badgeFg:b.fg, badgeBg:b.bg,
+        confText:r.conf.toFixed(2), confColor:this.confColor(r.conf), segs:this.segStyle(r.conf),
+        onSelect:()=>this.selectRec(r.id),
+        rowStyle:`padding:13px 12px;cursor:pointer;border-radius:8px;${st.selectedRecId===r.id?'background:rgba(45,127,249,0.06);box-shadow:inset 2px 0 0 #2D7FF9;':''}`,
+      };
+    });
+    const selRec = pending.find(r => r.id===st.selectedRecId) || null;
+    let sel = null;
+    if (selRec) {
+      const b = this.badge(selRec.source);
+      const curBucket = selRec.bucket || 'createTask';
+      const buckets = this.bucketDefs.map(d => {
+        const on = curBucket===d.key;
+        return { label:d.label, onClick:()=>this.setBucket(selRec.id, d.key),
+          style:`font-size:12.5px;font-weight:${on?'600':'400'};color:${on?'#6A61C9':'#8A8579'};background:${on?'#fff':'transparent'};border:0.5px solid ${on?'#C9C0EE':'#E1DCD1'};border-radius:8px;padding:6px 13px;cursor:pointer;white-space:nowrap;` };
+      });
+      const bucketLabel = (this.bucketDefs.find(d=>d.key===curBucket)||{}).label || 'Action';
+      sel = {
+        title:selRec.title, context:selRec.context, gated:selRec.gated, actionType:selRec.actionType,
+        badgeLabel:b.label, badgeIcon:b.icon, badgeFg:b.fg, badgeBg:b.bg,
+        actionPill: bucketLabel,
+        confText:selRec.conf.toFixed(2), confColor:this.confColor(selRec.conf), segs:this.segStyle(selRec.conf),
+        reasoning:selRec.reasoning, hasDraft:!!selRec.draft, draftLabel:selRec.draftLabel, draft:selRec.draft,
+        buckets,
+        feedback: st.recFeedback[selRec.id] || '',
+        onFeedback:(e)=>this.setRecFeedback(selRec.id, e.target.value),
+        approveLabel: selRec.gated ? 'Approve & run' : (selRec.source==='vault' ? 'Approve & schedule' : 'Approve & run'),
+        onApprove:()=>this.decideRec(selRec.id, 'approve'), onSchedule:()=>this.decideRec(selRec.id, 'schedule'),
+        onMine:()=>this.decideRec(selRec.id, 'mine'), onDeny:()=>this.decideRec(selRec.id, 'deny'),
+        onComment:()=>this.commentRec(selRec.id), hasFeedback: !!(st.recFeedback[selRec.id]||'').trim(),
+        onSnoozeToggle:()=>this.toggleSnooze(), snoozeOpen: st.snoozeOpen,
+        snoozeOptions: [
+          { label:'Later today', onClick:()=>this.snoozeRec(selRec.id) },
+          { label:'Tomorrow', onClick:()=>this.snoozeRec(selRec.id) },
+          { label:'Next week', onClick:()=>this.snoozeRec(selRec.id) },
+        ],
+      };
+    }
+    const cards = st.cards.map(c => ({
+      title:c.title, content:c.content, gated:c.gated,
+      onAccept:()=>this.resolveCard(c.id), onDiscard:()=>this.resolveCard(c.id),
+    }));
+    const trustOptions = this.trustDefs.map(d => {
+      const on = st.trust===d.key;
+      return { label:d.label, onClick:()=>this.setTrust(d.key),
+        style:`flex:1;font-size:12px;font-weight:${on?'600':'400'};color:${on?'#fff':P.ts};background:${on?P.agent:'transparent'};border:none;padding:7px 4px;cursor:pointer;border-right:0.5px solid #E1DCD1;` };
+    });
+    const trustBlurb = (this.trustDefs.find(d=>d.key===st.trust)||this.trustDefs[1]).blurb;
+
+    // ---- BOARD (Option C pipeline)
+    const bOwner = st.boardOwner, bArea = st.boardArea;
+    const boardFiltered = st.tasks.filter(t => {
+      const areaOk = bArea==='all' ? true : bArea==='personal' ? (t.list==='errands'||t.list==='reading') : t.list===bArea;
+      const ownerOk = bOwner==='everyone' ? true : t.owner===bOwner;
+      return areaOk && ownerOk;
+    });
+    let bColKeys, boardCaption;
+    if (bOwner==='me') { bColKeys=this.colMine; boardCaption='Mine — just your own work.'; }
+    else if (bOwner==='agent') { bColKeys=this.colAgent; boardCaption='Agent — hand-offs run through For Agent → Needs Approval → Needs Review.'; }
+    else { bColKeys=this.colAll; boardCaption='Everyone — the full pipeline, yours and the agent’s together.'; }
+    if (st.boardReviewFocus) { bColKeys=['needsApproval','needsReview']; boardCaption='Review queue — everything waiting on you, both gates.'; }
+    // auto-collapse empty columns only in the full Everyone view (not focus/me/agent)
+    const allowCollapse = bOwner==='everyone' && !st.boardReviewFocus;
+    const boardCols = bColKeys.map(k => {
+      const isEmpty = !boardFiltered.some(t=>t.stage===k);
+      const collapse = allowCollapse && isEmpty && !st.boardExpanded[k];
+      return this.buildBoardColumn(k, boardFiltered, collapse);
+    });
+    const bOwnerDefs=[{k:'everyone',l:'Everyone'},{k:'me',l:'Mine'},{k:'agent',l:'✦ Agent'}];
+    const boardOwnerOptions=bOwnerDefs.map(o=>{ const on=bOwner===o.k; const onBg=o.k==='agent'?'#7F77DD':'#2B2A26';
+      return { label:o.l, onClick:()=>this.setBoardOwner(o.k),
+        style:`font-size:13px;font-weight:${on?'600':'500'};padding:7px 16px;cursor:pointer;border-right:0.5px solid #E1DCD1;color:${on?'#fff':'#8A8579'};background:${on?onBg:'transparent'};` }; });
+    const bAreaDefs=[{k:'all',l:'All areas'},{k:'dla',l:'DLA SDK'},{k:'admin',l:'Admin'},{k:'personal',l:'Personal'}];
+    const boardAreaOptions=bAreaDefs.map(a=>{ const on=bArea===a.k;
+      return { label:a.l, onClick:()=>this.setBoardArea(a.k),
+        style:`font-size:12px;font-weight:${on?'600':'500'};padding:5px 11px;border-radius:20px;cursor:pointer;color:${on?'#46433B':'#9A968B'};background:${on?'#EAE5DB':'transparent'};border:0.5px solid ${on?'#DAD3C6':'transparent'};` }; });
+    const boardWaiting = boardFiltered.filter(t=>t.stage==='needsApproval'||t.stage==='needsReview').length;
+
+    // ---- BOARD detail / approval panel
+    const dTask = st.boardDetailId ? st.tasks.find(t=>t.id===st.boardDetailId) : null;
+    let detail = null;
+    if (dTask) {
+      const agent = dTask.owner==='agent';
+      const area = dTask.list ? this.lists[dTask.list] : null;
+      const b = dTask.source ? this.boardBadge(dTask.source) : null;
+      const sm = this.stageMeta[dTask.stage] || {};
+      // primary action depends on stage
+      let primary = null, secondary = [];
+      const closeBtn = { label:'Close', onClick:this.closeDetail };
+      if (dTask.stage==='needsApproval') {
+        primary = { label: dTask.gated ? 'Approve & run' : 'Approve', onClick:()=>this.advanceStage(dTask.id, dTask.gated?'queued':'needsReview') };
+        secondary = [ { label:"I'll do it", onClick:()=>this.takeOver(dTask.id) }, { label:'Deny', danger:true, onClick:()=>this.denyTask(dTask.id) } ];
+      } else if (dTask.stage==='needsReview') {
+        primary = { label:'Accept output', onClick:()=>this.advanceStage(dTask.id,'done') };
+        secondary = [ { label:'Request changes', onClick:()=>this.advanceStage(dTask.id,'queued') }, { label:'Discard', danger:true, onClick:()=>this.denyTask(dTask.id) } ];
+      } else if (dTask.stage==='inbox' && dTask.proposed) {
+        primary = { label:'Approve', onClick:()=>this.advanceStage(dTask.id,'needsApproval') };
+        secondary = [ { label:'Schedule', onClick:()=>this.scheduleTask(dTask.id) }, { label:"I'll do it", onClick:()=>this.takeOver(dTask.id) }, { label:'Dismiss', danger:true, onClick:()=>this.denyTask(dTask.id) } ];
+      } else if (dTask.stage==='forAgent') {
+        primary = { label:'Take back', onClick:()=>this.takeOver(dTask.id) };
+        secondary = [];
+      } else if (dTask.stage==='queued') {
+        primary = { label:'Move to review', onClick:()=>this.advanceStage(dTask.id,'needsReview') };
+        secondary = [ { label:'Hold', onClick:()=>this.advanceStage(dTask.id,'needsApproval') } ];
+      } else if (dTask.stage!=='done') {
+        primary = { label:'Mark done', onClick:()=>this.advanceStage(dTask.id,'done') };
+        secondary = agent ? [] : [ { label:'Hand to ✦ agent', onClick:()=>this.reassignAndClose(dTask.id) } ];
+      }
+      const mkBtn = (o, kind) => {
+        const styles = {
+          primary:`flex:1;font-size:13.5px;font-weight:600;color:#fff;background:${agent?'#7F77DD':'#2B2A26'};border:none;padding:9px 14px;border-radius:9px;cursor:pointer;`,
+          sec:'font-size:13px;font-weight:500;color:#5C584E;background:#F1EDE4;border:0.5px solid #E1DCD1;padding:9px 13px;border-radius:9px;cursor:pointer;',
+          danger:'font-size:13px;font-weight:500;color:#B0735A;background:transparent;border:0.5px solid #E7D6CC;padding:9px 13px;border-radius:9px;cursor:pointer;',
+        };
+        return { label:o.label, onClick:o.onClick, style: kind==='primary'?styles.primary:(o.danger?styles.danger:styles.sec) };
+      };
+      detail = {
+        agent, title: dTask.title,
+        stageLabel: sm.label || '', stageColor: agent?'#6A61C9':'#8A8579', stageBg: agent?'#EEEBFA':'#F1EDE4',
+        areaShow: !!area, areaName: area?area.name:'', areaColor: area?area.color:this.P.tt,
+        sourceShow: !!b, sourceIcon: b?b.icon:'', sourceLabel: b?b.label:'', sourceFg: b?b.fg:'', sourceBg: b?b.bg:'',
+        gated: !!dTask.gated, actionType: dTask.actionType||'',
+        confShow: dTask.conf!=null, confText: dTask.conf!=null?dTask.conf.toFixed(2):'', confColor: this.confColor(dTask.conf), segs: this.boardSeg(dTask.conf),
+        reasonShow: !!dTask.reasoning, reasoning: dTask.reasoning||'',
+        descShow: !!dTask.description, description: dTask.description||'',
+        propsList: (()=>{ const out=[];
+          const prioLabels={low:'Low',normal:'Normal',high:'High',urgent:'Urgent'};
+          out.push({label:'Assignee', value: agent?'✦ Agent':'You'});
+          out.push({label:'Stage', value: sm.label||'—'});
+          out.push({label:'Priority', value: prioLabels[dTask.priority||'normal']});
+          out.push({label:'Area', value: area?area.name:'No area'});
+          out.push({label:'Estimate', value: dTask.estimate || (typeof dTask.est==='number'? dTask.est+'m' : '—')});
+          if (dTask.due) out.push({label:'Due', value: (typeof dTask.due==='string'&&dTask.due!=='Due')?dTask.due:'Set'});
+          if (dTask.scheduled) out.push({label:'Scheduled', value: (typeof dTask.scheduled==='string'&&dTask.scheduled!=='Scheduled')?dTask.scheduled:'Set'});
+          if (dTask.recurrence) out.push({label:'Repeats', value: dTask.recurrence.charAt(0).toUpperCase()+dTask.recurrence.slice(1)});
+          if (dTask.parent) out.push({label:'Parent', value:dTask.parent});
+          if (dTask.blockedBy || dTask.reason) out.push({label:'Blocked by', value: dTask.blockedBy||dTask.reason});
+          return out.map((r,i)=>({ ...r, rowStyle:`display:flex;align-items:baseline;gap:12px;padding:7px 0;${i>0?'border-top:0.5px solid #EFEBE2;':''}` }));
+        })(),
+        propsShow: true,
+        tagList: (dTask.tags||[]).map(t=>({label:t})), tagsShow: !!(dTask.tags&&dTask.tags.length),
+        subList: (dTask.subtasks||[]).map((s,i)=>({ title:s.title, done:s.done, onToggle:()=>this.toggleTaskSubtask(dTask.id,i),
+          boxStyle:`width:17px;height:17px;flex-shrink:0;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;border:1.5px solid ${s.done?(agent?'#7F77DD':'#1D9E75'):'#CFCABF'};background:${s.done?(agent?'#7F77DD':'#1D9E75'):'transparent'};`,
+          glyph:s.done?'✓':'', titleStyle:`font-size:13.5px;color:${s.done?'#A6A296':'#2B2A26'};${s.done?'text-decoration:line-through;text-decoration-color:#C8C3B7;':''}line-height:1.4;` })),
+        subShow: !!(dTask.subtasks&&dTask.subtasks.length),
+        subLabel: (()=>{ const ss=dTask.subtasks||[]; return `SUBTASKS · ${ss.filter(s=>s.done).length}/${ss.length}`; })(),
+        canEdit: true, onEdit: ()=>this.editTask(dTask.id), onDelete: ()=>this.deleteTask(dTask.id),
+        askShow: !!dTask.ask, ask: dTask.ask||'',
+        draftShow: !!dTask.draft, draftLabel: dTask.draftLabel||'DRAFT', draft: dTask.draft||'',
+        outputShow: !!dTask.output, outputLabel: dTask.outputLabel||'OUTPUT', output: dTask.output||'',
+        hasPrimary: !!primary, primaryBtn: primary?mkBtn(primary,'primary'):null,
+        secondaryBtns: secondary.map(o=>mkBtn(o,'sec')),
+        close: this.closeDetail,
+      };
+    }
+
+    // ---- BOARD create / edit form
+    const ed = st.boardEdit;
+    let edit = null;
+    if (ed) {
+      const accent = ed.owner==='agent' ? '#7F77DD' : '#2D7FF9';
+      const segItem = (on) => `font-size:13px;font-weight:${on?'600':'500'};padding:6px 15px;border-radius:7px;cursor:pointer;color:${on?'#fff':'#5C584E'};background:${on?accent:'transparent'};`;
+      const ownerOpts = [{k:'me',l:'Me'},{k:'agent',l:'Agent'}].map(o=>({ label:o.l, onClick:()=>this.updateDraft('owner',o.k), style:segItem(ed.owner===o.k) }));
+      const sel = (val, onChange, opts) => ({ value:val, onChange, options:opts });
+      const stageKeys = this.colAll;
+      const toggle = (on)=>`width:42px;height:24px;border-radius:13px;cursor:pointer;position:relative;transition:background .15s;background:${on?accent:'#D8D2C6'};`;
+      const knob = (on)=>`position:absolute;top:2px;left:${on?'20px':'2px'};width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,0.2);`;
+      const canSave = !!ed.title.trim();
+      edit = {
+        heading: ed.isNew ? 'New task' : 'Edit task', isNew: ed.isNew,
+        saveLabel: ed.isNew ? 'Create task' : 'Save changes',
+        title: ed.title, description: ed.description||'',
+        onTitle: (e)=>this.updateDraft('title', e.target.value),
+        onDescription: (e)=>this.updateDraft('description', e.target.value),
+        // selects
+        stage: ed.stage, onStage:(e)=>this.updateDraft('stage', e.target.value),
+        stageOpts: stageKeys.map(k=>({ value:k, label:this.stageMeta[k].label })),
+        priority: ed.priority, onPriority:(e)=>this.updateDraft('priority', e.target.value),
+        priorityOpts: [{value:'low',label:'Low'},{value:'normal',label:'Normal'},{value:'high',label:'High'},{value:'urgent',label:'Urgent'}],
+        estimate: ed.estimate, onEstimate:(e)=>this.updateDraft('estimate', e.target.value),
+        estimateOpts: ['15m','30m','45m','1h','2h','4h','1d'].map(v=>({value:v,label:v})),
+        recurrence: ed.recurrence, onRecurrence:(e)=>this.updateDraft('recurrence', e.target.value),
+        recurrenceOpts: [{value:'none',label:'None'},{value:'daily',label:'Daily'},{value:'weekly',label:'Weekly'},{value:'monthly',label:'Monthly'}],
+        area: ed.list==null?'none':ed.list, onArea:(e)=>this.updateDraft('list', e.target.value==='none'?null:e.target.value),
+        areaOpts: [{value:'none',label:'No area'},{value:'dla',label:'DLA SDK'},{value:'admin',label:'Admin'},{value:'errands',label:'Errands'},{value:'reading',label:'Reading'}],
+        // assignee
+        ownerOpts,
+        // toggles
+        due: ed.due, dueStyle: toggle(ed.due), dueKnob: knob(ed.due), onDueToggle:()=>this.toggleDraft('due'),
+        dueDate: ed.dueDate||'', onDueDate:(e)=>this.updateDraft('dueDate', e.target.value),
+        scheduled: ed.scheduled, schedStyle: toggle(ed.scheduled), schedKnob: knob(ed.scheduled), onSchedToggle:()=>this.toggleDraft('scheduled'),
+        schedDate: ed.schedDate||'', onSchedDate:(e)=>this.updateDraft('schedDate', e.target.value),
+        // parent / blocked
+        parent: ed.parent||'', onParent:(e)=>this.updateDraft('parent', e.target.value),
+        blockedBy: ed.blockedBy||'', onBlockedBy:(e)=>this.updateDraft('blockedBy', e.target.value),
+        // tags
+        tags: ed.tags.map((t,i)=>({ label:t, onRemove:()=>this.removeTag(i) })),
+        onTagKey:(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this.addTag(e.target.value); e.target.value=''; } },
+        // subtasks
+        subtasksLabel: `SUBTASKS (${ed.subtasks.filter(s=>s.done).length}/${ed.subtasks.length})`,
+        subtasks: ed.subtasks.map((s,i)=>({
+          title:s.title, done:s.done,
+          boxStyle:`width:18px;height:18px;flex-shrink:0;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;border:1.5px solid ${s.done?accent:'#CFCABF'};background:${s.done?accent:'transparent'};`,
+          glyph: s.done?'✓':'',
+          onToggle:()=>this.toggleSubtask(i),
+          onTitle:(e)=>this.updateSubtask(i, e.target.value),
+          onRemove:()=>this.removeSubtask(i),
+          inputStyle:`flex:1;font-family:inherit;font-size:13.5px;border:none;outline:none;background:transparent;color:${s.done?'#A6A296':'#2B2A26'};${s.done?'text-decoration:line-through;text-decoration-color:#C8C3B7;':''}`,
+        })),
+        addSubtask: this.addSubtask,
+        canSave, save:this.saveDraft, cancel:this.cancelEdit,
+        showDelete: !ed.isNew, onDelete: ()=>this.deleteTask(ed.id),
+        saveStyle: `flex:1;font-size:13.5px;font-weight:600;color:#fff;background:${canSave?accent:'#CFCABF'};border:none;padding:9px 14px;border-radius:9px;cursor:${canSave?'pointer':'default'};`,
+      };
+    }
+
+    // ---- WEEK
+    const dows = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const doms = ['22','23','24','25','26','27','28'];
+    const wOwner = st.weekOwner, wArea = st.weekArea;
+    const weekMatch = (t) => {
+      const areaOk = wArea==='all' ? true : wArea==='personal' ? (t.list==='errands'||t.list==='reading') : t.list===wArea;
+      const ownerOk = wOwner==='everyone' ? true : t.owner===wOwner;
+      return areaOk && ownerOk;
+    };
+    const railSrc = st.tasks.filter(t => t.day==null && t.owner==='me' && t.stage!=='done' && t.stage!=='inbox').concat(st.tasks.filter(t=>t.stage==='inbox' && t.owner==='me')).filter(weekMatch);
+    const blockVM = (t) => {
+      const done = t.stage==='done';
+      const agent = t.owner==='agent';
+      const tint = agent ? P.agent : P.accent;
+      const base = 'border-radius:7px;padding:7px 8px;cursor:pointer;';
+      let style, titleStyle, timeColor;
+      if (t.meeting) { style = base+'background:#EFEBE2;border:0.5px solid #E1DCD1;'; titleStyle=`font-size:11.5px;color:${P.tp};line-height:1.3;`; timeColor=P.ts; }
+      else { style = base+`background:${done?'#F1EFE9':tint+'18'};border:0.5px solid ${done?'#E7E3DA':tint+'33'};`; titleStyle=`font-size:11.5px;color:${done?P.ts:P.tp};${done?'text-decoration:line-through;text-decoration-color:#C8C3B7;':''}line-height:1.3;`; timeColor=tint; }
+      return { id:t.id, title:t.title, agent, done, hasTime: t.time!=null, timeLabel: t.time!=null?this.fmtTime(t.time):'',
+        timeColor, style, titleStyle,
+        onOpen: ()=>this.openDetail(t.id),
+        onDragStart: (e)=>this.onWeekDragStart(t.id, e), onDragEnd: this.onWeekDragEnd };
+    };
+    const railTasks = railSrc.map(t => ({ id:t.id, title:t.title,
+      onDragStart: (e)=>this.onWeekDragStart(t.id, e), onDragEnd: this.onWeekDragEnd, onOpen: ()=>this.openDetail(t.id) }));
+    const railEmpty = railTasks.length===0;
+    const WORKDAY = 480; // 8h
+    const buckets = [
+      { key:'morning', label:'Morning', test:(tm)=>tm!=null && tm<720 },
+      { key:'afternoon', label:'Afternoon', test:(tm)=>tm!=null && tm>=720 && tm<1020 },
+      { key:'evening', label:'Evening', test:(tm)=>tm!=null && tm>=1020 },
+      { key:'anytime', label:'Anytime', test:(tm)=>tm==null },
+    ];
+    const weekDays = dows.map((dow,i) => {
+      const isToday = i===4;
+      const items = st.tasks.filter(t => t.day===i).filter(weekMatch).sort((a,b)=>(a.time||0)-(b.time||0));
+      const totalMin = items.filter(t=>t.stage!=='done').reduce((s,t)=>s+this.estMin(t),0);
+      const hrs = totalMin/60;
+      const capLabel = items.length ? (hrs>=1 ? (Math.round(hrs*10)/10)+'h' : totalMin+'m') : '—';
+      const overloaded = totalMin > WORKDAY;
+      const capColor = overloaded ? '#C2603F' : (totalMin>360 ? '#B07A29' : '#6A9C84');
+      const pct = Math.min(totalMin/WORKDAY, 1)*100;
+      const sections = buckets.map(bk => ({
+        label: bk.label,
+        blocks: items.filter(t=>bk.test(t.time)).map(blockVM),
+      })).filter(s => s.blocks.length>0);
+      return { dow, dom:doms[i], isToday, dayIndex:i,
+        labelColor: isToday?P.accent:'#6E6A60',
+        capLabel, capColor, overloaded,
+        capBarTrackStyle: `flex:1;height:3px;border-radius:2px;background:#E7E3DA;overflow:hidden;${items.length?'':'opacity:0;'}`,
+        capBarFillStyle: `height:100%;width:${pct}%;background:${capColor};border-radius:2px;`,
+        headStyle: `display:flex;flex-direction:column;gap:5px;padding:9px 9px 8px;border-bottom:0.5px solid #E7E3DA;${isToday?'background:rgba(45,127,249,0.06);':''}`,
+        colStyle:`flex:1;min-width:138px;display:flex;flex-direction:column;border-right:0.5px solid #E7E3DA;${isToday?'background:rgba(45,127,249,0.03);':''}`,
+        onDragOver: this.onColDragOver, onDragLeave: this.onColDragLeave, onDrop: (e)=>this.onWeekDayDrop(i, e),
+        sections, empty: sections.length===0 };
+    });
+
+    // ---- agent presence
+    const wOwnerDefs=[{k:'everyone',l:'Everyone'},{k:'me',l:'Mine'},{k:'agent',l:'✦ Agent'}];
+    const weekOwnerOptions=wOwnerDefs.map(o=>{ const on=wOwner===o.k; const onBg=o.k==='agent'?'#7F77DD':'#2B2A26';
+      return { label:o.l, onClick:()=>this.setWeekOwner(o.k),
+        style:`font-size:12px;font-weight:${on?'600':'500'};padding:5px 13px;cursor:pointer;border-right:0.5px solid #E1DCD1;color:${on?'#fff':'#8A8579'};background:${on?onBg:'transparent'};` }; });
+    const wAreaDefs=[{k:'all',l:'All areas'},{k:'dla',l:'DLA SDK'},{k:'admin',l:'Admin'},{k:'personal',l:'Personal'}];
+    const weekAreaOptions=wAreaDefs.map(a=>{ const on=wArea===a.k;
+      return { label:a.l, onClick:()=>this.setWeekArea(a.k),
+        style:`font-size:12px;font-weight:${on?'600':'500'};padding:4px 10px;border-radius:20px;cursor:pointer;color:${on?'#46433B':'#9A968B'};background:${on?'#EAE5DB':'transparent'};border:0.5px solid ${on?'#DAD3C6':'transparent'};` }; });
+    const dockText = waiting>0 ? `${this.pending.length} recommendation${this.pending.length===1?'':'s'} and ${st.cards.length} output${st.cards.length===1?'':'s'} waiting on you` : 'All clear — nothing waiting on you';
+
+    return {
+      nav, areaRows,
+      isToday: st.screen==='today', isAgent: st.screen==='agent', isBoard: st.screen==='board', isWeek: st.screen==='week', isSettings: st.screen==='settings',
+      goSettings:()=>this.setScreen('settings'), goAgentFromSettings:()=>this.setScreen('agent'),
+      settingsNavColor: st.screen==='settings' ? P.tp : P.tt,
+      settingsNavStyle: `display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:14.5px;color:${st.screen==='settings'?P.tp:P.ts};background:${st.screen==='settings'?'#EDE9E0':'transparent'};font-weight:${st.screen==='settings'?'500':'400'};`,
+      agentStatusText: st.sweeping ? 'sweeping…' : (waiting>0 ? waiting+' waiting' : 'idle'),
+      agentDotColor: st.sweeping ? P.agent : (waiting>0 ? P.warn : '#C8C3B7'),
+      // today
+      todayDate:'Friday, 26 June', planWithAgent:()=>this.setScreen('agent'),
+      todayProgressPct: totToday? Math.round(doneToday/totToday*100)+'%':'0%', todayProgressLabel: doneToday+' of '+totToday+' done',
+      todayTasks, inboxTasks,
+      // agent
+      agentSubhead: st.sweeping ? 'reviewing your sources…' : 'plans your day with you',
+      sweep:()=>this.sweep(), sweepLabel: st.sweeping?'Sweeping…':'✦ Sweep',
+      sweepBtnStyle:`font-size:12.5px;font-weight:500;color:#fff;background:${st.sweeping?'#A9A2E4':P.accent};border:none;padding:5px 13px;border-radius:7px;cursor:${st.sweeping?'default':'pointer'};`,
+      meetingDigest:'3 tasks harvested · 2h ago',
+      trustOptions, trustBlurb,
+      recs, pendingCount:String(pending.length), hasPending:pending.length>0, noPending:pending.length===0,
+      sel, hasSelected:!!sel, noSelected:!sel,
+      cards, cardCount:String(st.cards.length), hasCards:st.cards.length>0, noCards:st.cards.length===0,
+      // board / week
+      boardCols, boardOwnerOptions, boardAreaOptions, boardCaption,
+      boardShowWaiting: (boardWaiting>0) || st.boardReviewFocus,
+      boardWaitingLabel: st.boardReviewFocus ? 'Exit review queue' : (boardWaiting+' waiting on you'),
+      boardToggleFocus: this.toggleReviewFocus,
+      boardWaitingStyle: `display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;cursor:pointer;padding:4px 11px;border-radius:20px;color:${st.boardReviewFocus?'#fff':'#6A61C9'};background:${st.boardReviewFocus?'#7F77DD':'#EEEBFA'};border:0.5px solid ${st.boardReviewFocus?'#7F77DD':'#E2DCF4'};`,
+      boardDetail: detail, boardDetailOpen: !!detail,
+      boardEditForm: edit, boardEditOpen: !!edit,
+      boardNewTask: ()=>this.newTask('inbox'),
+      railTasks, weekDays, railEmpty,
+      weekOwnerOptions, weekAreaOptions,
+      railDragOver: this.onColDragOver, railDragLeave: this.onColDragLeave, railDrop: this.onWeekRailDrop,
+      // dock
+      showDock: (this.props.agentDock ?? true) && st.screen!=='agent' && st.screen!=='settings',
+      dockText, goAgent:()=>this.setScreen('agent'),
+      // triage → board toast
+      toastShow: !!st.boardToast, toastText: st.boardToast?st.boardToast.text:'',
+      toastHasLink: !!(st.boardToast && st.boardToast.taskId),
+      toastHasUndo: !!(st.boardToast && st.boardToast.undo),
+      toastUndo: this.undoBalance,
+      toastGoBoard: ()=>{ const tid = st.boardToast && st.boardToast.taskId; this.setState({ screen:'board', boardToast:null, boardDetailId: tid||null }); },
+      balanceWeek: this.balanceWeek,
+    };
+  }
+}
+</script>
+</body>
+</html>

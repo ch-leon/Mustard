@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div class="bcard" draggable="true" onDragStart="{{ card.onDragStart }}" onDragEnd="{{ card.onDragEnd }}" onClick="{{ card.onOpen }}" style="{{ card.shellStyle }}">
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;min-height:18px;">
+    <sc-if value="{{ card.priorityShow }}" hint-placeholder-val="{{ false }}">
+      <span title="{{ card.priorityName }}" style="font-size:10px;font-weight:700;color:{{ card.priorityFg }};background:{{ card.priorityBg }};padding:1px 6px;border-radius:5px;letter-spacing:0.02em;">{{ card.priorityLabel }}</span>
+    </sc-if>
+    <sc-if value="{{ card.showOwnerToggle }}" hint-placeholder-val="{{ true }}">
+      <div class="bcard-hover" style="display:flex;border:0.5px solid #E1DCD1;border-radius:6px;overflow:hidden;">
+        <span onClick="{{ card.setMe }}" style="{{ card.meTabStyle }}">You</span>
+        <span onClick="{{ card.setAgent }}" style="{{ card.agentTabStyle }}">✦</span>
+      </div>
+    </sc-if>
+    <div style="flex:1;"></div>
+    <sc-if value="{{ card.proposedShow }}" hint-placeholder-val="{{ false }}">
+      <span style="font-size:10px;font-weight:600;color:#6A61C9;background:#EEEBFA;padding:2px 7px;border-radius:20px;white-space:nowrap;">✦ Proposed</span>
+    </sc-if>
+    <sc-if value="{{ card.gated }}" hint-placeholder-val="{{ false }}"><span title="Gated action — always reviewed by you" style="font-size:11px;">🔒</span></sc-if>
+  </div>
+
+  <div style="{{ card.titleStyle }}">{{ card.title }}</div>
+
+  <sc-if value="{{ card.showMeta }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:#9A968B;">
+      <sc-if value="{{ card.areaShow }}" hint-placeholder-val="{{ true }}">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:2px;background:{{ card.areaColor }};"></span>{{ card.areaName }}</span>
+      </sc-if>
+      <sc-if value="{{ card.sourceShow }}" hint-placeholder-val="{{ false }}">
+        <span style="display:flex;align-items:center;gap:4px;color:{{ card.sourceFg }};background:{{ card.sourceBg }};padding:1px 7px;border-radius:20px;font-size:10.5px;font-weight:600;">{{ card.sourceIcon }} {{ card.sourceLabel }}</span>
+      </sc-if>
+      <sc-if value="{{ card.dueShow }}" hint-placeholder-val="{{ false }}"><span style="{{ card.dueStyle }}">🗓 {{ card.dueText }}</span></sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ card.tagsShow }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;">
+      <sc-for list="{{ card.tags }}" as="t" hint-placeholder-count="2"><span style="font-size:10.5px;color:#7B776C;background:#F1EDE4;border:0.5px solid #E7E3DA;border-radius:5px;padding:1px 7px;">#{{ t.label }}</span></sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ card.confShow }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;gap:6px;margin-top:9px;">
+      <span style="font-size:10.5px;font-weight:600;color:{{ card.confColor }};">{{ card.confText }}</span>
+      <div style="display:flex;gap:2px;"><sc-for list="{{ card.segs }}" as="s" hint-placeholder-count="5"><div style="{{ s.style }}"></div></sc-for></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ card.statusShow }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:9px;"><span style="font-size:10.5px;font-weight:600;color:{{ card.statusFg }};background:{{ card.statusBg }};padding:3px 9px;border-radius:20px;">{{ card.statusText }}</span></div>
+  </sc-if>
+
+  <sc-if value="{{ card.reasonShow }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:8px;font-size:11.5px;color:#B07A29;display:flex;align-items:center;gap:5px;line-height:1.35;">⚠ {{ card.reasonText }}</div>
+  </sc-if>
+
+  <sc-if value="{{ card.gateShow }}" hint-placeholder-val="{{ false }}">
+    <div class="bcard-hover" style="display:flex;gap:6px;margin-top:10px;">
+      <button onClick="{{ card.onApprove }}" style="{{ card.approveStyle }}">{{ card.approveLabel }}</button>
+      <button onClick="{{ card.onReject }}" style="font-size:11.5px;font-weight:500;color:#B0735A;background:transparent;border:0.5px solid #E7D6CC;border-radius:7px;padding:5px 10px;cursor:pointer;">{{ card.rejectLabel }}</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:200,&quot;height&quot;:110},&quot;card&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;any&quot;}}"></script>
+</body>
+</html>
