@@ -60,6 +60,27 @@ final class BridgeExportTests: XCTestCase {
         XCTAssertEqual(plan.writes.map(\.order.uid), ["u1"])
     }
 
+    // Retry contract (BAK-92): the guard keys on LIVE results only. A `failed` result
+    // is archived to `results/done/` (so it leaves `liveResultUIDs`) while the task
+    // stays at its source stage — the next export MUST re-issue it. Asserting that an
+    // empty live-result set still writes locks this in against a "check done/ too"
+    // regression that would permanently strand retried/re-queued uids.
+    func test_queuedTask_withNoLiveResult_reissues() {
+        let plan = BridgeExport.plan(tasks: [task(.queued, uid: "u1", action: .ticket)],
+                                     route: route, liveOutboxUIDs: [:],
+                                     liveResultUIDs: ["/kb/DL": []], now: now)
+        XCTAssertEqual(plan.writes.map(\.order.uid), ["u1"], "no live result → must re-issue (retry)")
+    }
+
+    // The uid-keyed guard is mode-independent: a forAgent (prep) task is suppressed
+    // by a live result just as an execute task is.
+    func test_forAgentTask_withLiveResult_isSkipped() {
+        let plan = BridgeExport.plan(tasks: [task(.forAgent, uid: "u2")],
+                                     route: route, liveOutboxUIDs: [:],
+                                     liveResultUIDs: ["/kb/DL": ["u2"]], now: now)
+        XCTAssertTrue(plan.writes.isEmpty)
+    }
+
     func test_nonAgentStage_isIgnored() {
         let plan = BridgeExport.plan(tasks: [task(.planned, uid: "u3")],
                                      route: route, liveOutboxUIDs: [:], now: now)
