@@ -113,6 +113,9 @@ public struct TaskDetailSheet: View {
                         PropertyRow(label: "Parent") {
                             ParentPicker(task: task, candidates: allTasks)
                         }
+                        PropertyRow(label: "Blocked by") {
+                            BlockedByPicker(task: task, candidates: allTasks)
+                        }
                         PropertyRow(label: "Recurrence") {
                             Picker("", selection: Binding(
                                 get: { task.recurrence },

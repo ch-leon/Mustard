@@ -32,6 +32,11 @@ public final class MustardTask {
     /// output history). Optional → CloudKit-safe default (ADR-0001).
     @Relationship(deleteRule: .nullify, inverse: \Recommendation.task)
     public var delegation: Recommendation?
+    /// Another task that must finish before this one can proceed (the detail/form
+    /// "Blocked by"). Optional, no inverse → CloudKit-safe (ADR-0001); nullify on
+    /// delete so removing the blocker just clears the dependency.
+    @Relationship(deleteRule: .nullify)
+    public var blockedByTask: MustardTask?
 
     // Provenance — set when a task is harvested from an external source (e.g. a
     // meeting note). All defaulted/optional so the CloudKit schema stays additive.
@@ -95,7 +100,9 @@ public final class MustardTask {
     }
 
     public var isBlocked: Bool {
-        !blockedReason.trimmingCharacters(in: .whitespaces).isEmpty
+        // Blocked by an unfinished dependency, or by a free-text reason.
+        if let blocker = blockedByTask, blocker.stage != .done { return true }
+        return !blockedReason.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     /// (completed, total) over direct subtasks — drives the "0/1" header.
