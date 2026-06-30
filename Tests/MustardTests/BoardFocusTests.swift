@@ -29,4 +29,19 @@ final class BoardFocusTests: XCTestCase {
     func test_shouldCollapseEmpty_reviewFocus_doesNot() {
         XCTAssertFalse(PersonalBoard.shouldCollapseEmpty(view: .everyone, isEmpty: true, expanded: false, reviewFocus: true))
     }
+
+    // MARK: Board search (BAK-134)
+
+    func test_filterBySearch_emptyQuery_returnsAll() {
+        let a = MustardTask(title: "Email Kamil")
+        let b = MustardTask(title: "Draft notes")
+        XCTAssertEqual(PersonalBoard.filterBySearch([a, b], query: "  ").count, 2)
+    }
+
+    func test_filterBySearch_matchesTitleCaseInsensitively() {
+        let a = MustardTask(title: "Email Kamil")
+        let b = MustardTask(title: "Draft notes")
+        let r = PersonalBoard.filterBySearch([a, b], query: "kamil")
+        XCTAssertEqual(r.map(\.title), ["Email Kamil"])
+    }
 }

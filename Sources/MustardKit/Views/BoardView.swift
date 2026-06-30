@@ -19,6 +19,7 @@ public struct BoardView: View {
     @State private var reviewFocus = false
     @State private var expandedEmpty: Set<TaskStage> = []
     @State private var dropTargetStage: TaskStage?
+    @State private var searchText = ""
 
     private let settings = BoardSettings()
     private var compact: Bool { settings.compact }
@@ -79,6 +80,19 @@ public struct BoardView: View {
                     .help(reviewFocus ? "Show the full board." : "Focus the board on just the two gate columns.")
                 }
                 Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11)).foregroundStyle(Theme.Palette.textTertiary)
+                    TextField("Search", text: $searchText)
+                        .textFieldStyle(.plain).font(Theme.Fonts.meta).frame(width: 120)
+                }
+                .padding(.horizontal, 9).padding(.vertical, 4)
+                .background(Theme.Palette.surface.opacity(0.5), in: Capsule())
+                .overlay(Capsule().stroke(Theme.Palette.hairline, lineWidth: 0.5))
+                Button(action: makeNewTask) {
+                    Label("New task", systemImage: "plus").font(.system(size: 12.5, weight: .medium))
+                }
+                .buttonStyle(.borderedProminent).tint(Theme.Palette.textPrimary).controlSize(.small)
             }
 
             controls
@@ -177,10 +191,12 @@ public struct BoardView: View {
 
     private func column(_ stage: TaskStage) -> some View {
         let style = ColumnStyle(stage.kind)
-        let all = PersonalBoard.tasks(allTasks, in: stage, view: view, area: area)
+        let all = PersonalBoard.filterBySearch(
+            PersonalBoard.tasks(allTasks, in: stage, view: view, area: area), query: searchText)
         let isDone = stage == .done
         let visible = isDone ? Array(all.prefix(PersonalBoard.doneColumnLimit)) : all
-        let older = isDone ? PersonalBoard.olderDoneCount(allTasks, view: view, area: area) : 0
+        // Hide the "+N older" tail while searching — those older items aren't filtered.
+        let older = (isDone && searchText.isEmpty) ? PersonalBoard.olderDoneCount(allTasks, view: view, area: area) : 0
         let totalCount = isDone ? visible.count + older : all.count
 
         return VStack(alignment: .leading, spacing: 0) {
@@ -275,6 +291,16 @@ public struct BoardView: View {
             if targeted { dropTargetStage = stage }
             else if dropTargetStage == stage { dropTargetStage = nil }
         }
+    }
+
+    /// Header "+ New task": create an inbox task (owner from the current lens) and open
+    /// it in the detail/edit sheet. (BAK-134)
+    private func makeNewTask() {
+        let t = MustardTask(title: "New task")
+        t.stage = .inbox
+        t.owner = (view == .agent) ? .agent : .me
+        context.insert(t)
+        selectedTask = t
     }
 
     /// True when a column has nothing to show (done also accounts for the "+N older" tail).

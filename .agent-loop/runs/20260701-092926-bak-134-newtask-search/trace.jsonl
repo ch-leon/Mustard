@@ -1,0 +1,4 @@
+{"event":"run_start","issue":"BAK-134","branch":"leon/bak-134-board-newtask-search"}
+{"event":"tdd","unit":"PersonalBoard.filterBySearch"}
+{"event":"implement","note":"header +New task (insert+open sheet) + Search field; column filter via filterBySearch"}
+{"event":"checks","check":"swift test","result":"pass","summary":"419 pass"}
