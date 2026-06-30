@@ -24,6 +24,13 @@ public enum PersonalBoard {
     /// ("N waiting on you" → Exit review queue, BAK-101).
     public static let gateStages: [TaskStage] = [.needsApproval, .needsReview]
 
+    /// Board search (BAK-134): case-insensitive title filter; empty query → unchanged.
+    public static func filterBySearch(_ tasks: [MustardTask], query: String) -> [MustardTask] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return tasks }
+        return tasks.filter { $0.title.localizedCaseInsensitiveContains(q) }
+    }
+
     /// Whether an empty column should auto-collapse to a thin strip (BAK-102): only
     /// in the Everyone lens, never while review-focused, and not if the user has
     /// manually expanded it. Mine/Agent lenses keep empty columns full-width.
