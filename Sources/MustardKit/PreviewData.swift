@@ -14,13 +14,21 @@ public enum PreviewData {
         func today(_ h: Int, _ m: Int) -> Date {
             cal.date(bySettingHour: h, minute: m, second: 0, of: .now)!
         }
-        let work = Area(name: "Code Heroes", colorHex: "#2D7FF9")
-        let personal = Area(name: "Personal", colorHex: "#7F77DD")
-        let dev = TaskList(name: "DLA SDK", area: work)
-        let admin = TaskList(name: "Admin", area: work)
+        // Handoff per-list dot colours (BAK-98). Mustard colours dots by Area, so each
+        // handoff "area" gets its own Area carrying the canonical Theme area-dot hex:
+        // DLA SDK blue / Admin green / Errands purple / Reading grey. (The handoff's
+        // "Code Heroes"/"Personal" group headers are a sidebar grouping Mustard doesn't
+        // model yet — exact per-list colour under a shared group needs a per-list
+        // colorHex, deferred. See docs/design/redesign-2026/PRD.md.)
+        let dlaArea = Area(name: "DLA SDK", colorHex: "#2D7FF9")    // Theme.Palette.areaBlue
+        let adminArea = Area(name: "Admin", colorHex: "#3E8E7E")   // Theme.Palette.areaGreen
+        let personal = Area(name: "Errands", colorHex: "#7F77DD")  // Theme.Palette.areaPurple
+        let readingArea = Area(name: "Reading", colorHex: "#B0ACA1") // Theme.Palette.areaGrey
+        let dev = TaskList(name: "DLA SDK", area: dlaArea)
+        let admin = TaskList(name: "Admin", area: adminArea)
         let errands = TaskList(name: "Errands", area: personal)
-        let reading = TaskList(name: "Reading") // area-less list
-        for model in [work, personal] { ctx.insert(model) }
+        let reading = TaskList(name: "Reading", area: readingArea)
+        for model in [dlaArea, adminArea, personal, readingArea] { ctx.insert(model) }
         for list in [dev, admin, errands, reading] { ctx.insert(list) }
 
         let standup = MustardTask(title: "Team standup", scheduledAt: today(9, 30))

@@ -13,10 +13,7 @@ struct RecommendationDetailView: View {
     @State private var commentText = ""
 
     private var confidenceSegments: Int { Int((rec.confidence * 5).rounded(.down)) }
-    private var confidenceColor: Color {
-        rec.confidence >= 0.7 ? Theme.Palette.done
-            : rec.confidence >= 0.4 ? Color(hex: "#BA7517") : Color(hex: "#D85A30")
-    }
+    private var confidenceColor: Color { Theme.confidenceColor(rec.confidence) }
     private var draftOrBody: String { rec.draft.isEmpty ? rec.body : rec.draft }
 
     var body: some View {

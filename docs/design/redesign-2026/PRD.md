@@ -99,11 +99,16 @@ layered on the iOS target.
 ## Discrepancies to pin (resolve in BAK-98)
 
 1. **Confidence-colour thresholds** drift — handoff README says ≥0.5 → amber;
-   desktop code uses ≥0.7 green / ≥0.4 amber / else red; mobile uses ≥0.5. Pick one
-   `confidenceColor(_:)` source of truth. The **≥0.7 green / ≥0.5 amber** set
-   (README + mobile + board card) is the recommended canonical one.
-2. **Admin area-dot colour** — correct is `#3E8E7E` (green); one desktop map uses
-   blue. Green wins (README + mobile agree).
+   desktop code used ≥0.7 green / ≥0.4 amber / else red in two views while the board
+   card used ≥0.5; mobile uses ≥0.5. The **≥0.7 green / ≥0.5 amber** set is canonical.
+   **✅ Resolved in BAK-98:** `Theme.confidenceTier`/`confidenceColor` (≥0.7/≥0.5) is
+   the single source; `RecommendationDetailView` + `AgentConsoleView` now call it.
+2. **Admin area-dot colour** — correct is `#3E8E7E` (green); the seed coloured it
+   blue (Admin inherited the "Code Heroes" Area colour).
+   **✅ Resolved in BAK-98 (seed):** PreviewData gives Admin its own green Area.
+   **Deferred:** Mustard colours dots **by Area**, the handoff **per list**; exact
+   per-list colour under one group header (Errands purple vs Reading grey under
+   "Personal") needs a per-list `colorHex` — a model change, not done here.
 
 ## Out of scope (YAGNI)
 

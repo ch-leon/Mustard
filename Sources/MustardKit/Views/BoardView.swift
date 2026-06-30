@@ -258,8 +258,9 @@ public struct BoardView: View {
     }
 }
 
-/// Visual treatment for a board column, mapped from `TaskColumnKind`. The tints are
-/// from the design handoff ("Column styling by kind") — Theme has no column tokens.
+/// Visual treatment for a board column, mapped from `TaskColumnKind`. Tints come
+/// from `Theme` (canonical token set — BAK-98); the per-kind opacities are the
+/// handoff's ("Column styling by kind").
 private struct ColumnStyle {
     let background: Color
     let accent: Color?
@@ -268,29 +269,29 @@ private struct ColumnStyle {
     init(_ kind: TaskColumnKind) {
         switch kind {
         case .standard:
-            background = Color(hex: "#EFEBE2").opacity(0.55)
+            background = Theme.Palette.surface.opacity(0.55)
             accent = nil
-            head = Color(hex: "#9A968B")
+            head = Theme.Palette.textSecondary
         case .handoff:
             background = Theme.Palette.agent.opacity(0.05)
-            accent = Color(hex: "#CFC9F0")
-            head = Color(hex: "#8079C6")
+            accent = Theme.Palette.agentTintMid
+            head = Theme.Palette.agentMid
         case .gate:
             background = Theme.Palette.agent.opacity(0.085)
             accent = Theme.Palette.agent
-            head = Color(hex: "#6A61C9")
+            head = Theme.Palette.agentText
         case .agent:
             background = Theme.Palette.agent.opacity(0.05)
-            accent = Color(hex: "#BCB6EC")
-            head = Color(hex: "#8079C6")
+            accent = Theme.Palette.agentTintStrong
+            head = Theme.Palette.agentMid
         case .warn:
             background = Theme.Palette.warning.opacity(0.07)
             accent = Theme.Palette.warning
-            head = Color(hex: "#B07A29")
+            head = Theme.Palette.warnText
         case .done:
             background = Theme.Palette.done.opacity(0.05)
-            accent = Color(hex: "#9BD0BD")
-            head = Color(hex: "#6A9C84")
+            accent = Theme.Palette.doneAccent
+            head = Theme.Palette.doneHead
         }
     }
 }

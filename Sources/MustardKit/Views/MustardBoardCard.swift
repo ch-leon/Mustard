@@ -3,8 +3,8 @@ import SwiftData
 
 /// A single board task card (BAK-79). Owner-segmented design — see the design
 /// handoff "Component: Task Card". Presentational: it reads a `MustardTask` and
-/// dispatches owner toggles to `PersonalBoard`/`AgentService`. All hex/sizes are
-/// from the handoff (Theme lacks the source/status/confidence tints).
+/// dispatches owner toggles to `PersonalBoard`/`AgentService`. Colours come from
+/// `Theme` (the canonical token set — BAK-98); sizes are from the handoff.
 public struct MustardBoardCard: View {
     @Environment(AgentService.self) private var agent
     let task: MustardTask
@@ -32,8 +32,8 @@ public struct MustardBoardCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
         .padding(.horizontal, 11)
-        .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 9))
-        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(hex: "#E7E3DA"), lineWidth: 0.5))
+        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.Palette.hairline, lineWidth: 0.5))
         .overlay(alignment: .leading) { accentBorder }
         .clipShape(RoundedRectangle(cornerRadius: 9))
         .opacity(isDone ? 0.66 : 1)
@@ -43,7 +43,7 @@ public struct MustardBoardCard: View {
 
     @ViewBuilder private var accentBorder: some View {
         if isBlocked {
-            Color(hex: "#D98A29").frame(width: 2.5)
+            Theme.Palette.warning.frame(width: 2.5)
         } else if isAgent {
             Theme.Palette.agent.frame(width: 2.5)
         }
@@ -77,7 +77,7 @@ public struct MustardBoardCard: View {
                 agent.delegate(task)
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "#E1DCD1"), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.Palette.divider, lineWidth: 0.5))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
@@ -87,13 +87,13 @@ public struct MustardBoardCard: View {
         Text(label)
             .font(.system(size: 10, weight: active ? .semibold : .regular))
             .foregroundStyle(
-                active ? (isAgentTab ? Color.white : Color(hex: "#46433B"))
-                       : Color(hex: "#BBB6AA")
+                active ? (isAgentTab ? Color.white : Theme.Palette.onSurface)
+                       : Theme.Palette.ownerTabInactive
             )
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(
-                active ? (isAgentTab ? Theme.Palette.agent : Color(hex: "#EAE5DB"))
+                active ? (isAgentTab ? Theme.Palette.agent : Theme.Palette.chipActive)
                        : Color.clear
             )
             .contentShape(Rectangle())
@@ -106,8 +106,8 @@ public struct MustardBoardCard: View {
         Text(task.title)
             .font(.system(size: 13.5))
             .lineSpacing(13.5 * 0.35)
-            .foregroundStyle(isDone ? Color(hex: "#A6A296") : Theme.Palette.textPrimary)
-            .strikethrough(isDone, color: Color(hex: "#C8C3B7"))
+            .foregroundStyle(isDone ? Theme.Palette.textMuted : Theme.Palette.textPrimary)
+            .strikethrough(isDone, color: Theme.Palette.strikethrough)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -116,7 +116,7 @@ public struct MustardBoardCard: View {
 
     @ViewBuilder private var metaRow: some View {
         let area = task.list?.area
-        let badge = sourceBadge
+        let badge = Theme.sourceBadge(for: task.source)
         let due = task.scheduledAt
         if area != nil || badge != nil || due != nil {
             FlowMeta {
@@ -150,24 +150,11 @@ public struct MustardBoardCard: View {
         }
     }
 
-    /// Only `meeting` and `vault`/`manual` are real sources today (see report).
-    /// Manual tasks show no badge.
-    private var sourceBadge: (label: String, icon: String, fg: Color, bg: Color)? {
-        switch task.source {
-        case "meeting":
-            return ("Notes", "◷", Color(hex: "#6A61C9"), Color(hex: "#EEEBFA"))
-        case "manual":
-            return nil
-        default: // "vault" and any other harvested source map to KB grey
-            return ("KB", "📚", Color(hex: "#7B776C"), Color(hex: "#F1EDE4"))
-        }
-    }
-
     // MARK: Confidence
 
     @ViewBuilder private var confidenceRow: some View {
         if showConfidence, stage == .needsApproval, let conf = task.confidence {
-            let color = confColor(conf)
+            let color = Theme.confidenceColor(conf)
             let filled = Int((conf * 5).rounded())
             HStack(spacing: 6) {
                 Text(String(format: "%.2f", conf))
@@ -176,19 +163,13 @@ public struct MustardBoardCard: View {
                 HStack(spacing: 2) {
                     ForEach(0..<5, id: \.self) { i in
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(i < filled ? color : Color(hex: "#E4DFD5"))
+                            .fill(i < filled ? color : Theme.Palette.confidenceUnfilled)
                             .frame(width: 11, height: 4)
                     }
                 }
             }
             .padding(.top, 9)
         }
-    }
-
-    private func confColor(_ c: Double) -> Color {
-        if c >= 0.7 { return Theme.Palette.done }
-        if c >= 0.5 { return Color(hex: "#BA7517") }
-        return Color(hex: "#D85A30")
     }
 
     // MARK: Status pill
@@ -208,18 +189,18 @@ public struct MustardBoardCard: View {
     private var statusInfo: (text: String, fg: Color, bg: Color)? {
         switch stage {
         case .forAgent:
-            return ("Waiting for agent to pick up", Color(hex: "#8A8579"), Color(hex: "#F1EDE4"))
+            return ("Waiting for agent to pick up", Theme.Palette.statusMutedText, Theme.Palette.statusMutedBg)
         case .needsApproval:
-            return ("Your move · approve to run", Color(hex: "#6A61C9"), Color(hex: "#EEEBFA"))
+            return ("Your move · approve to run", Theme.Palette.agentText, Theme.Palette.agentTintLight)
         case .queued:
             // A queued task with no action type can't be routed to the agent (BAK-89);
             // surface it in amber so it's visibly not-runnable until set in the detail sheet.
             if task.actionType == nil {
-                return ("Needs an action type", Color(hex: "#B07A29"), Color(hex: "#FBF1E2"))
+                return ("Needs an action type", Theme.Palette.warnText, Theme.Palette.warnTintSoft)
             }
-            return ("Queued to run", Color(hex: "#8A8579"), Color(hex: "#F1EDE4"))
+            return ("Queued to run", Theme.Palette.statusMutedText, Theme.Palette.statusMutedBg)
         case .needsReview:
-            return ("Review output", Color(hex: "#1B7A57"), Color(hex: "#E3F2EB"))
+            return ("Review output", Theme.Palette.reviewText, Theme.Palette.reviewBg)
         default:
             return nil
         }
@@ -233,7 +214,7 @@ public struct MustardBoardCard: View {
             Text("⚠ \(reason.isEmpty ? "Blocked" : reason)")
                 .font(.system(size: 11.5))
                 .lineSpacing(11.5 * 0.35)
-                .foregroundStyle(Color(hex: "#B07A29"))
+                .foregroundStyle(Theme.Palette.warnText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
         }
@@ -284,7 +265,7 @@ private struct FlowMeta: Layout {
         .padding()
         .frame(width: 200)
     }
-    .background(Color(hex: "#EFEBE2").opacity(0.4))
+    .background(Theme.Palette.surface.opacity(0.4))
     .environment(AgentService(context: ctx))
 }
 #endif
