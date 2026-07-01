@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-115 iOS triage-detail sheet + interim Triage list (PR #67)
+- **Risk:** medium (iOS UI only; no MustardKit, macOS untouched) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift test 422 pass/1 skip (unchanged — pure mobile Views) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 47s
+- **Review:** fresh-context APPROVE, no blockers. Verified all footer actions set a non-`.pending` decision (rec leaves RecommendationQueue.pending); ADR-0003 honored (AgentService injected on iOS, decide() records decision + stages task, sends nothing from phone); action-by-action desktop parity; no Button-in-Button. One nit folded in before merge: "Schedule for tomorrow" → "Schedule" (decide(.scheduled)→nextNineAM() can be today 9am; mobile path is richer than desktop's orphan-task inline — links rec↔task, carries actionType/confidence, routes area). **Eyeballed by Leon ("sure").**
+- **Outward actions:** none · records decisions in SwiftData; no send on iOS.
+- **What landed:** MobileRecommendationSheet (provenance/SourceBadge, gated banner, action+confidence, WHY, re-bucket chips, original source, editable draft, comment, compact approve/reject/snooze/schedule/self-execute/keep/comment footer via AgentService) + interim MobileTriageView list (pending queue via RecommendationQueue.pending, tap→sheet) replacing the Agent-tab stub; removed dead MobileScreenStub.
+- **Next:** BAK-119 upgrades MobileTriageView from a list to the Tinder swipe deck, reusing this sheet.
+- **Revert:** `git revert c8e7f4a62da2caabd21becc9556b3dbe12c8d46e`
+
+
 ## 2026-07-01 — MERGED · BAK-116 iOS Week (day-strip + capacity + tap-schedule) (PR #66)
 - **Risk:** medium (iOS UI + 1 small pure-logic exposure; macOS views untouched) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift test 422 pass/1 skip (+3) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 47s
