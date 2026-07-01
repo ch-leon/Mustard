@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-116 iOS Week (day-strip + capacity + tap-schedule) (PR #66)
+- **Risk:** medium (iOS UI + 1 small pure-logic exposure; macOS views untouched) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
+- **Checks:** swift test 422 pass/1 skip (+3) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 47s
+- **Review:** fresh-context APPROVE, no blockers. Verified `schedule(_:)` is behaviour-equivalent to the desktop drop-destination (scheduledAt via scheduleDate, inbox→planned, isTimed untouched → untimed lands "Anytime" but still counts toward capacity); no Button-in-Button double-fire (cards = .contentShape+.onTapGesture); `matchesArea` genuinely tested (all 3 BoardArea cases). **Eyeballed by Leon ("looks good").**
+- **Outward actions:** none · additive iOS screen + a public wrapper over the board's existing tested area predicate.
+- **What landed:** MobileWeekView (Mon–Sun day-strip w/ per-day load dots, single selected-day plan w/ capacity bar + time-of-day grouping, OVERDUE+UNSCHEDULED rail with tap-to-schedule onto the selected day; no drag/no ✦ Balance — desktop-only; shared area filter w/ Board), wired into MobileRootView (replaced the Week stub), `PersonalBoard.matchesArea` public + MobileWeekTests.
+- **Follow-ups (non-blocking, review-raised):** shared MobileAreaChips component (Week/Board duplicate the chip row); subtasks-with-no-schedule show in the rail (shared WeekPlanner.unscheduled behaviour, desktop too — could exclude `parent != nil`); past-day "＋ day" scheduling is allowed (mirrors desktop drop — product glance); duplicate "Personal" chip is a seed artifact shared with Board.
+- **Revert:** `git revert f7dd366b54e0137907abd04fae63425e932ba627`
+
+
 ## 2026-07-01 — MERGED · BAK-114 iOS Board (stacked sections) + DEBUG seed (PR)
 - **Risk:** medium (iOS UI; macOS untouched) · **Deep-review:** n/a
 - **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS untouched
