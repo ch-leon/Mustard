@@ -18,6 +18,7 @@ public struct ClaudeResult: Sendable {
 public typealias ClaudeRun = @Sendable (String, String) async -> ClaudeResult
 
 public enum ClaudeRunner {
+#if os(macOS)
     /// Env for the spawned CLI: drop ANTHROPIC_ and CLAUDE vars so a run
     /// started from inside a Claude Code session (which injects a proxy
     /// base URL the child can't authenticate against) still uses the CLI's
@@ -90,4 +91,12 @@ public enum ClaudeRunner {
             }
         }
     }
+#else
+    /// The agent shells out to the `claude` CLI, which runs on the Mac only (ADR-0003).
+    /// The iOS companion never executes agent work — it reads/writes shared data. This
+    /// stub keeps `ClaudeRunner.run` available so `AgentService` compiles for iOS.
+    public static let run: ClaudeRun = { _, _ in
+        ClaudeResult(ok: false, text: "The agent runs on the Mac only.")
+    }
+#endif
 }

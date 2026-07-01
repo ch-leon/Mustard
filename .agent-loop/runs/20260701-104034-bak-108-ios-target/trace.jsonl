@@ -1,0 +1,5 @@
+{"event":"run_start","issue":"BAK-108","branch":"leon/bak-108-ios-target-xcodegen"}
+{"event":"risk_classify","class":"high","reason":"structural iOS target + new build tooling (ADR-0004)"}
+{"event":"implement","note":"XcodeGen project.yml iOS app (core minus Views); ClaudeRunner Process #if os(macOS)+iOS stub; build-ios.sh"}
+{"event":"checks","check":"ios xcodebuild simulator","result":"BUILD SUCCEEDED"}
+{"event":"checks","check":"macOS swift test","result":"pass","summary":"419 pass, 1 skip"}

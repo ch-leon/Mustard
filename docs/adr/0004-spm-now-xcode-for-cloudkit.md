@@ -21,3 +21,16 @@ assembles a signed `Mustard.app` from the SPM binary. Migrate to an `.xcodeproj`
 - `swift test`/`swift build` replace `xcodebuild` in all instructions.
 - Design tokens namespaced `Theme` (not the module name `Mustard`) to avoid clashes.
 - One future migration cost (SPM → Xcode) at the CloudKit boundary, accepted.
+
+## Update — 2026-07-01 (BAK-108): iOS target via XcodeGen, additive
+
+The iOS boundary arrived. Rather than convert the whole repo to an `.xcodeproj` (which
+would move `swift build`/`swift test` to `xcodebuild` everywhere and churn CI), the iOS
+app is **additive**: a committed `project.yml` (XcodeGen) defines an iOS app target
+(`MustardMobile`) that compiles the platform-agnostic core (Models + Logic + Agent +
+MustardContainer) directly, **excluding `Views/`** (AppKit). `ClaudeRunner`'s `Process`
+path is `#if os(macOS)`-guarded with an iOS stub (the agent runs on the Mac only —
+ADR-0003). macOS stays entirely on SPM: `swift build`/`swift test`/`build-app.sh` are
+unchanged. Build the simulator app with `./build-ios.sh`. The generated `.xcodeproj` is
+git-ignored; `project.yml` is the source of truth. CloudKit + device/TestFlight (BAK-46)
+still need the Apple Developer account/entitlements — Leon-led, unchanged.
