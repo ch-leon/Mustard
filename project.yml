@@ -15,7 +15,6 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    CODE_SIGNING_ALLOWED: "NO"        # simulator builds need no signing/account
     TARGETED_DEVICE_FAMILY: "1,2"
     GENERATE_INFOPLIST_FILE: "YES"
     MARKETING_VERSION: "0.1"
@@ -28,6 +27,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.codeheroes.mustard.ios
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        # Device signing: set MUSTARD_TEAM_ID (your Apple Developer Team ID) before
+        # `xcodegen generate` and Xcode auto-signs for your device. Unset → empty, which
+        # is fine for the Simulator (build-ios.sh passes CODE_SIGNING_ALLOWED=NO). Keeps
+        # your Team ID out of git + survives regeneration (no manual Xcode step to redo).
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ${MUSTARD_TEAM_ID}
     sources:
       - path: Sources/MustardMobile
       # The platform-agnostic core. Views/ is AppKit (macOS-only) and excluded; the
