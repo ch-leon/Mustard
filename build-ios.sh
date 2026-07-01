@@ -6,6 +6,6 @@ xcodegen generate
 xcodebuild \
   -project MustardMobile.xcodeproj \
   -scheme MustardMobile \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'generic/platform=iOS Simulator' \
   CODE_SIGNING_ALLOWED=NO \
   build "$@"
