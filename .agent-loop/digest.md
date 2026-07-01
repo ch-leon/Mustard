@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-113 iOS Today + shared task sheet (PR)
+- **Risk:** medium (iOS UI; macOS untouched) · **Deep-review:** n/a
+- **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS swift build clean (SPM untouched)
+- **Review:** fresh-context APPROVE — DayPlanner/AgentInbox reuse correct, no div-by-zero, footer transitions reuse PersonalBoard/TaskCompletion, deletes .nullify-safe, no force-unwraps; removed a dead @Environment. **Eyeballed by Leon in the simulator ("nice!").**
+- **Run:** `.agent-loop/runs/20260701-110602-bak-113-ios-today/`
+- **What landed:** MobileTodayView (progress, nudge→Triage, timeline + mobile gate pills, inbox) + MobileTaskSheet (shared task-detail bottom sheet, task half of BAK-115; stage-adaptive footer).
+- **For Leon's eye:** confirmed live in sim.
+- **Revert:** `git revert 320fadfd3f67b889233dd273b8594327c165c834`
+
+
 ## 2026-07-01 — MERGED · BAK-110 iOS bottom-tab app shell (PR)
 - **Risk:** medium (new iOS UI; macOS/SPM untouched) · **Deep-review:** n/a
 - **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS swift build clean · swift test 419 pass/1 skip
