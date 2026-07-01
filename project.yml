@@ -1,0 +1,39 @@
+# XcodeGen spec for the iOS companion (BAK-108, ADR-0004).
+# macOS stays on SPM (Package.swift) — `swift build`/`swift test` are unchanged. This
+# project is ADDITIVE and defines ONLY the iOS app, which compiles the platform-agnostic
+# core (Models + Logic + MustardContainer) directly into the app module. The macOS-only
+# Agent layer (ClaudeRunner → Process) and AppKit Views are deliberately excluded; the
+# mobile screens (BAK-110+) add their own SwiftUI views here.
+#
+# Regenerate + build the simulator app with ./build-ios.sh (needs `xcodegen`).
+name: MustardMobile
+options:
+  bundleIdPrefix: com.codeheroes.mustard
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGNING_ALLOWED: "NO"        # simulator builds need no signing/account
+    TARGETED_DEVICE_FAMILY: "1,2"
+    GENERATE_INFOPLIST_FILE: "YES"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  MustardMobile:
+    type: application
+    platform: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.codeheroes.mustard.ios
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+    sources:
+      - path: Sources/MustardMobile
+      # The platform-agnostic core. Views/ is AppKit (macOS-only) and excluded; the
+      # mobile screens (BAK-110+) add their own SwiftUI views under Sources/MustardMobile.
+      # ClaudeRunner's Process path is #if os(macOS)-guarded with an iOS stub.
+      - path: Sources/MustardKit
+        excludes:
+          - "Views/**"
+          - "PreviewData.swift"
