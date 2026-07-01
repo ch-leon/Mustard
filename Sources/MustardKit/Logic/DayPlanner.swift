@@ -1,5 +1,25 @@
 import Foundation
 
+/// One row of the merged today-agenda (notch §6a redesign): a task or an
+/// event, whichever it wraps, with the display fields already resolved so
+/// views don't need to branch on `kind` except to decide tap/toggle targets.
+public struct AgendaItem: Identifiable {
+    public enum Kind {
+        case task(MustardTask)
+        case event(CalendarEvent)
+    }
+
+    public let id: String
+    public let kind: Kind
+    /// `nil` means untimed — sorts last, rendered as "Any".
+    public let time: Date?
+    public let title: String
+    public let isDone: Bool
+    public let tagLabel: String?
+    public let tagColorHex: String?
+    public let joinURL: String?
+}
+
 /// Pure day-planning logic: no SwiftData queries, no views.
 /// Operates on in-memory tasks so it stays trivially unit-testable.
 public enum DayPlanner {
@@ -27,6 +47,46 @@ public enum DayPlanner {
     ) -> (done: Int, total: Int) {
         let forDay = tasksForDay(tasks, day: day, calendar: calendar)
         return (forDay.filter { $0.stage == .done }.count, forDay.count)
+    }
+
+    /// Merges today's tasks and events into one chronological agenda: timed
+    /// items ascending by time, then untimed tasks and all-day events (in
+    /// their original relative order). Tasks reuse `tasksForDay`'s day
+    /// filtering; events are today's events with no additional filtering —
+    /// they have no done state to filter on.
+    public static func agenda(
+        tasks: [MustardTask], events: [CalendarEvent], day: Date, calendar: Calendar = .current
+    ) -> [AgendaItem] {
+        let taskItems = tasksForDay(tasks, day: day, calendar: calendar).map { task in
+            AgendaItem(
+                id: "task:\(task.uid)",
+                kind: .task(task),
+                time: task.isTimed ? task.scheduledAt : nil,
+                title: task.title,
+                isDone: task.stage == .done,
+                tagLabel: task.list?.area?.name,
+                tagColorHex: task.list?.area?.colorHex,
+                joinURL: nil
+            )
+        }
+        let eventItems = events
+            .filter { calendar.isDate($0.start, inSameDayAs: day) }
+            .map { event -> AgendaItem in
+                AgendaItem(
+                    id: "event:\(event.externalId.isEmpty ? event.title : event.externalId)",
+                    kind: .event(event),
+                    time: event.isAllDay ? nil : event.start,
+                    title: event.title,
+                    isDone: false,
+                    tagLabel: nil,
+                    tagColorHex: nil,
+                    joinURL: event.joinURL
+                )
+            }
+        let all = taskItems + eventItems
+        let timed = all.filter { $0.time != nil }.sorted { $0.time! < $1.time! }
+        let untimed = all.filter { $0.time == nil }
+        return timed + untimed
     }
 
     /// Next open, scheduled tasks starting after `after`, soonest first (for the hover panel).
