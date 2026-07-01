@@ -19,10 +19,8 @@ struct MobileRecommendationSheet: View {
 
     private let agentPurple = Color(hex: "#7F77DD")
     private let agentText = Color(hex: "#534AB7")
-    /// Re-bucket options, excluding `ignore` (an audit-only sink, never surfaced).
-    private let rebucket: [RecommendationAction] = [
-        .draftEmail, .draftSlack, .createTask, .vaultNote, .ticket, .fyi,
-    ]
+    /// Re-bucket options — the full action set, matching the desktop FlowChips.
+    private let rebucket = RecommendationAction.allCases
 
     var body: some View {
         NavigationStack {

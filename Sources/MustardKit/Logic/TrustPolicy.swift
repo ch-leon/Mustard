@@ -13,6 +13,14 @@ public enum TrustLevel: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// The next level in the tap-cycle, wrapping autonomous → manual (mobile Triage
+    /// deck's trust chip, BAK-119).
+    public var next: TrustLevel {
+        let all = TrustLevel.allCases
+        let i = all.firstIndex(of: self) ?? 0
+        return all[(i + 1) % all.count]
+    }
+
     /// Higher = more autonomy. Used for threshold comparisons.
     public var rank: Int {
         switch self {

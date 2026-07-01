@@ -19,7 +19,7 @@ public enum RecommendationAction: String, CaseIterable, Identifiable {
         case .draftSlack: "Draft Slack"
         case .createTask: "Create task"
         case .vaultNote: "Update vault"
-        case .ticket: "Shortcut ticket"
+        case .ticket: "Create Shortcut"
         case .fyi: "FYI"
         case .ignore: "Ignore"
         }
