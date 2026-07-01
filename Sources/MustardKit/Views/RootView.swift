@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 public enum MustardScreen: String, CaseIterable, Identifiable {
     case today = "Today"
@@ -49,6 +50,8 @@ public struct RootView: View {
     @State private var selectedScope: ListScope?
     @State private var showCommandBar = false
     @State private var sourcePanel = SourcePanelController()
+    @State private var selectedTaskFromNotch: MustardTask?
+    @Environment(NotchNavigation.self) private var notchNav
     @Query private var recommendations: [Recommendation]
     @Query private var tasks: [MustardTask]
 
@@ -111,6 +114,19 @@ public struct RootView: View {
         // (TextEditor, DatePicker, pickers) don't render dark under macOS dark mode.
         // The notch is a separate panel with its own explicit dark colors — unaffected.
         .preferredColorScheme(.light)
+        .sheet(item: $selectedTaskFromNotch) { TaskDetailSheet(task: $0) }
+        .onChange(of: notchNav.pendingTask) { _, task in
+            guard let task else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            selectedTaskFromNotch = task
+            notchNav.pendingTask = nil
+        }
+        .onChange(of: notchNav.openAgentConsole) { _, shouldOpen in
+            guard shouldOpen else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            screen = .agent
+            notchNav.openAgentConsole = false
+        }
     }
 
     /// Persistent agent co-pilot dock (BAK-106): shown on every screen except the Agent
