@@ -1,0 +1,5 @@
+{"event":"run_start","issue":"BAK-114","branch":"leon/bak-114-ios-board"}
+{"event":"implement","note":"MobileBoardView stacked sections + chips + MobileBoardCard gate buttons; reuse PersonalBoard"}
+{"event":"checks","check":"ios build","result":"BUILD SUCCEEDED"}
+{"event":"review","round":1,"verdict":"CHANGES-REQUESTED","blocking":"B1 build broken; B2 nested-Button double-fire"}
+{"event":"fix","note":"card -> .contentShape+.onTapGesture, gate Buttons children; builds"}
