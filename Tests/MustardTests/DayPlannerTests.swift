@@ -75,4 +75,76 @@ final class DayPlannerTests: XCTestCase {
         let result = DayPlanner.upcoming([open, blocked], after: now, limit: 5)
         XCTAssertEqual(result.map(\.title), ["open"])
     }
+
+    func test_agenda_mergesTasksAndEventsChronologically_untimedLast() {
+        let day = at("2026-06-12T00:00:00Z")
+
+        let review = MustardTask(title: "Review PR", scheduledAt: at("2026-06-12T09:30:00Z"))
+        review.isTimed = true
+
+        let standup = MustardTask(title: "Team stand-up", scheduledAt: at("2026-06-12T09:00:00Z"))
+        standup.isTimed = true
+        standup.markDone()
+
+        let anytime = MustardTask(title: "Reply to ACME", scheduledAt: at("2026-06-12T00:00:00Z"))
+        anytime.isTimed = false
+
+        let elsewhere = MustardTask(title: "Tomorrow's task", scheduledAt: at("2026-06-13T09:00:00Z"))
+        elsewhere.isTimed = true
+
+        let sync = CalendarEvent(
+            title: "Design sync", start: at("2026-06-12T11:00:00Z"), end: at("2026-06-12T11:30:00Z")
+        )
+        let allDay = CalendarEvent(
+            title: "Company holiday", start: at("2026-06-12T00:00:00Z"), end: at("2026-06-13T00:00:00Z"),
+            isAllDay: true
+        )
+
+        let result = DayPlanner.agenda(
+            tasks: [review, standup, anytime, elsewhere], events: [sync, allDay], day: day, calendar: cal
+        )
+
+        XCTAssertEqual(
+            result.map(\.title),
+            ["Team stand-up", "Review PR", "Design sync", "Reply to ACME", "Company holiday"]
+        )
+    }
+
+    func test_agenda_tagLabelAndColorComeFromTaskListArea() {
+        let day = at("2026-06-12T00:00:00Z")
+        let area = Area(name: "DLA SDK", colorHex: "#378ADD")
+        let list = TaskList(name: "SDK work", area: area)
+        let task = MustardTask(title: "Review DLA SDK pull request", scheduledAt: at("2026-06-12T09:30:00Z"))
+        task.isTimed = true
+        task.list = list
+
+        let result = DayPlanner.agenda(tasks: [task], events: [], day: day, calendar: cal)
+
+        XCTAssertEqual(result.first?.tagLabel, "DLA SDK")
+        XCTAssertEqual(result.first?.tagColorHex, "#378ADD")
+    }
+
+    func test_agenda_eventsCarryJoinURL_andAreNeverDone() {
+        let day = at("2026-06-12T00:00:00Z")
+        let meeting = CalendarEvent(
+            title: "Design sync", start: at("2026-06-12T11:00:00Z"), end: at("2026-06-12T11:30:00Z"),
+            joinURL: "https://meet.example.com/design-sync"
+        )
+
+        let result = DayPlanner.agenda(tasks: [], events: [meeting], day: day, calendar: cal)
+
+        XCTAssertEqual(result.first?.joinURL, "https://meet.example.com/design-sync")
+        XCTAssertEqual(result.first?.isDone, false)
+    }
+
+    func test_agenda_taskIsDoneReflectsStage() {
+        let day = at("2026-06-12T00:00:00Z")
+        let task = MustardTask(title: "Draft notes", scheduledAt: at("2026-06-12T14:00:00Z"))
+        task.isTimed = true
+        task.markDone()
+
+        let result = DayPlanner.agenda(tasks: [task], events: [], day: day, calendar: cal)
+
+        XCTAssertEqual(result.first?.isDone, true)
+    }
 }

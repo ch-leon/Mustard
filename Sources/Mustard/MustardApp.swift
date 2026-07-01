@@ -10,6 +10,7 @@ struct MustardApp: App {
     @State private var calendar: GoogleCalendarService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
+    @State private var notchNav = NotchNavigation()
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
 
     init() {
@@ -35,6 +36,7 @@ struct MustardApp: App {
             RootView()
                 .environment(agent)
                 .environment(calendar)
+                .environment(notchNav)
                 .frame(minWidth: 640, minHeight: 520)
                 .task {
                     let container = container
@@ -54,6 +56,7 @@ struct MustardApp: App {
                             AnyView(
                                 NotchView(onHoverChange: onHover)
                                     .environment(agent)
+                                    .environment(notchNav)
                                     .modelContainer(container)
                             )
                         }

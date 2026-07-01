@@ -14,3 +14,10 @@
 3. Wire into `MustardApp`: show on launch, "Toggle Notch" ⌘⇧N command. Build, relaunch, commit.
 
 **Done when:** tests green, app launches with the notch strip visible on the built-in display, hover expands it, Approve in the notch executes and the card lands in the Review queue.
+
+**2026-07-02 update:** the hover-expanded panel described above (focus row +
+3 meetings + inline recommendation Approve/Deny) was replaced by the triage
+summary card + full today-agenda redesign in
+`docs/superpowers/plans/2026-07-02-notch-expanded-redesign.md`. Screen
+selection also changed to prefer an external monitor over the built-in
+notch display when one is connected.
