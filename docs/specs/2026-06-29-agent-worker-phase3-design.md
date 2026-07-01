@@ -1,7 +1,7 @@
 # Agent worker (Phase 3) — design spec
 
 - **Date:** 2026-06-29
-- **Status:** Draft — awaiting Leon's review
+- **Status:** ✅ Implemented + live-tested (2026-06-29/30). This doc is the design record; the worker itself is a **vault skill**, not Mustard code — `Codeheroes work/.claude/skills/drain-agent-queue/SKILL.md` (separate repo, local-only, never pushed). A live run drained an order → created a full Shortcut Spike → wrote a contract-valid result → archived. Superseded/enhanced by [`2026-06-29-skill-aware-worker-design.md`](2026-06-29-skill-aware-worker-design.md) (the worker became skill-aware + best-effort, no longer a fixed 3-action switch). **Still deferred:** a scheduled routine wrapping the skill (unattended; Jira browser step needs a logged-in session) and extending the KB table beyond DL (SB/Sandvik/Code Heroes).
 - **Phase:** 3 of 3 of the Agent Task Board. Phase 1 (board + `stage`) and Phase 2 (the vault-file bridge) are merged (PRs #26, #27; ADR-0010).
 - **Implements:** the Phase 2 file contract — `docs/agent-bridge-contract.md` (`_agent/outbox/*.json` work orders → `_agent/results/*.json`).
 
