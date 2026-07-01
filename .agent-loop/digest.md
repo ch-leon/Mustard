@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-108 iOS app target via XcodeGen (PR)
+- **Risk:** HIGH (structural / new build tooling; ADR-0004 boundary) · **Deep-review:** PASS (3/3 clear — correctness, security/risk, spec; both platforms rebuilt independently)
+- **Checks:** macOS swift build clean · swift test 419 pass/1 skip · iOS xcodebuild simulator BUILD SUCCEEDED
+- **Deep-review:** additive + reversible (Package.swift/checks.yml untouched, .xcodeproj git-ignored, +184/-0); ClaudeRunner macOS Process path byte-for-byte preserved + iOS stub (no execution path); no secrets/signing/CloudKit; folded in portable simulator destination. Report: deep-review-report.md.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260701-104034-bak-108-ios-target/`
+- **What landed:** committed project.yml (XcodeGen) → MustardMobile iOS app compiling the platform-agnostic core (Models+Logic+Agent+MustardContainer, excl Views/); ClaudeRunner Process #if os(macOS)+iOS stub; build-ios.sh; ADR-0004 update note. Stub MobileRootView proves core linkage.
+- **Unblocks:** BAK-110 (iOS shell) → 113/114/115/116/119. CloudKit BAK-46 still needs Apple Dev entitlements (Leon).
+- **Revert:** `git revert 2382efe64151047f18878505da50c98c56bba4f5`
+
+
 ## 2026-07-01 — MERGED · BAK-133 standalone Settings screen (PR)
 - **Risk:** medium (Improvement; new SettingsView + RootView) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 419 pass/1 skip
