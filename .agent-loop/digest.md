@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-110 iOS bottom-tab app shell (PR)
+- **Risk:** medium (new iOS UI; macOS/SPM untouched) · **Deep-review:** n/a
+- **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS swift build clean · swift test 419 pass/1 skip
+- **Review:** fresh-context APPROVE — one container+AgentService wired (iOS agent = no-op ClaudeRunner stub), TabView Today/Week/Board/Agent, badge derived (pendingRecCount), FAB toast, shared MobileFilters; folded in the nit (auto-dismiss moved to always-present TabView)
+- **Run:** `.agent-loop/runs/20260701-104519-bak-110-ios-shell/`
+- **What landed:** MustardMobile shell — bottom tabs, Agent badge, FAB ("New task — coming soon"), shared owner/area filters; screens stubbed for BAK-113/114/116/119.
+- **Revert:** `git revert aec94e69197ce3f00c22352b877659744048e84b`
+
+
 ## 2026-07-01 — MERGED · BAK-108 iOS app target via XcodeGen (PR)
 - **Risk:** HIGH (structural / new build tooling; ADR-0004 boundary) · **Deep-review:** PASS (3/3 clear — correctness, security/risk, spec; both platforms rebuilt independently)
 - **Checks:** macOS swift build clean · swift test 419 pass/1 skip · iOS xcodebuild simulator BUILD SUCCEEDED
