@@ -105,6 +105,13 @@ public enum PersonalBoard {
         }
     }
 
+    /// Public area predicate — mobile Week (BAK-116) scopes its day-strip capacity,
+    /// rail, and selected-day list to the shared area filter using the board's own
+    /// tested rule (no duplicated logic).
+    public static func matchesArea(_ task: MustardTask, _ area: BoardArea) -> Bool {
+        areaOK(task, area)
+    }
+
     private static func areaOK(_ t: MustardTask, _ area: BoardArea) -> Bool {
         switch area {
         case .all: return true
