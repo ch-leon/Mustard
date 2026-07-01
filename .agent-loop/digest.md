@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-133 standalone Settings screen (PR)
+- **Risk:** medium (Improvement; new SettingsView + RootView) · **Deep-review:** n/a
+- **Checks:** swift build clean · swift test 419 pass/1 skip
+- **Review:** fresh-context APPROVE — settings excluded from .primary (no double nav), all MustardScreen switches handle it, trust binds same @AppStorage as console (in sync, no gating change), SourceSettingsView embeds cleanly (env provided), dock hidden on settings
+- **Run:** `.agent-loop/runs/20260701-101425-bak-133-settings-screen/`
+- **What landed:** dedicated Settings screen (sidebar ⚙, pinned) = Sources + Trust; additive per CLAUDE.md (trust in console AND settings). Per-source Connected indicators left as-is (noted).
+- **Revert:** `git revert 3fcbb41c58453129a5c27115cbe49cc1681b6a4f`
+
+
 ## 2026-07-01 — MERGED · BAK-137 detail read-only agent approval context (PR)
 - **Risk:** medium (Feature; TaskDetailSheet view) · **Deep-review:** n/a
 - **Checks:** swift build clean · swift test 419 pass/1 skip
