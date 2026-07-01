@@ -20,7 +20,17 @@ public final class NotchController {
     public var isVisible: Bool { panel?.isVisible ?? false }
 
     private var screen: NSScreen? {
-        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
+        let screens = NSScreen.screens
+        let descriptors = screens.enumerated().map { index, screen in
+            NotchScreenDescriptor(
+                id: index,
+                hasNotch: screen.safeAreaInsets.top > 0,
+                isMain: screen == NSScreen.main
+            )
+        }
+        guard let chosen = NotchScreenPicker.choose(from: descriptors),
+              let index = chosen.id as? Int else { return NSScreen.main }
+        return screens[index]
     }
 
     /// Idle strip geometry: hug the physical notch with a small lip below;
