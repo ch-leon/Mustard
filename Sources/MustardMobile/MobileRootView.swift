@@ -26,7 +26,7 @@ struct MobileRootView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            MobileScreenStub(title: "Today", note: "Timeline, progress + nudge — BAK-113")
+            MobileTodayView(onOpenTriage: { tab = .agent })
                 .tag(MobileTab.today)
                 .tabItem { Label("Today", systemImage: "sun.max") }
 

@@ -1,0 +1,3 @@
+{"event":"run_start","issue":"BAK-113","branch":"leon/bak-113-ios-today"}
+{"event":"implement","note":"MobileTodayView + MobileTaskSheet; gate pills; reuse DayPlanner/AgentInbox/PersonalBoard"}
+{"event":"checks","check":"ios build","result":"BUILD SUCCEEDED"}
