@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · Cleanup: triage/week polish + hand-off gate (PR #69)
+- **Risk:** medium (shared MustardKit Logic + desktop Views + mobile Views; one behaviour change: BAK-95 gate) · **Deep-review:** n/a
+- **Checks:** swift test 433 pass/1 skip (+7: 2 WeekPlanner subtask, 5 SnoozeTargets) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 44s
+- **Review:** fresh-context APPROVE, no blockers. Verified subtask exclusion doesn't drop scheduled subtasks from day columns; SnoozeTargets semantics preserved at all 4 call sites; MobileAreaChips both callers updated + orphan queries removed; skipped-materializeTask reasoning confirmed (inverse would mislabel accepted create_task as delegated). Folded in the one completeness note: extended the Stage-picker gate from 2→4 agent lanes (forAgent/needsApproval/queued/needsReview) to exactly match the board drop guard.
+- **Outward actions:** none.
+- **What landed (Leon-directed cleanup pass):** WeekPlanner.unscheduled/overdue exclude subtasks (parent==nil) → Week rail shows top-level only (desktop+mobile); new tested SnoozeTargets (nextNineAM/tomorrow9/evening) replacing 4 inline copies; new shared MobileAreaChips (Week+Board); **BAK-95** — TaskDetailSheet Stage/Assignee pickers gate an area-less agent hand-off with inline hint (was a silent bypass).
+- **Deliberately skipped:** linking rec.task in AgentService.materializeTask (inverse task.delegation would mislabel accepted create_task as agent-delegated; mobile undo uses identity-diff so it's unneeded).
+- **Known non-blocking (review-flagged):** an independently-scheduled *overdue* subtask now renders in its past day column instead of the rail (unlikely data shape; current/future columns unaffected).
+- **Revert:** `git revert 85b27cbdb852d6769c552c1acaef78dcbd27447f`
+
+
 ## 2026-07-01 — MERGED · BAK-119 iOS Triage swipe deck (PR #68) — **iOS companion COMPLETE**
 - **Risk:** medium (iOS UI + small MustardKit logic: TriageDeck + TrustLevel.next + a shared enum label; macOS views untouched) · **Deep-review:** n/a (medium auto-merges after fresh-context review)
 - **Checks:** swift test 426 pass/1 skip (+4 net: TriageDeckTests) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 48s
