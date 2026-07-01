@@ -13,9 +13,10 @@ public enum WeekPlanner {
         return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: monday) }
     }
 
-    /// Open, unscheduled tasks owned by me — the rail.
+    /// Open, unscheduled top-level tasks owned by me — the rail. Subtasks (tasks with a
+    /// parent) belong to their parent and never surface as standalone rail items.
     public static func unscheduled(_ tasks: [MustardTask]) -> [MustardTask] {
-        tasks.filter { $0.owner == .me && $0.scheduledAt == nil && $0.stage.isOpen }
+        tasks.filter { $0.owner == .me && $0.scheduledAt == nil && $0.stage.isOpen && $0.parent == nil }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -25,7 +26,8 @@ public enum WeekPlanner {
         let todayStart = calendar.startOfDay(for: now)
         return tasks
             .filter { task in
-                guard task.owner == .me, task.stage.isOpen, let when = task.scheduledAt else { return false }
+                guard task.owner == .me, task.stage.isOpen, task.parent == nil,
+                      let when = task.scheduledAt else { return false }
                 return when < todayStart
             }
             .sorted { ($0.scheduledAt ?? .distantPast) < ($1.scheduledAt ?? .distantPast) }

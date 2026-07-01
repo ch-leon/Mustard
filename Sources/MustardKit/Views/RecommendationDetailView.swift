@@ -130,8 +130,8 @@ struct RecommendationDetailView: View {
                     .controlSize(.small)
                 Menu("Snooze") {
                     Button("1 hour") { agent.snooze(rec, until: .now.addingTimeInterval(3600)) }
-                    Button("This evening") { agent.snooze(rec, until: eveningOrSoon()) }
-                    Button("Tomorrow") { agent.snooze(rec, until: tomorrow9()) }
+                    Button("This evening") { agent.snooze(rec, until: SnoozeTargets.evening()) }
+                    Button("Tomorrow") { agent.snooze(rec, until: SnoozeTargets.tomorrow9()) }
                 }
                 .controlSize(.small).fixedSize()
                 Button("Schedule") {
@@ -158,13 +158,4 @@ struct RecommendationDetailView: View {
         }
     }
 
-    private func eveningOrSoon() -> Date {
-        let target = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
-        return max(target, .now.addingTimeInterval(60))
-    }
-    private func tomorrow9() -> Date {
-        let cal = Calendar.current
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) ?? .now
-        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
-    }
 }

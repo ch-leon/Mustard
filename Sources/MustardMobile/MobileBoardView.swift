@@ -8,7 +8,6 @@ import SwiftData
 struct MobileBoardView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
-    @Query private var areas: [Area]
     @Bindable var filters: MobileFilters
     @State private var selected: MustardTask?
 
@@ -22,7 +21,7 @@ struct MobileBoardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     ownerChips
-                    areaChips
+                    MobileAreaChips(filters: filters)
                     let nonEmpty = stages.compactMap { stage -> (TaskStage, [MustardTask])? in
                         let t = PersonalBoard.tasks(allTasks, in: stage, view: filters.owner, area: filters.area)
                         return t.isEmpty ? nil : (stage, t)
@@ -55,18 +54,6 @@ struct MobileBoardView: View {
                 chip(v.label, active: filters.owner == v, tint: v == .agent ? Color(hex: "#7F77DD") : Color(hex: "#2D7FF9")) {
                     filters.owner = v
                 }
-            }
-        }
-    }
-
-    private var areaChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip("All", active: filters.area == .all) { filters.area = .all }
-                ForEach(areas) { a in
-                    chip(a.name, active: filters.area == .area(a.name)) { filters.area = .area(a.name) }
-                }
-                chip("Personal", active: filters.area == .personal) { filters.area = .personal }
             }
         }
     }

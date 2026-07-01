@@ -199,7 +199,7 @@ struct MobileTriageView: View {
         switch outcome {
         case .approve: await agent.decide(rec, .approved)
         case .reject: rec.decision = .denied
-        case .snooze: agent.snooze(rec, until: tomorrow9())
+        case .snooze: agent.snooze(rec, until: SnoozeTargets.tomorrow9())
         }
         let created: MustardTask? = outcome == .approve
             ? (try? context.fetch(FetchDescriptor<MustardTask>()))?.first { !priorTaskIDs.contains($0.persistentModelID) }
@@ -221,12 +221,6 @@ struct MobileTriageView: View {
         case .reject: "Rejected"
         case .snooze: "Snoozed"
         }
-    }
-
-    private func tomorrow9() -> Date {
-        let cal = Calendar.current
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) ?? .now
-        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
     }
 
     // MARK: Manual action buttons (swipe alternative + discoverability)

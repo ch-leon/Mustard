@@ -35,6 +35,20 @@ final class WeekPlannerTests: XCTestCase {
         XCTAssertEqual(WeekPlanner.unscheduled([open, sched, done, agent]).map(\.title), ["open"])
     }
 
+    func test_unscheduled_excludesSubtasks() {
+        // Subtasks (tasks with a parent) belong to their parent, not the top-level rail.
+        let parent = MustardTask(title: "parent")
+        let sub = MustardTask(title: "sub"); sub.parent = parent
+        XCTAssertEqual(WeekPlanner.unscheduled([parent, sub]).map(\.title), ["parent"])
+    }
+
+    func test_overdue_excludesSubtasks() {
+        let now = at("2026-06-12T12:00:00Z")
+        let parent = MustardTask(title: "parent", scheduledAt: at("2026-06-10T09:00:00Z"))
+        let sub = MustardTask(title: "sub", scheduledAt: at("2026-06-10T09:00:00Z")); sub.parent = parent
+        XCTAssertEqual(WeekPlanner.overdue([parent, sub], now: now, calendar: cal).map(\.title), ["parent"])
+    }
+
     func test_tasksOnDay_matchesByCalendarDay() {
         let day = at("2026-06-12T00:00:00Z")
         let onDay = MustardTask(title: "on", scheduledAt: at("2026-06-12T14:00:00Z"))
