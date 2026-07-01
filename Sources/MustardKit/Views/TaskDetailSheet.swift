@@ -18,6 +18,17 @@ public struct TaskDetailSheet: View {
     @State private var dueDate: Date
     @State private var bodyPreview = false
     @State private var newLinkURL = ""
+    /// BAK-95: inline feedback when a hand-off is blocked because the task has no area.
+    @State private var gateHint: String?
+
+    /// The Stage/Assignee pickers can hand a task to the agent, but the bridge routes by
+    /// area — so, like the "Ask agent" buttons, block a hand-off on an area-less task.
+    private static let handOffMessage = "Give this task a List (client area) before handing it to the agent — the bridge routes agent work by area."
+    private func gateHandOff() -> Bool {
+        guard !PersonalBoard.canHandOffToAgent(task) else { gateHint = nil; return true }
+        gateHint = Self.handOffMessage
+        return false
+    }
 
     private static let estimates = [15, 30, 45, 60, 90, 120]
     /// Actions the agent can execute for a queued task (excludes create_task/fyi/ignore,
@@ -52,7 +63,16 @@ public struct TaskDetailSheet: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         PropertyRow(label: "Stage") {
-                            Picker("", selection: $task.stage) {
+                            Picker("", selection: Binding(
+                                get: { task.stage },
+                                set: { newStage in
+                                    // Moving into an agent lane is a hand-off — gate it.
+                                    // Same four stages the board drop guard treats as agent.
+                                    let agentLanes: [TaskStage] = [.forAgent, .needsApproval, .queued, .needsReview]
+                                    if agentLanes.contains(newStage), !gateHandOff() { return }
+                                    task.stage = newStage
+                                }
+                            )) {
                                 ForEach(TaskStage.allCases) { Text($0.label).tag($0) }
                             }.labelsHidden().fixedSize()
                         }
@@ -62,10 +82,26 @@ public struct TaskDetailSheet: View {
                             }.labelsHidden().fixedSize()
                         }
                         PropertyRow(label: "Assignee") {
-                            Picker("", selection: $task.owner) {
+                            Picker("", selection: Binding(
+                                get: { task.owner },
+                                set: { newOwner in
+                                    if newOwner == .agent, !gateHandOff() { return }
+                                    task.owner = newOwner
+                                }
+                            )) {
                                 ForEach(TaskOwner.allCases) { Text($0.label).tag($0) }
                             }.labelsHidden().pickerStyle(.segmented).fixedSize()
                                 .tint(task.owner == .agent ? Theme.Palette.agent : Theme.Palette.accent)
+                        }
+                        if let gateHint {
+                            HStack(spacing: 6) {
+                                Image(systemName: "lock").font(.system(size: 11))
+                                Text(gateHint).font(Theme.Fonts.meta)
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(Theme.Palette.warnText)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(Theme.Palette.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                         }
                         PropertyRow(label: "Action") {
                             // What the agent does when it executes this task. A queued

@@ -11,7 +11,6 @@ struct MobileWeekView: View {
     @Environment(\.modelContext) private var context
     @Query private var allTasks: [MustardTask]
     @Query private var events: [CalendarEvent]
-    @Query private var areas: [Area]
     @Bindable var filters: MobileFilters
 
     @State private var weekOffset = 0
@@ -35,7 +34,7 @@ struct MobileWeekView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    areaChips
+                    MobileAreaChips(filters: filters)
                     dayStrip
                     dayHeader
                     dayPlan
@@ -67,27 +66,6 @@ struct MobileWeekView: View {
             Button { weekOffset += 1 } label: { Image(systemName: "chevron.right") }
         }
         .font(.subheadline)
-    }
-
-    private var areaChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip("All", active: filters.area == .all) { filters.area = .all }
-                ForEach(areas) { a in
-                    chip(a.name, active: filters.area == .area(a.name)) { filters.area = .area(a.name) }
-                }
-                chip("Personal", active: filters.area == .personal) { filters.area = .personal }
-            }
-        }
-    }
-
-    private func chip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label).font(.caption.weight(.medium))
-                .foregroundStyle(active ? .white : .secondary)
-                .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(active ? AnyShapeStyle(Color(hex: "#2B2A26")) : AnyShapeStyle(Color(hex: "#EFEBE2")), in: Capsule())
-        }.buttonStyle(.plain)
     }
 
     // MARK: Day strip

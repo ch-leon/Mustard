@@ -257,16 +257,10 @@ public final class AgentService {
         }
     }
 
-    /// The next 9:00 local time strictly after `now` (inline scheduling default for
-    /// the .scheduled decision — there is no SchedulingDefaults type).
+    /// The next 9:00 local time strictly after `now` (scheduling default for the
+    /// .scheduled decision). Delegates to the shared, tested `SnoozeTargets`.
     private func nextNineAM(after now: Date = .now) -> Date {
-        let cal = Calendar.current
-        if let todayNine = cal.date(bySettingHour: 9, minute: 0, second: 0, of: now),
-           todayNine > now {
-            return todayNine
-        }
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: now) ?? now
-        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? now
+        SnoozeTargets.nextNineAM(after: now)
     }
 
     /// Promote a recommendation onto the board: reuse an existing delegated task
