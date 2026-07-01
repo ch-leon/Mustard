@@ -2,6 +2,12 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · Docs: mark Agent worker Phase 3 spec Implemented (PR #70)
+- **Risk:** low (docs-only, 1 line) · **Deep-review:** n/a · **Checks:** CI (self-hosted) green 47s
+- **What landed:** base Phase 3 spec status Draft→Implemented (the worker is the live-tested local-only vault skill `drain-agent-queue`, enhanced per the skill-aware design); notes the deferred items (scheduled routine; KBs beyond DL). Corrects a stale doc that had wrongly read as open backlog.
+- **Revert:** `git revert 8109be4d83d4a7bbd663d30646edcbf5b47ae822`
+
+
 ## 2026-07-01 — MERGED · Cleanup: triage/week polish + hand-off gate (PR #69)
 - **Risk:** medium (shared MustardKit Logic + desktop Views + mobile Views; one behaviour change: BAK-95 gate) · **Deep-review:** n/a
 - **Checks:** swift test 433 pass/1 skip (+7: 2 WeekPlanner subtask, 5 SnoozeTargets) · swift build clean · build-ios.sh BUILD SUCCEEDED · CI (self-hosted) green 44s
