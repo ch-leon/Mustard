@@ -115,13 +115,13 @@ public struct RootView: View {
         // The notch is a separate panel with its own explicit dark colors — unaffected.
         .preferredColorScheme(.light)
         .sheet(item: $selectedTaskFromNotch) { TaskDetailSheet(task: $0) }
-        .onChange(of: notchNav.pendingTask) { _, task in
+        .onChange(of: notchNav.pendingTask, initial: true) { _, task in
             guard let task else { return }
             NSApp.activate(ignoringOtherApps: true)
             selectedTaskFromNotch = task
             notchNav.pendingTask = nil
         }
-        .onChange(of: notchNav.openAgentConsole) { _, shouldOpen in
+        .onChange(of: notchNav.openAgentConsole, initial: true) { _, shouldOpen in
             guard shouldOpen else { return }
             NSApp.activate(ignoringOtherApps: true)
             screen = .agent
