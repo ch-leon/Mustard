@@ -1,0 +1,5 @@
+{"event":"run_start","issue":"BAK-110","branch":"leon/bak-110-ios-shell"}
+{"event":"risk_classify","class":"medium","reason":"new iOS UI; macOS/SPM untouched"}
+{"event":"implement","note":"TabView shell (Today/Week/Board/Agent) + agent badge + FAB + shared MobileFilters; app wires container+AgentService"}
+{"event":"checks","check":"ios build","result":"BUILD SUCCEEDED"}
+{"event":"checks","check":"macOS swift test","result":"pass","summary":"419 pass"}
