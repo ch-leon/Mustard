@@ -18,7 +18,7 @@
 - Modify: `Sources/MustardKit/Logic/DayPlanner.swift`
 - Test: `Tests/MustardTests/DayPlannerTests.swift`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `Tests/MustardTests/DayPlannerTests.swift` (inside the existing `DayPlannerTests` class, using its existing `cal`/`at(_:)` helpers):
 
@@ -96,12 +96,12 @@ Append to `Tests/MustardTests/DayPlannerTests.swift` (inside the existing `DayPl
     }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `swift test --filter DayPlannerTests`
 Expected: FAIL — `agenda` is not a member of `DayPlanner`, and `AgendaItem` is undefined.
 
-- [ ] **Step 3: Implement `AgendaItem` and `DayPlanner.agenda`**
+- [x] **Step 3: Implement `AgendaItem` and `DayPlanner.agenda`**
 
 In `Sources/MustardKit/Logic/DayPlanner.swift`, add the `AgendaItem` type above `DayPlanner` and the `agenda` function inside the `DayPlanner` enum:
 
@@ -171,12 +171,12 @@ Then, inside `public enum DayPlanner { ... }`, add (after `dayProgress`):
     }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `swift test --filter DayPlannerTests`
 Expected: PASS (all `DayPlannerTests`, including the 4 new ones).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Sources/MustardKit/Logic/DayPlanner.swift Tests/MustardTests/DayPlannerTests.swift
@@ -193,7 +193,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Create: `Sources/MustardKit/Logic/NotchScreenPicker.swift`
 - Test: `Tests/MustardTests/NotchScreenPickerTests.swift`
 
-- [ ] **Step 1: Write the failing test file**
+- [x] **Step 1: Write the failing test file**
 
 Create `Tests/MustardTests/NotchScreenPickerTests.swift`:
 
@@ -231,12 +231,12 @@ final class NotchScreenPickerTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `swift test --filter NotchScreenPickerTests`
 Expected: FAIL — `NotchScreenDescriptor`/`NotchScreenPicker` do not exist.
 
-- [ ] **Step 3: Implement the picker**
+- [x] **Step 3: Implement the picker**
 
 Create `Sources/MustardKit/Logic/NotchScreenPicker.swift`:
 
@@ -277,12 +277,12 @@ public enum NotchScreenPicker {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `swift test --filter NotchScreenPickerTests`
 Expected: PASS (all 5 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Sources/MustardKit/Logic/NotchScreenPicker.swift Tests/MustardTests/NotchScreenPickerTests.swift
@@ -298,7 +298,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `Sources/MustardKit/Views/NotchSurface.swift:22-24`
 
-- [ ] **Step 1: Replace the `screen` computed property**
+- [x] **Step 1: Replace the `screen` computed property**
 
 In `Sources/MustardKit/Views/NotchSurface.swift`, replace:
 
@@ -326,17 +326,17 @@ with:
     }
 ```
 
-- [ ] **Step 2: Build to verify it compiles**
+- [x] **Step 2: Build to verify it compiles**
 
 Run: `swift build`
 Expected: build succeeds with no errors.
 
-- [ ] **Step 3: Run the full test suite to confirm no regressions**
+- [x] **Step 3: Run the full test suite to confirm no regressions**
 
 Run: `swift test`
 Expected: all existing tests still PASS (this change has no dedicated test — `NSScreen` isn't mockable — but the picker it delegates to is already covered by Task 2).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Sources/MustardKit/Views/NotchSurface.swift
@@ -352,7 +352,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 **Files:**
 - Create: `Sources/MustardKit/Views/NotchNavigation.swift`
 
-- [ ] **Step 1: Create the bridge**
+- [x] **Step 1: Create the bridge**
 
 Create `Sources/MustardKit/Views/NotchNavigation.swift`:
 
@@ -379,12 +379,12 @@ This is plumbing (a shared state holder), not decision logic, so it has no
 dedicated unit test — it's exercised end-to-end by the manual verification
 in Task 6.
 
-- [ ] **Step 2: Build to verify it compiles**
+- [x] **Step 2: Build to verify it compiles**
 
 Run: `swift build`
 Expected: build succeeds with no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Sources/MustardKit/Views/NotchNavigation.swift
@@ -400,7 +400,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `Sources/MustardKit/Views/NotchSurface.swift`
 
-- [ ] **Step 1: Grow the expanded panel size**
+- [x] **Step 1: Grow the expanded panel size**
 
 Replace:
 
@@ -414,7 +414,7 @@ with:
     private let expandedSize = NSSize(width: 420, height: 460)
 ```
 
-- [ ] **Step 2: Update the file header comment**
+- [x] **Step 2: Update the file header comment**
 
 Replace the file's top doc comment:
 
@@ -436,7 +436,7 @@ with:
 /// the rest of the app.
 ```
 
-- [ ] **Step 3: Add the `NotchNavigation` environment and drop the now-unused meetings computed property**
+- [x] **Step 3: Add the `NotchNavigation` environment and drop the now-unused meetings computed property**
 
 In `NotchView`, add the environment property alongside the existing ones:
 
@@ -456,7 +456,7 @@ merged agenda):
 
 Keep `nextMeeting` / `nextMeetingLabel` — the idle strip still uses them.
 
-- [ ] **Step 4: Add the agenda/progress/triage computed properties and the toggle/open helpers**
+- [x] **Step 4: Add the agenda/progress/triage computed properties and the toggle/open helpers**
 
 Add these alongside the existing `pending`/`needsReviewCount` computed
 properties in `NotchView`:
@@ -501,7 +501,7 @@ properties in `NotchView`:
     }
 ```
 
-- [ ] **Step 5: Replace `expandedContent` and add the new subviews**
+- [x] **Step 5: Replace `expandedContent` and add the new subviews**
 
 Replace the entire existing `expandedContent` computed property (from
 `private var expandedContent: some View {` through its closing `}`) with:
@@ -628,7 +628,7 @@ Replace the entire existing `expandedContent` computed property (from
     }
 ```
 
-- [ ] **Step 6: Add the `AgendaRow` subview**
+- [x] **Step 6: Add the `AgendaRow` subview**
 
 Add this new type at the bottom of `NotchSurface.swift`, after the closing
 brace of `NotchView`:
@@ -699,18 +699,18 @@ private struct AgendaRow: View {
 }
 ```
 
-- [ ] **Step 7: Build to verify it compiles**
+- [x] **Step 7: Build to verify it compiles**
 
 Run: `swift build`
 Expected: build succeeds with no errors.
 
-- [ ] **Step 8: Run the full test suite**
+- [x] **Step 8: Run the full test suite**
 
 Run: `swift test`
 Expected: all tests PASS (no logic changed here beyond wiring — this task
 is view-only, verified by build + eyes per project convention).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add Sources/MustardKit/Views/NotchSurface.swift
@@ -727,7 +727,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 - Modify: `Sources/Mustard/MustardApp.swift`
 - Modify: `Sources/MustardKit/Views/RootView.swift`
 
-- [ ] **Step 1: Add `NotchNavigation` state to `MustardApp`**
+- [x] **Step 1: Add `NotchNavigation` state to `MustardApp`**
 
 In `Sources/Mustard/MustardApp.swift`, add a new `@State` alongside the
 existing ones:
@@ -740,7 +740,7 @@ existing ones:
     @State private var notchNav = NotchNavigation()
 ```
 
-- [ ] **Step 2: Inject it into `RootView` and the notch content**
+- [x] **Step 2: Inject it into `RootView` and the notch content**
 
 Replace:
 
@@ -792,7 +792,7 @@ with:
                     }
 ```
 
-- [ ] **Step 3: React to `NotchNavigation` in `RootView`**
+- [x] **Step 3: React to `NotchNavigation` in `RootView`**
 
 In `Sources/MustardKit/Views/RootView.swift`, add the `AppKit` import at
 the top:
@@ -835,17 +835,17 @@ existing `.preferredColorScheme(.light)`):
         }
 ```
 
-- [ ] **Step 4: Build to verify it compiles**
+- [x] **Step 4: Build to verify it compiles**
 
 Run: `swift build`
 Expected: build succeeds with no errors.
 
-- [ ] **Step 5: Run the full test suite**
+- [x] **Step 5: Run the full test suite**
 
 Run: `swift test`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Manual verification (build + eyes — required by project convention)**
+- [x] **Step 6: Manual verification (build + eyes — required by project convention)**
 
 ```bash
 ./build-app.sh
@@ -864,7 +864,7 @@ Confirm, and report back to Leon:
   physical notch. With an external monitor connected, the notch appears on
   the external monitor instead.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Sources/Mustard/MustardApp.swift Sources/MustardKit/Views/RootView.swift
@@ -880,7 +880,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `docs/plans/2026-06-13-mustard-notch.md`
 
-- [ ] **Step 1: Append a superseding note**
+- [x] **Step 1: Append a superseding note**
 
 Add this line to the end of `docs/plans/2026-06-13-mustard-notch.md`:
 
@@ -894,7 +894,7 @@ selection also changed to prefer an external monitor over the built-in
 notch display when one is connected.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/plans/2026-06-13-mustard-notch.md
