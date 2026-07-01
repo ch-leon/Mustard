@@ -2,6 +2,15 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-01 — MERGED · BAK-114 iOS Board (stacked sections) + DEBUG seed (PR)
+- **Risk:** medium (iOS UI; macOS untouched) · **Deep-review:** n/a
+- **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS untouched
+- **Review:** round 1 CHANGES-REQUESTED (nested Button-in-Button double-fire + broken WIP) → fixed (card = .contentShape+.onTapGesture, gate Buttons children). Round 2 APPROVE. Seed reviewed APPROVE (DEBUG-gated, empty-store guard). **Eyeballed by Leon ("looks good").**
+- **Run:** `.agent-loop/runs/20260701-120900-bak-114-ios-board/`
+- **What landed:** MobileBoardView (stacked sections, owner+area chips shared w/ Week, waiting pill, mobile card + inline gate buttons) + MobileSampleData (DEBUG simulator seed across all stages so mobile is verifiable without a create form/CloudKit).
+- **Revert:** `git revert 9bf4fcee1688e12dffcd1bbbfdcfe0117f02074a`
+
+
 ## 2026-07-01 — MERGED · BAK-113 iOS Today + shared task sheet (PR)
 - **Risk:** medium (iOS UI; macOS untouched) · **Deep-review:** n/a
 - **Checks:** iOS build-ios.sh BUILD SUCCEEDED · macOS swift build clean (SPM untouched)
