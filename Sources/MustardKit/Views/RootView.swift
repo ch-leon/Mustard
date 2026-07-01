@@ -7,6 +7,7 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
     case week = "Week"
     case agent = "Agent"
     case lists = "Lists"
+    case settings = "Settings"
     public var id: String { rawValue }
 
     /// Screens shown as top-level sidebar buttons. `.lists` is intentionally
@@ -20,6 +21,7 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
         case .week: "calendar"
         case .agent: "sparkles"
         case .lists: "tray.full"
+        case .settings: "gearshape"
         }
     }
 }
@@ -69,10 +71,11 @@ public struct RootView: View {
                     case .week: WeekView()
                     case .agent: AgentConsoleView()
                     case .lists: ListContentView(scope: selectedScope ?? .unfiled)
+                    case .settings: SettingsView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if screen != .agent { copilotDock }
+                if screen != .agent && screen != .settings { copilotDock }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -175,6 +178,21 @@ public struct RootView: View {
             AreaSidebarSection(screen: $screen, selectedScope: $selectedScope)
 
             Spacer()
+
+            // Settings pinned at the bottom (BAK-133).
+            Button { screen = .settings } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: MustardScreen.settings.systemImage)
+                        .font(.system(size: 13)).frame(width: 16)
+                    Text("Settings").font(Theme.Fonts.body)
+                    Spacer()
+                }
+                .foregroundStyle(screen == .settings ? Theme.Palette.textPrimary : Theme.Palette.textSecondary)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(screen == .settings ? Theme.Palette.surface : .clear, in: RoundedRectangle(cornerRadius: 7))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(14)
         .frame(width: 168, alignment: .leading)

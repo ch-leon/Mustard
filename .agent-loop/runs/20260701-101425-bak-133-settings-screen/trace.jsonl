@@ -1,0 +1,4 @@
+{"event":"run_start","issue":"BAK-133","branch":"leon/bak-133-settings-screen"}
+{"event":"decision","note":"additive standalone Settings (trust in both console+settings per CLAUDE.md); no IA thrash"}
+{"event":"implement","note":"SettingsView + MustardScreen.settings + sidebar gear + screen switch + dock hide on settings"}
+{"event":"checks","check":"swift test","result":"pass","summary":"419 pass"}
