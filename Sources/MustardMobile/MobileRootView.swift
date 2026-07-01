@@ -30,7 +30,7 @@ struct MobileRootView: View {
                 .tag(MobileTab.today)
                 .tabItem { Label("Today", systemImage: "sun.max") }
 
-            MobileScreenStub(title: "Week", note: "Day-strip + capacity — BAK-116", filters: filters)
+            MobileWeekView(filters: filters)
                 .tag(MobileTab.week)
                 .tabItem { Label("Week", systemImage: "calendar") }
 
