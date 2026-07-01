@@ -38,7 +38,7 @@ struct MobileRootView: View {
                 .tag(MobileTab.board)
                 .tabItem { Label("Board", systemImage: "rectangle.split.3x1") }
 
-            MobileScreenStub(title: "Triage", note: "Swipe deck — BAK-119")
+            MobileTriageView()
                 .tag(MobileTab.agent)
                 .tabItem { Label("Agent", systemImage: "sparkles") }
                 .badge(triageCount)
@@ -84,36 +84,5 @@ struct MobileRootView: View {
             .background(Color(hex: "#2B2A26"), in: Capsule())
             .padding(.top, 12)
             .transition(.move(edge: .top).combined(with: .opacity))
-    }
-}
-
-/// Placeholder tab content until the real screens land. Board/Week take the shared
-/// filters so the wiring is exercised now.
-private struct MobileScreenStub: View {
-    let title: String
-    let note: String
-    var filters: MobileFilters?
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 36)).foregroundStyle(Color(hex: "#7F77DD"))
-            Text(title).font(.largeTitle.bold())
-            Text(note).font(.footnote).foregroundStyle(.secondary)
-            if let filters {
-                Text("Filters — owner: \(filters.owner.label) · area: \(areaLabel(filters.area))")
-                    .font(.caption).foregroundStyle(.tertiary)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func areaLabel(_ a: BoardArea) -> String {
-        switch a {
-        case .all: "All"
-        case .area(let n): n
-        case .personal: "Personal"
-        }
     }
 }
