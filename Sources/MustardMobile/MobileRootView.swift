@@ -34,7 +34,7 @@ struct MobileRootView: View {
                 .tag(MobileTab.week)
                 .tabItem { Label("Week", systemImage: "calendar") }
 
-            MobileScreenStub(title: "Board", note: "Stacked sections + gate actions — BAK-114", filters: filters)
+            MobileBoardView(filters: filters)
                 .tag(MobileTab.board)
                 .tabItem { Label("Board", systemImage: "rectangle.split.3x1") }
 

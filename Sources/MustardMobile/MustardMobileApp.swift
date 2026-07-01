@@ -14,6 +14,9 @@ struct MustardMobileApp: App {
         let container = MustardContainer.make()
         self.container = container
         self._agent = State(initialValue: AgentService(context: container.mainContext))
+        #if DEBUG
+        MobileSampleData.seedIfEmpty(container.mainContext)
+        #endif
     }
 
     var body: some Scene {
