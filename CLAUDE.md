@@ -133,6 +133,47 @@ decides auto-run; email/Slack/ticket actions are **always gated** regardless
 (`TrustPolicy`, `RecommendationAction.isGated`). Tunable knobs:
 `TrustPolicy.autoConfidenceThreshold` and `RecommendationAction.isGated`.
 
+## Board hand-off & the execution worker (READ THIS before debugging "stuck" agent cards)
+
+There are **two** ways work reaches the agent, and they run differently:
+
+1. **In-vault notes** — recommendations/tasks the headless agent can do itself (it can
+   reach the vault). These run via `claude -p` inside Mustard, as above.
+2. **Board hand-off** — you move a card into **For Agent** (prep) or approve one into
+   **Queued** (execute). These need connectors (Shortcut/Gmail/Slack/Chrome) that headless
+   `claude -p` **cannot** reach (ADR-0003), so execution is **decoupled** (ADR-0010) through
+   a file bridge — Mustard and the worker never call each other.
+
+**The bridge (`docs/agent-bridge-contract.md`).** Mustard **exports** each hand-off card to
+`<KB>/_agent/outbox/<uid>.json` (routed by area — see below), a separate worker **consumes**
+it and writes `<KB>/_agent/results/<uid>.json`, and Mustard **ingests** the result and
+advances the card. Export/ingest run on the app's ~10-min loop (`MustardApp.swift` →
+`AgentService.exportWorkOrders` / `ingestAgentResults`).
+
+**The worker is a skill: `drain-agent-queue`.** It is **not in this repo** — it lives in the
+sibling **`Codeheroes work`** vault repo at
+`Codeheroes work/.claude/skills/drain-agent-queue/SKILL.md` (local-only, **never pushed** —
+that repo has tracked secrets). It **must run in a connected Claude session** (has the
+connectors) and is **on-demand**: you trigger it ("drain the agent queue" / "run the agent
+worker"); a scheduled routine wrapping it is deferred. It reads each outbox order, does the
+work (routing to a matching vault skill, e.g. `dl-create-shortcut-story`, or best-effort),
+produces **drafts/reversible artifacts only**, writes the result, and archives the order.
+
+Full lifecycle of one card:
+`For Agent` → export (prep) → **drain-agent-queue** preps → `Needs Approval` → you approve →
+`Queued` → export (execute) → **drain-agent-queue** executes → `Needs Review` → you accept → `Done`.
+
+**Debugging "Waiting for agent to pick up" that never advances** — two causes:
+- **The worker hasn't been run.** Nothing consumes `_agent/outbox/` on its own. Check for a
+  live `outbox/<uid>.json` with no matching `results/` file → run `drain-agent-queue` in a
+  connected session. (A card that never appears in the outbox at all is the next cause.)
+- **The card has no client area.** Export filters strictly by area
+  (`AgentService.exportWorkOrders` → `BridgeExport`; the `PersonalBoard.canHandOffToAgent`
+  gate, BAK-90). An area-less card is **silently never exported** and strands forever. Every
+  path that can put a card in an agent lane must go through the area gate — see
+  `PersonalBoard.isAgentLane` / `newTaskPlacement` (the single source of truth) and its
+  tests. Give the card a client-area list to unstick it.
+
 ## Git / PR conventions
 
 - Work on a branch; never commit straight to `main` for feature work.
