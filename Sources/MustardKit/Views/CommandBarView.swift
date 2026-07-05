@@ -84,6 +84,8 @@ struct CommandBarView: View {
                 task.stage = .planned
             }
             context.insert(task)
+        case .planDay:
+            break  // wired in Task 6 (opens the morning ritual sheet)
         case .goToday:
             screen = .today
         case .goBoard:

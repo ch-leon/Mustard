@@ -2,6 +2,7 @@ import Foundation
 
 public enum CommandKind: Equatable {
     case addTask(String)
+    case planDay
     case goToday
     case goBoard
     case goWeek
@@ -21,6 +22,7 @@ public struct CommandItem: Identifiable, Equatable {
 /// Pure query → actions mapping for the ⌘K bar.
 public enum CommandBarEngine {
     private static let commands: [CommandItem] = [
+        CommandItem(id: "plan", title: "Plan my day", icon: "sunrise", kind: .planDay),
         CommandItem(id: "today", title: "Go to Today", icon: "sun.max", kind: .goToday),
         CommandItem(id: "board", title: "Go to Board", icon: "rectangle.split.3x1", kind: .goBoard),
         CommandItem(id: "week", title: "Go to Week", icon: "calendar", kind: .goWeek),
