@@ -23,6 +23,10 @@ public struct NotesView: View {
     @State private var expanded: Set<String> = []
     @State private var creating: CreateTarget?
     @State private var newNoteTitle = ""
+    /// An unresolved wikilink target the user tapped — drives the create-from-link
+    /// offer (Task 9). Non-nil presents the alert; the target is created in the
+    /// currently-open note's project.
+    @State private var pendingWikilinkTarget: String?
 
     public init() {}
 
@@ -217,19 +221,25 @@ public struct NotesView: View {
     }
 
     private func create(in target: CreateTarget) {
-        let io = FileVaultIO(rootPath: target.config.workingDirectory)
-        let rel = NoteCreation.relativePath(title: newNoteTitle, existing: io.notePaths())
+        createNote(title: newNoteTitle, project: target.config.project,
+                   workingDirectory: target.config.workingDirectory)
+        newNoteTitle = ""
+        creating = nil
+    }
+
+    /// Shared write→reindex→select primitive for both the "+" sheet (BAK-153) and
+    /// create-from-unresolved-link (BAK-152). Writes `notes/<title>.md`, reindexes,
+    /// then selects it — setting `selected` flushes any open note's save-on-switch
+    /// (desired) and opens the new one.
+    private func createNote(title: String, project: String, workingDirectory: String) {
+        let io = FileVaultIO(rootPath: workingDirectory)
+        let rel = NoteCreation.relativePath(title: title, existing: io.notePaths())
         // write() creates the notes/ folder if absent (FileVaultIO, Task 1). If the
         // write throws (try?), the reindex simply finds nothing new and selection of
         // a missing file shows the editor's calm missing state — acceptable per style.
-        try? io.write(rel, NoteCreation.stub(title: newNoteTitle))
-        noteIndex.reindex(project: target.config.project, workingDirectory: target.config.workingDirectory)
-        // Setting `selected` flushes NoteEditorView's save-on-switch for any open
-        // note (desired) and opens the new one.
-        selected = NoteRef(project: target.config.project,
-                           workingDirectory: target.config.workingDirectory, relativePath: rel)
-        newNoteTitle = ""
-        creating = nil
+        try? io.write(rel, NoteCreation.stub(title: title))
+        noteIndex.reindex(project: project, workingDirectory: workingDirectory)
+        selected = NoteRef(project: project, workingDirectory: workingDirectory, relativePath: rel)
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -250,16 +260,58 @@ public struct NotesView: View {
     @ViewBuilder
     private var detail: some View {
         if let selected {
-            NoteEditorView(
-                ref: selected,
-                entries: entries.filter { $0.project == selected.project },
-                onNavigate: { self.selected = $0 }
-            )
+            editor(for: selected)
         } else {
             Text("Select a note")
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Builds the editor for the open note with a real wikilink resolver + tap
+    /// handler (Task 9). The candidate-map build is hoisted ONCE here (per body
+    /// evaluation) into `resolve`, mirroring BacklinksPanel — the per-tap `.map`
+    /// on the tap path only runs on the rare click, so it stays cheap.
+    private func editor(for selected: NoteRef) -> some View {
+        let projectEntries = entries.filter { $0.project == selected.project }
+        let resolve = WikilinkIndex.resolver(paths: projectEntries.map(\.relativePath))
+        func ref(for path: String) -> NoteRef {
+            NoteRef(project: selected.project, workingDirectory: selected.workingDirectory,
+                    relativePath: path)
+        }
+        return NoteEditorView(
+            ref: selected,
+            entries: projectEntries,
+            onNavigate: { self.selected = $0 },
+            resolveWikilink: { target in resolve(target).map(ref(for:)) },
+            onWikilinkTap: { target in
+                // Setting `selected` flushes the editor's save-on-switch (onChange
+                // of ref) before the .task reloads the target — same chain as the
+                // sidebar and backlinks navigation.
+                if let hit = resolve(target) {
+                    self.selected = ref(for: hit)
+                } else {
+                    self.pendingWikilinkTarget = target
+                }
+            }
+        )
+        .alert(
+            "Create note “\(pendingWikilinkTarget ?? "")”?",
+            isPresented: Binding(
+                get: { pendingWikilinkTarget != nil },
+                set: { if !$0 { pendingWikilinkTarget = nil } }
+            ),
+            presenting: pendingWikilinkTarget
+        ) { target in
+            Button("Create") {
+                createNote(title: target, project: selected.project,
+                           workingDirectory: selected.workingDirectory)
+                pendingWikilinkTarget = nil
+            }
+            Button("Cancel", role: .cancel) { pendingWikilinkTarget = nil }
+        } message: { target in
+            Text("“\(target)” doesn't match any note in this project. Create it in notes/?")
         }
     }
 }

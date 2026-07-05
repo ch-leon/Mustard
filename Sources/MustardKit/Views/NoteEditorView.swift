@@ -5,13 +5,22 @@ import SwiftUI
 /// save to the vault. Syntax highlighting is out of scope (Phase C) — Source is a
 /// plain `TextEditor`.
 ///
-/// `onNavigate` is accepted now for Task 9 (wikilink navigation) but not yet called.
+/// `onNavigate` routes backlink-row taps back through NotesView selection (so the
+/// editor's save-on-switch fires). `resolveWikilink`/`onWikilinkTap` (Task 9) wire
+/// the preview's `[[wikilinks]]` — the former colours resolved vs dangling links,
+/// the latter navigates on tap (or offers create-from-unresolved in the host).
 struct NoteEditorView: View {
     let ref: NoteRef
     /// Same-project index entries, passed by NotesView — the backlinks panel reads
     /// these (which notes link here) rather than @Querying independently.
     let entries: [NoteIndexEntry]
     let onNavigate: (NoteRef) -> Void
+    /// Resolves a wikilink target to a same-project note (nil when it dangles) —
+    /// drives the preview's link colour. Built once per NotesView body evaluation.
+    let resolveWikilink: (String) -> NoteRef?
+    /// Handles a wikilink tap in the preview: navigate to the target, or offer to
+    /// create it when unresolved. NotesView owns the decision.
+    let onWikilinkTap: (String) -> Void
 
     @Environment(NoteIndexService.self) private var noteIndex
 
@@ -36,12 +45,10 @@ struct NoteEditorView: View {
                 } else {
                     MarkdownPreviewView(
                         content: Frontmatter.parse(text).body,
-                        resolve: { _ in nil },          // real resolver arrives in Task 9
-                        onWikilinkTap: { _ in }         // navigation arrives in Task 9
+                        resolve: { resolveWikilink($0) },
+                        onWikilinkTap: { onWikilinkTap($0) }
                     )
                 }
-                // Bottom section: the backlinks panel (Task 9 will wire preview
-                // wikilink taps; only these rows navigate today).
                 BacklinksPanel(current: ref, entries: entries, onNavigate: onNavigate)
             }
         }
