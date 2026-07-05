@@ -46,7 +46,10 @@ public enum NoteCreation {
         }
         while name.hasPrefix(".") { name.removeFirst() }
         if name.isEmpty { name = "Untitled" }   // dots-only title
-        return clampedToNameBudget(name)
+        let clamped = clampedToNameBudget(name)
+        // A single grapheme cluster bigger than the whole budget clamps to "" —
+        // which would yield hidden "notes/.md". Re-apply the fallback after clamping.
+        return clamped.isEmpty ? "Untitled" : clamped
     }
 
     /// Trims, folds internal newlines (multi-line paste) to single spaces, and
@@ -72,8 +75,8 @@ public enum NoteCreation {
             guard bytes <= maxNameBytes else { break }
             clamped.append(character)
         }
-        // Truncation can strand a trailing space — trim it; a >200-byte title
-        // can't trim down to empty (the budget always keeps real characters).
+        // Truncation can strand a trailing space — trim it. The caller re-applies
+        // the Untitled fallback: one over-budget grapheme cluster clamps to "".
         return clamped.trimmingCharacters(in: .whitespaces)
     }
 

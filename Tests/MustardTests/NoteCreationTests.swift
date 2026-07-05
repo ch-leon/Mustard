@@ -91,4 +91,11 @@ final class NoteCreationTests: XCTestCase {
         XCTAssertEqual(NoteCreation.relativePath(title: "Line one\nLine two", existing: []),
                        "notes/Line one Line two.md")
     }
+
+    func test_singleOverBudgetGraphemeCluster_fallsBackToUntitled() {
+        // One grapheme cluster larger than the whole 200-byte budget clamps to ""
+        // — without the post-clamp fallback that would create hidden "notes/.md".
+        let zalgo = "e" + String(repeating: "\u{0301}", count: 110)   // one Character, 221 UTF-8 bytes
+        XCTAssertEqual(NoteCreation.relativePath(title: zalgo, existing: []), "notes/Untitled.md")
+    }
 }
