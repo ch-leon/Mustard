@@ -41,6 +41,12 @@ final class NoteTreeTests: XCTestCase {
         let root = NoteTree.build([("Zeta/a.md", "A"), ("alpha/b.md", "B")])
         XCTAssertEqual(root.subfolders.map(\.name), ["alpha", "Zeta"])
     }
+    func test_isActiveQuery_trueOnlyWhenTrimmedNonEmpty() {
+        XCTAssertTrue(NoteTree.isActiveQuery("setup"))
+        XCTAssertTrue(NoteTree.isActiveQuery(" x "))
+        XCTAssertFalse(NoteTree.isActiveQuery(""))
+        XCTAssertFalse(NoteTree.isActiveQuery("  \n"))
+    }
     func test_filter_noMatch_prunesEverything() {
         let root = NoteTree.build(notes)
         let filtered = NoteTree.filter(root, query: "zzznomatch")

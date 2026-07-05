@@ -119,7 +119,7 @@ public struct NotesView: View {
     }
 
     private func folderRow(_ folder: NoteTreeFolder, source: SourceConfig, depth: Int) -> some View {
-        DisclosureGroup(isExpanded: expansionBinding(for: folder)) {
+        DisclosureGroup(isExpanded: expansionBinding(for: folder, in: source)) {
             folderContents(folder, source: source, depth: depth + 1)
         } label: {
             HStack(spacing: 8) {
@@ -164,12 +164,16 @@ public struct NotesView: View {
 
     /// While a filter query is active, folders are force-expanded (matches are only
     /// useful visible); with no filter they collapse to a calm resting state.
-    private func expansionBinding(for folder: NoteTreeFolder) -> Binding<Bool> {
-        let filtering = !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    /// Expansion state is keyed by project-qualified path — `folder.path` is
+    /// project-relative, so two projects both containing e.g. `guides/` must not
+    /// share one expansion bit.
+    private func expansionBinding(for folder: NoteTreeFolder, in source: SourceConfig) -> Binding<Bool> {
+        let key = "\(source.project)/\(folder.path)"
+        let filtering = NoteTree.isActiveQuery(filter)
         return Binding(
-            get: { filtering || expanded.contains(folder.id) },
+            get: { filtering || expanded.contains(key) },
             set: { newValue in
-                if newValue { expanded.insert(folder.id) } else { expanded.remove(folder.id) }
+                if newValue { expanded.insert(key) } else { expanded.remove(key) }
             }
         )
     }
@@ -211,9 +215,9 @@ public struct NotesView: View {
         }
     }
 
-    /// The indexed title for a ref, falling back to the filename stem.
+    /// The indexed title for a ref, falling back to the filename stem (no ".md").
     private func title(for ref: NoteRef) -> String {
         entries.first { $0.project == ref.project && $0.relativePath == ref.relativePath }?.title
-            ?? (ref.relativePath as NSString).lastPathComponent
+            ?? ((ref.relativePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 }

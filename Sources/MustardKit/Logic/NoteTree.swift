@@ -44,12 +44,18 @@ public enum NoteTree {
         return freeze(root)
     }
 
-    /// Depth-first filter. Trimmed-empty query returns the tree unchanged; otherwise
-    /// keeps leaves whose `title` OR `filename` case-insensitively contains the query,
-    /// and keeps folders that retain any descendant leaf.
+    /// Whether a query actually filters (non-empty after trimming). Single source of
+    /// truth for both `filter` and the view's "force-expand while filtering" rule.
+    public static func isActiveQuery(_ query: String) -> Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Depth-first filter. Inactive (trimmed-empty) query returns the tree unchanged;
+    /// otherwise keeps leaves whose `title` OR `filename` case-insensitively contains
+    /// the query, and keeps folders that retain any descendant leaf.
     public static func filter(_ root: NoteTreeFolder, query: String) -> NoteTreeFolder {
+        guard isActiveQuery(query) else { return root }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return root }
         return prune(root, query: trimmed) ?? NoteTreeFolder(path: root.path)
     }
 
