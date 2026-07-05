@@ -79,6 +79,15 @@ public struct WikilinkIndex: Equatable {
         resolve(target: target, using: ResolutionMaps(paths: paths))
     }
 
+    /// Same semantics as `resolve(target:in:)`, but the O(N log N) `ResolutionMaps`
+    /// build happens ONCE — callers resolving many targets against one candidate set
+    /// (e.g. every backlink row's snippet scan) hoist this instead of paying the
+    /// rebuild per call.
+    public static func resolver(paths: [String]) -> (String) -> String? {
+        let maps = ResolutionMaps(paths: paths)
+        return { resolve(target: $0, using: maps) }
+    }
+
     /// Both priority rules folded into O(1)-lookup dictionaries, built in one pass each.
     private struct ResolutionMaps {
         /// lowercased extension-stripped full path → path (first in doc order wins).
@@ -141,12 +150,8 @@ public struct WikilinkIndex: Equatable {
         ((relativePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    /// `!?\[\[([^\]\|#]+)(#[^\]\|]*)?(\|([^\]]+))?\]\]` — matches [[T]], [[T#H]],
-    /// [[T|alias]], ![[T]]. Fenced lines (``` toggling) are skipped.
-    private static let linkRegex = try! NSRegularExpression(
-        pattern: #"!?\[\[([^\]\|#]+)(#[^\]\|]*)?(\|([^\]]+))?\]\]"#
-    )
-
+    /// Wikilink grammar lives in `WikilinkSyntax` (one definition, three consumers);
+    /// this layer adds only the fence rule: fenced lines (``` toggling) are skipped.
     private static func extractLinks(_ body: String) -> [WikilinkOccurrence] {
         var occurrences: [WikilinkOccurrence] = []
         var inFence = false
@@ -158,15 +163,8 @@ public struct WikilinkIndex: Equatable {
             }
             if inFence { continue }
 
-            let ns = line as NSString
-            for match in linkRegex.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
-                let target = ns.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
-                guard !target.isEmpty else { continue }   // [[]] / [[ ]] are not links
-                let aliasRange = match.range(at: 4)
-                let alias = aliasRange.location == NSNotFound
-                    ? nil
-                    : ns.substring(with: aliasRange).trimmingCharacters(in: .whitespaces)
-                occurrences.append(WikilinkOccurrence(target: target, alias: alias, line: line))
+            for occ in WikilinkSyntax.occurrences(in: line) {
+                occurrences.append(WikilinkOccurrence(target: occ.target, alias: occ.alias, line: line))
             }
         }
         return occurrences

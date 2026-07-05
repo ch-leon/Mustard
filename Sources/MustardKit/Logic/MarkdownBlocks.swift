@@ -145,16 +145,11 @@ public enum MarkdownBlocks {
         return String(afterDigits.dropFirst(2))
     }
 
-    /// `!?\[\[([^\]\|#]+)(#[^\]\|]*)?(\|([^\]]+))?\]\]` — matches [[T]], [[T#H]],
-    /// [[T|alias]], ![[T]]. Behaviourally mirrors `WikilinkIndex`'s pattern
-    /// (duplicated by design — the two files stay decoupled).
-    private static let linkRegex = try! NSRegularExpression(
-        pattern: #"!?\[\[([^\]\|#]+)(#[^\]\|]*)?(\|([^\]]+))?\]\]"#
-    )
-
     /// Splits one line of text into text/wikilink runs. Empty input → `[]`.
-    /// Empty-after-trim targets (`[[ ]]`) are left as plain text; zero-length text
-    /// runs between adjacent links are dropped. Shared by heading/bullet/quote/paragraph.
+    /// Wikilink grammar lives in `WikilinkSyntax` (one definition, three consumers);
+    /// empty-after-trim targets (`[[ ]]`) never reach here — the scanner drops them,
+    /// so the raw match stays in the surrounding literal text. Zero-length text runs
+    /// between adjacent links are dropped. Shared by heading/bullet/quote/paragraph.
     public static func runs(_ line: String) -> [InlineRun] {
         guard !line.isEmpty else { return [] }
 
@@ -168,20 +163,10 @@ public enum MarkdownBlocks {
             result.append(.text(ns.substring(with: NSRange(location: cursor, length: end - cursor))))
         }
 
-        for match in linkRegex.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
-            let target = ns.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
-            // Empty-after-trim target isn't a real link: leave the raw match as text
-            // (fold it into the pending literal span by not advancing the cursor).
-            guard !target.isEmpty else { continue }
-
-            emitText(upTo: match.range.location)
-
-            let aliasRange = match.range(at: 4)
-            let alias = aliasRange.location == NSNotFound
-                ? nil
-                : ns.substring(with: aliasRange).trimmingCharacters(in: .whitespaces)
-            result.append(.wikilink(target: target, alias: alias))
-            cursor = match.range.location + match.range.length
+        for occ in WikilinkSyntax.occurrences(in: line) {
+            emitText(upTo: occ.range.location)
+            result.append(.wikilink(target: occ.target, alias: occ.alias))
+            cursor = occ.range.location + occ.range.length
         }
 
         emitText(upTo: ns.length)

@@ -21,8 +21,6 @@ struct BacklinksPanel: View {
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    /// The candidate universe for snippet re-resolution — every same-project path.
-    private var candidatePaths: [String] { entries.map(\.relativePath) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -47,10 +45,13 @@ struct BacklinksPanel: View {
                 .foregroundStyle(Theme.Palette.textTertiary)
                 .padding(.top, 8)
         } else {
+            // ONE resolver over the same-project candidate set, shared by every
+            // row — hoists the candidate-map build out of the per-row snippet scan.
+            let resolve = WikilinkIndex.resolver(paths: entries.map(\.relativePath))
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(linkers, id: \.relativePath) { linker in
-                        row(linker)
+                        row(linker, resolve: resolve)
                     }
                 }
                 .padding(.top, 8)
@@ -59,11 +60,11 @@ struct BacklinksPanel: View {
         }
     }
 
-    private func row(_ linker: NoteIndexEntry) -> some View {
+    private func row(_ linker: NoteIndexEntry, resolve: (String) -> String?) -> some View {
         let snippet = BacklinkSnippets.snippet(
             in: linker.contentSnapshot,
             targetPath: current.relativePath,
-            candidatePaths: candidatePaths
+            resolve: resolve
         )
         return Button {
             onNavigate(NoteRef(project: current.project,
