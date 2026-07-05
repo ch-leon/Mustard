@@ -37,7 +37,7 @@ This spec is **Phase A of 3**. Build order:
 ## Data model
 
 **`NoteIndexEntry`** (new `@Model`):
-- `projectId: SourceID` (matches `SourceConfig.id`, a `String`-backed enum)
+- `project: String` (the KB folder name — matches `SourceConfig.project` / `Recommendation.project`; *not* `SourceID`, which is the source-type enum shared by every vault project — see Technical review addendum #1)
 - `relativePath: String`
 - `title: String` (frontmatter `title:` override, else first `# Heading` line, else filename)
 - `tags: [String]` (parsed from frontmatter)
@@ -96,6 +96,47 @@ A quick pass over the apps Leon referenced, to ground the architecture rather th
 - **Hubble.md** (open source, Electron + Tiptap) — built explicitly as "a notepad for you and your agents": live-reloads as a coding agent edits the notes folder directly. Validates the reindex-on-file-change piece of this design. Uses YAML frontmatter for note properties. Also has an "agent builds custom HTML views over your notes folder" feature — interesting, but likely conflicts with Mustard's calm/curated design philosophy; considered and not adopted.
 - **Tolaria.md** — the strongest validation: "just files on your disk, no database, no proprietary format," YAML frontmatter, `[[wikilinks]]` with autocomplete, "rich relationships as first-class citizen" (worth mirroring in Phase B), a fully integrated Git client for version control/sync across devices, and built explicitly for CLI coding agents (Claude Code named specifically) to do tool-backed editing against the vault — the same shape as Mustard's `ClaudeRunner`/vault-cwd model. Git-as-sync is a genuinely interesting alternative to CloudKit for the vault specifically, but out of scope here — Mustard's persistence is CloudKit-shaped by design (ADR-0001) and a parallel Git-sync mechanism for just the vault would be a separate architectural track, not a Phase A/B/C item.
 - **note-link-janitor** (a tangential open-source tool, not one Leon listed) — writes a maintained "## Backlinks" section directly into each file, regenerated idempotently. That makes backlinks visible even outside Mustard, but means the app silently rewrites files on every reindex — which cuts against the review/trust philosophy the rest of Mustard is built on (`TrustPolicy`, gated writes). Considered and rejected for Phase A; recorded as a possible later opt-in.
+
+## Technical review addendum (2026-07-05, pre-implementation)
+
+A code-level review pass before implementation surfaced six deltas. None change the
+approved product shape; all are recorded here so the spec and the code agree.
+
+1. **`projectId: SourceID` → `project: String`.** `SourceID` is the source-*type*
+   enum (`.vault`, `.gmail`, `.jira`, `.shortcut`) — every KB project shares `.vault`,
+   so it cannot key a project. The project identity used everywhere else
+   (`SourceConfig.project`, `Recommendation.project`, `upsertState`) is the KB
+   folder-name string. `NoteIndexEntry` is keyed `(project, relativePath)`.
+2. **Reindex cadence decoupled from `SweepScheduler` intervals.** Sweep intervals
+   are hours and gate *claude* runs; a backlink index wants minutes and costs only
+   file I/O. The reindex runs inside the existing 60s app loop with its own pure
+   throttle (`NoteReindexScheduler`, default 300s per project), plus an immediate
+   reindex of the saved file's project on save, plus manual "Reindex notes" and
+   "Go to Notes" ⌘K commands.
+3. **Source-mode "light syntax cues" descoped to Phase C.** Live highlighting inside
+   SwiftUI's `TextEditor` on macOS 14 requires an `NSTextView` subsystem — that's the
+   Phase C rich-editor track. Phase A source mode is a plain monospaced editor;
+   rendering polish lives in Preview mode.
+4. **Preview renderer made concrete.** A pure, TDD'd `MarkdownBlocks` parser
+   (headings, bullets, code fences, quotes, paragraphs + wikilink tokenization);
+   non-wikilink inline runs render via `AttributedString(markdown:)` (bold/italic/
+   code for free). `AttributedString` alone was rejected: it drops block structure
+   and gives no tap targets for `[[wikilinks]]`.
+5. **Snapshot-before-save.** Every editor save first snapshots the prior on-disk
+   content via the existing `FileVaultIO.snapshot` mechanism (`hub/.snapshots/`) —
+   same no-silent-destruction net the meeting-sync writes already have. Also covers
+   the edited-in-Obsidian-while-open race (last write wins, but nothing is lost).
+6. **Deterministic link resolution.** "First match wins" is defined as: resolve over
+   candidate paths sorted by (fewest path components, then lexicographic). A target
+   containing `/` (e.g. `[[guides/Setup]]`) tries an exact relative-path match first.
+   `[[Note#Heading]]` strips the fragment; `![[embeds]]` count as links. Stable,
+   testable, and matches Obsidian's shortest-path intuition.
+
+Scanner note: the generalized enumerator lands as `notePaths()` + `modificationDate(_:)`
+on `FileVaultIO` behind a new `NoteVaultIO` protocol — `meetingNotePaths()` and
+`MeetingVaultIO` are untouched. Prune set for notes: the structural set
+(`node_modules`, `.git`, `.build`, `_artifacts`) plus `.obsidian`, `_recs`, `_agent`,
+`hub`, `.snapshots`; `_filed/` stays visible per the Ignore-rules section.
 
 ## Open questions / risks
 

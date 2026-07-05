@@ -6,6 +6,7 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
     case today = "Today"
     case board = "Board"
     case week = "Week"
+    case notes = "Notes"
     case agent = "Agent"
     case lists = "Lists"
     case settings = "Settings"
@@ -13,13 +14,14 @@ public enum MustardScreen: String, CaseIterable, Identifiable {
 
     /// Screens shown as top-level sidebar buttons. `.lists` is intentionally
     /// excluded — it's reached by selecting an area/list/unfiled row below.
-    static let primary: [MustardScreen] = [.today, .board, .week, .agent]
+    static let primary: [MustardScreen] = [.today, .board, .week, .notes, .agent]
 
     var systemImage: String {
         switch self {
         case .today: "sun.max"
         case .board: "rectangle.split.3x1"
         case .week: "calendar"
+        case .notes: "doc.text"
         case .agent: "sparkles"
         case .lists: "tray.full"
         case .settings: "gearshape"
@@ -72,6 +74,7 @@ public struct RootView: View {
                     case .today: TodayView(onPlan: { screen = .agent })
                     case .board: BoardView()
                     case .week: WeekView()
+                    case .notes: NotesView()
                     case .agent: AgentConsoleView()
                     case .lists: ListContentView(scope: selectedScope ?? .unfiled)
                     case .settings: SettingsView()
