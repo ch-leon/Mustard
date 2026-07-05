@@ -17,11 +17,21 @@ public struct NoteRef: Equatable, Hashable {
 /// filename/title filter, and a placeholder detail pane (the editor is Task 6).
 public struct NotesView: View {
     @Query private var entries: [NoteIndexEntry]
+    @Environment(NoteIndexService.self) private var noteIndex
     @State private var selected: NoteRef?
     @State private var filter = ""
     @State private var expanded: Set<String> = []
+    @State private var creating: CreateTarget?
+    @State private var newNoteTitle = ""
 
     public init() {}
+
+    /// The project the create sheet is currently targeting. `SourceConfig` isn't
+    /// Identifiable, so key `.sheet(item:)` by the project string.
+    private struct CreateTarget: Identifiable {
+        let config: SourceConfig
+        var id: String { config.project }
+    }
 
     /// Enabled sources with a real working directory — the projects we can browse.
     private var sources: [SourceConfig] {
@@ -37,6 +47,9 @@ public struct NotesView: View {
             Divider().overlay(Theme.Palette.hairline)
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .sheet(item: $creating) { target in
+            createNoteSheet(target)
         }
     }
 
@@ -91,12 +104,25 @@ public struct NotesView: View {
             .map { ($0.relativePath, $0.title) }
         let tree = NoteTree.filter(NoteTree.build(leaves), query: filter)
 
-        Text(source.project)
-            .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-            .foregroundStyle(Theme.Palette.textTertiary)
-            .padding(.horizontal, 6)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
+        HStack(spacing: 4) {
+            Text(source.project)
+                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Spacer(minLength: 0)
+            Button {
+                newNoteTitle = ""
+                creating = CreateTarget(config: source)
+            } label: {
+                Image(systemName: "plus")
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
+            .help("New note in \(source.project)")
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
 
         folderContents(tree, source: source, depth: 0)
     }
@@ -178,6 +204,34 @@ public struct NotesView: View {
         )
     }
 
+    // MARK: - New note ("+" — BAK-153)
+
+    /// A calm title prompt. An empty title is allowed — it falls back to "Untitled"
+    /// via `NoteCreation` (filename and stub heading agree), so Create is never
+    /// disabled.
+    @ViewBuilder
+    private func createNoteSheet(_ target: CreateTarget) -> some View {
+        NewNoteSheet(project: target.config.project, title: $newNoteTitle,
+                     onCancel: { creating = nil },
+                     onCreate: { create(in: target) })
+    }
+
+    private func create(in target: CreateTarget) {
+        let io = FileVaultIO(rootPath: target.config.workingDirectory)
+        let rel = NoteCreation.relativePath(title: newNoteTitle, existing: io.notePaths())
+        // write() creates the notes/ folder if absent (FileVaultIO, Task 1). If the
+        // write throws (try?), the reindex simply finds nothing new and selection of
+        // a missing file shows the editor's calm missing state — acceptable per style.
+        try? io.write(rel, NoteCreation.stub(title: newNoteTitle))
+        noteIndex.reindex(project: target.config.project, workingDirectory: target.config.workingDirectory)
+        // Setting `selected` flushes NoteEditorView's save-on-switch for any open
+        // note (desired) and opens the new one.
+        selected = NoteRef(project: target.config.project,
+                           workingDirectory: target.config.workingDirectory, relativePath: rel)
+        newNoteTitle = ""
+        creating = nil
+    }
+
     private func emptyState(_ message: String) -> some View {
         VStack {
             Spacer()
@@ -207,5 +261,47 @@ public struct NotesView: View {
                 .foregroundStyle(Theme.Palette.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+}
+
+/// The calm "New note" prompt (BAK-153). Kept a small dedicated view so `@FocusState`
+/// autofocuses the field on present; return submits, Escape/Cancel dismisses.
+private struct NewNoteSheet: View {
+    let project: String
+    @Binding var title: String
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("New note in \(project)")
+                .font(Theme.Fonts.title)
+                .foregroundStyle(Theme.Palette.textPrimary)
+            TextField("Note title", text: $title)
+                .textFieldStyle(.plain)
+                .font(Theme.Fonts.body)
+                .foregroundStyle(Theme.Palette.textPrimary)
+                .focused($focused)
+                .onSubmit(onCreate)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 7))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Theme.Palette.hairline, lineWidth: 0.5)
+                )
+            HStack(spacing: 10) {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Create", action: onCreate)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 340)
+        .background(Theme.Palette.surface)
+        .onAppear { focused = true }
     }
 }
