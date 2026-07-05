@@ -16,6 +16,13 @@ public final class MustardTask {
     public var estimateMinutes: Int = 30
     public var createdAt: Date = Date.now
     public var completedAt: Date?
+    /// Stamped by DayPlanner.carryForward when it moves this task onto a new day —
+    /// lets the morning ritual show exactly what rolled over (spec 2026-07-06),
+    /// without changing when/how carry-forward moves tasks. Optional → CloudKit-safe.
+    public var carriedForwardAt: Date?
+    /// startOfDay this task is starred as a focus intention for. "Starred today" =
+    /// focusOnDay is today, so stars expire naturally at midnight — no cleanup pass.
+    public var focusOnDay: Date?
     public var list: TaskList?
     public var priorityRaw: String = TaskPriority.normal.rawValue
     public var dueAt: Date?
