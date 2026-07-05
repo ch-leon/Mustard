@@ -65,6 +65,14 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       → task done + output appended to Notes; agent may decline; `DelegationPhase`
       status badge. Plan: `docs/plans/2026-06-22-you-agent-delegation.md`.
       *On `feat/you-agent-delegation` — pending merge + Leon's eye-check of the surfaces.*
+- [x] **F20 Notes Phase A (BAK-145)** — vault-backed markdown notes: whole-vault
+      scanner (`NoteVaultIO`), `WikilinkIndex` link graph, `NoteIndexEntry` SwiftData
+      mirror on a 5-min reindex, Notes tab (project sidebar, folder tree, filter),
+      raw+preview editor with snapshot-guarded save, backlinks panel, wikilink
+      navigation + create-from-unresolved, "+" note creation. Spec:
+      `docs/specs/2026-07-05-notes-vault-backlinks-design.md`; plan:
+      `docs/superpowers/plans/2026-07-05-notes-phase-a.md`. Phase B (attach to
+      tasks/areas, BAK-154) and Phase C (search/tags/rich editor, BAK-155) deferred.
 
 ## Next — needs Leon ⛔
 
