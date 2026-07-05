@@ -29,6 +29,21 @@ final class WikilinkIndexTests: XCTestCase {
         ])
         XCTAssertEqual(idx.notes.map(\.title), ["Custom", "From Heading", "c"])
     }
+    /// A note whose first heading is a sub-level (## …) must title from that
+    /// heading, matching NoteEditorView's header (which scans #{1,6}). Before this
+    /// unification the editor showed "Foo" but the sidebar showed the filename.
+    func test_title_usesAnyHeadingLevel_notJustH1() {
+        let idx = WikilinkIndex.build([
+            ("a.md", "## Foo\nbody"),
+            ("b.md", "###### Deep\nbody"),
+        ])
+        XCTAssertEqual(idx.notes.map(\.title), ["Foo", "Deep"])
+    }
+    /// Seven+ hashes or no trailing space is not a heading — falls back to filename.
+    func test_title_sevenHashesIsNotHeading_fallsBackToFilename() {
+        let idx = WikilinkIndex.build([("note.md", "####### too many\nbody")])
+        XCTAssertEqual(idx.notes.map(\.title), ["note"])
+    }
 
     // MARK: Extraction
     func test_links_plainAliasHeadingAndEmbed() {

@@ -8,7 +8,7 @@ import Foundation
 /// One parsed note: frontmatter stripped, links extracted (not yet resolved).
 public struct ParsedNote: Equatable {
     public let relativePath: String
-    public let title: String          // frontmatter title ?? first "# " heading ?? filename sans .md
+    public let title: String          // frontmatter title ?? first "#{1,6} " heading ?? filename sans .md
     public let tags: [String]
     public let body: String           // content minus frontmatter block
     public let links: [WikilinkOccurrence]
@@ -137,11 +137,18 @@ public struct WikilinkIndex: Equatable {
         )
     }
 
+    /// First heading of ANY level 1–6 (`#{1,6} `). Matches NoteEditorView's header
+    /// scan (the forgiving choice) so a note starting `## Foo` titles as "Foo" in
+    /// both the sidebar and the editor. Seven+ hashes or no trailing space is not a
+    /// heading. Empty-after-hashes lines are skipped.
     private static func firstHeading(_ body: String) -> String? {
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("# ") {
-                return String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-            }
+            let hashes = line.prefix { $0 == "#" }.count
+            guard hashes >= 1, hashes <= 6 else { continue }
+            let rest = line.dropFirst(hashes)
+            guard rest.hasPrefix(" ") else { continue }
+            let title = rest.trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { return title }
         }
         return nil
     }
