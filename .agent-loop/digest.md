@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-05 — MERGED · BAK-145 Notes Phase A — vault-backed markdown notes (PR #74)
+- **Risk:** medium (feature; Sources/ only — no high-risk paths) · **Fresh-context review:** PASS (4/4 axes)
+- **Checks:** swift test 535 pass/1 skip (was 447) · swift build clean · build-app.sh OK · CI (self-hosted) green
+- **Outward actions:** none · all writes stay inside project working dirs + local SwiftData
+- **Run:** `.agent-loop/runs/20260705-notes-phase-a/`
+- **What landed:** NoteVaultIO whole-vault scanner; WikilinkIndex link graph (+ shared WikilinkSyntax grammar); MarkdownBlocks preview parser; NoteIndexEntry mirror + NoteIndexService (300s throttle, on-save, ⌘K reindex); Notes tab (project sidebar/folder tree/filter); raw+preview editor with snapshot-guarded save; backlinks panel with snippets; wikilink navigate + create-from-unresolved; "+" note creation. Spec addendum + plan in docs/. BAK-146→153 closed.
+- **Process:** 9 Opus implementer subagents, TDD each, two-stage review per task (spec + quality) with 8 review-driven fix commits, whole-feature fresh-context review.
+- **Known limitations:** edits drop on tab-switch/app-quit (note→note protected); reindex rewrites unchanged rows (needs change-guard before CloudKit N2); reindex/save IO synchronous on main actor; duplicate-title first-match; CRLF frontmatter unparsed.
+- **Follow-ups:** autosave/onDisappear save in NoteEditorView; skip no-op reindexes via lastModified compare; extract save-flow decision into Logic/; unify title derivation (index H1-only vs editor H1–H6); Leon eye-check of all Notes surfaces.
+- **Revert:** `git revert a7e01c7d00708b9bb8bb583a07b94f59b3a206d4`
+
 ## 2026-07-01 — MERGED · Docs: mark Agent worker Phase 3 spec Implemented (PR #70)
 - **Risk:** low (docs-only, 1 line) · **Deep-review:** n/a · **Checks:** CI (self-hosted) green 47s
 - **What landed:** base Phase 3 spec status Draft→Implemented (the worker is the live-tested local-only vault skill `drain-agent-queue`, enhanced per the skill-aware design); notes the deferred items (scheduled routine; KBs beyond DL). Corrects a stale doc that had wrongly read as open backlog.
