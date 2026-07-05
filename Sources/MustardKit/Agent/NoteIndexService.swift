@@ -1,0 +1,61 @@
+import Foundation
+import SwiftData
+import Observation
+
+/// Rebuilds the per-project NoteIndexEntry mirror from the vault (BAK-148). Pure
+/// filesystem work — no claude, no cost — so it can run every few minutes plus
+/// immediately after an editor save. Wholesale rebuild per project (spec: vaults
+/// are hundreds of files; avoids stale-edge bugs from incremental patching).
+@MainActor
+@Observable
+public final class NoteIndexService {
+    public private(set) var isIndexing = false
+    public private(set) var lastIndexedAt: [String: Date] = [:]   // project → time (in-memory throttle)
+
+    private let context: ModelContext
+    private let makeIO: (String) -> NoteVaultIO
+
+    public init(context: ModelContext,
+                makeIO: @escaping (String) -> NoteVaultIO = { FileVaultIO(rootPath: $0) }) {
+        self.context = context
+        self.makeIO = makeIO
+    }
+
+    /// 60s-loop entry point: reindex every enabled project whose throttle has lapsed.
+    public func reindexDueProjects(_ settings: SourceSettings, now: Date = .now) {
+        for config in settings.sources where config.enabled && !config.workingDirectory.isEmpty {
+            guard NoteReindexScheduler.isDue(lastIndexedAt: lastIndexedAt[config.project], now: now) else { continue }
+            reindex(project: config.project, workingDirectory: config.workingDirectory, now: now)
+        }
+    }
+
+    /// Manual "Reindex notes now" (⌘K): every enabled project, throttle ignored.
+    public func reindexAll(_ settings: SourceSettings, now: Date = .now) {
+        for config in settings.sources where config.enabled && !config.workingDirectory.isEmpty {
+            reindex(project: config.project, workingDirectory: config.workingDirectory, now: now)
+        }
+    }
+
+    /// Wholesale rebuild of one project's entries. Also the on-save hook.
+    public func reindex(project: String, workingDirectory: String, now: Date = .now) {
+        isIndexing = true
+        defer { isIndexing = false }
+        let io = makeIO(workingDirectory)
+        let docs = io.notePaths().compactMap { path -> (relativePath: String, content: String)? in
+            io.read(path).map { (path, $0) }
+        }
+        let index = WikilinkIndex.build(docs)
+        let existing = (try? context.fetch(FetchDescriptor<NoteIndexEntry>())) ?? []
+        for entry in existing where entry.project == project { context.delete(entry) }
+        let contentByPath = Dictionary(docs.map { ($0.relativePath, $0.content) }, uniquingKeysWith: { a, _ in a })
+        for note in index.notes {
+            context.insert(NoteIndexEntry(
+                project: project, relativePath: note.relativePath, title: note.title,
+                tags: note.tags, lastModified: io.modificationDate(note.relativePath) ?? .distantPast,
+                forwardLinks: index.forwardLinks[note.relativePath] ?? [],
+                contentSnapshot: contentByPath[note.relativePath] ?? ""))
+        }
+        try? context.save()
+        lastIndexedAt[project] = now
+    }
+}

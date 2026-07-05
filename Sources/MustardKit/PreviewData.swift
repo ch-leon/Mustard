@@ -7,7 +7,7 @@ public enum PreviewData {
     public static let container: ModelContainer = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
-            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self, configurations: config
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self, NoteIndexEntry.self, configurations: config
         )
         let ctx = container.mainContext
         let cal = Calendar.current
@@ -59,6 +59,12 @@ public enum PreviewData {
             source: "gmail", sourceContext: "Thales SDK — kamil@thalesgroup.com"
         )
         ctx.insert(rec)
+
+        // Sample note index entries (BAK-148) for the Notes surface preview.
+        ctx.insert(NoteIndexEntry(project: "DL-Knowledge-Base", relativePath: "Home.md", title: "Home",
+                                  forwardLinks: ["guides/Setup.md"], contentSnapshot: "# Home\ngo [[Setup]]"))
+        ctx.insert(NoteIndexEntry(project: "DL-Knowledge-Base", relativePath: "guides/Setup.md", title: "Setup",
+                                  contentSnapshot: "# Setup"))
         return container
     }()
 }

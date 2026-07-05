@@ -6,6 +6,7 @@ import SwiftData
 struct CommandBarView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
+    @Environment(NoteIndexService.self) private var noteIndex
     @AppStorage("vaultPath") private var vaultPath = ""
     @Binding var isPresented: Bool
     @Binding var screen: MustardScreen
@@ -89,10 +90,14 @@ struct CommandBarView: View {
             screen = .board
         case .goWeek:
             screen = .week
+        case .goNotes:
+            screen = .notes
         case .goAgent:
             screen = .agent
         case .sweep:
             Task { await agent.sweep(vaultPath: vaultPath) }
+        case .reindexNotes:
+            noteIndex.reindexAll(SourceSettingsStore.loadOrMigrate())
         }
         isPresented = false
     }
