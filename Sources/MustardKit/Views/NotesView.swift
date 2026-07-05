@@ -196,7 +196,11 @@ public struct NotesView: View {
     @ViewBuilder
     private var detail: some View {
         if let selected {
-            NoteEditorView(ref: selected, onNavigate: { self.selected = $0 })
+            NoteEditorView(
+                ref: selected,
+                entries: entries.filter { $0.project == selected.project },
+                onNavigate: { self.selected = $0 }
+            )
         } else {
             Text("Select a note")
                 .font(Theme.Fonts.body)

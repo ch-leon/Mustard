@@ -8,6 +8,9 @@ import SwiftUI
 /// `onNavigate` is accepted now for Task 9 (wikilink navigation) but not yet called.
 struct NoteEditorView: View {
     let ref: NoteRef
+    /// Same-project index entries, passed by NotesView — the backlinks panel reads
+    /// these (which notes link here) rather than @Querying independently.
+    let entries: [NoteIndexEntry]
     let onNavigate: (NoteRef) -> Void
 
     @Environment(NoteIndexService.self) private var noteIndex
@@ -27,14 +30,19 @@ struct NoteEditorView: View {
             Divider().overlay(Theme.Palette.hairline)
             if loadFailed {
                 missingState
-            } else if mode == .source {
-                sourceEditor
             } else {
-                MarkdownPreviewView(
-                    content: Frontmatter.parse(text).body,
-                    resolve: { _ in nil },          // real resolver arrives in Task 9
-                    onWikilinkTap: { _ in }         // navigation arrives in Task 9
-                )
+                if mode == .source {
+                    sourceEditor
+                } else {
+                    MarkdownPreviewView(
+                        content: Frontmatter.parse(text).body,
+                        resolve: { _ in nil },          // real resolver arrives in Task 9
+                        onWikilinkTap: { _ in }         // navigation arrives in Task 9
+                    )
+                }
+                // Bottom section: the backlinks panel (Task 9 will wire preview
+                // wikilink taps; only these rows navigate today).
+                BacklinksPanel(current: ref, entries: entries, onNavigate: onNavigate)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
