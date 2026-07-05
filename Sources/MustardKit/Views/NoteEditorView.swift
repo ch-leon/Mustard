@@ -23,6 +23,7 @@ struct NoteEditorView: View {
     let onWikilinkTap: (String) -> Void
 
     @Environment(NoteIndexService.self) private var noteIndex
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var text = ""
     @State private var diskText = ""      // content at load — the dirty-check baseline
@@ -59,6 +60,19 @@ struct NoteEditorView: View {
         // that would otherwise be dropped when switching notes.
         .onChange(of: ref) { oldRef, _ in
             save(to: oldRef, content: text, ifDifferentFrom: diskText)
+        }
+        // Autosave when the editor leaves the hierarchy — switching away from the
+        // Notes tab or closing the detail pane tears the view down without firing
+        // onChange(of: ref), which would otherwise drop dirty edits silently.
+        .onDisappear {
+            save(to: ref, content: text, ifDifferentFrom: diskText)
+        }
+        // Best-effort flush on app quit / hide: onDisappear isn't guaranteed to run
+        // at termination. The dirty gate makes a redundant save a cheap no-op.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                save(to: ref, content: text, ifDifferentFrom: diskText)
+            }
         }
         .task(id: ref) {
             let io = FileVaultIO(rootPath: ref.workingDirectory)
@@ -169,18 +183,19 @@ struct NoteEditorView: View {
         save(to: ref, content: text, ifDifferentFrom: diskText)
     }
 
-    /// Snapshot-before-save (spec addendum #5), then write and reindex. Guarded by a
-    /// dirty check so switching between clean notes never rewrites disk.
+    /// Snapshot-before-save (spec addendum #5), then write and reindex. The dirty
+    /// gate + baseline-advance rule are decided by `NoteSaveFlow` (pure, unit-tested);
+    /// this method owns only the IO those decisions drive.
     private func save(to ref: NoteRef, content: String, ifDifferentFrom baseline: String) {
-        guard content != baseline else { return }
+        let plan = NoteSaveFlow.plan(content: content, baseline: baseline,
+                                     savedRef: ref, currentRef: self.ref)
+        guard plan.shouldWrite else { return }
         let io = FileVaultIO(rootPath: ref.workingDirectory)
         // Snapshot is belt-and-braces — a failed snapshot must not block the save.
         if let prior = io.read(ref.relativePath) { try? io.snapshot(ref.relativePath, prior) }
         // Failed write must stay dirty — the dot is the only honesty signal.
         do { try io.write(ref.relativePath, content) } catch { return }
-        // Only advance the in-view baseline when saving the note still on screen;
-        // a save-on-switch targets the OLD ref while state already holds the new one.
-        if ref == self.ref { diskText = content }
+        if plan.shouldAdvanceBaseline { diskText = content }
         noteIndex.reindex(project: ref.project, workingDirectory: ref.workingDirectory)
     }
 }
