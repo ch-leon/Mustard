@@ -74,7 +74,7 @@ public struct RootView: View {
                     case .today: TodayView(onPlan: { screen = .agent })
                     case .board: BoardView()
                     case .week: WeekView()
-                    case .notes: Text("Notes — coming in BAK-149").font(Theme.Fonts.body).foregroundStyle(Theme.Palette.textTertiary)
+                    case .notes: NotesView()
                     case .agent: AgentConsoleView()
                     case .lists: ListContentView(scope: selectedScope ?? .unfiled)
                     case .settings: SettingsView()
