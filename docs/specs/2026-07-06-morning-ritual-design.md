@@ -64,15 +64,19 @@ separate later slice.
   - `focusLimit = 3`; `toggleFocus`-style pure helpers validating the cap.
 - `Logic/RitualPrompt.swift` — `shouldOffer(lastPlannedDay: Date?, dismissedDay:
   Date?, now: Date, calendar:) -> Bool` (true when neither is `now`'s day). One rule,
-  consumed by the banner, the notch line, and the ⌘K command's visibility.
+  consumed by the banner and the notch line. (Amended at build time: the ⌘K "Plan my
+  day" command stays *always* available as a deliberate re-entry affordance — you can
+  re-plan after dismissing or finishing; only the ambient prompts are gated.)
 
 **Views (render + dispatch only):**
 
 - `Views/MorningRitualView.swift` — the sheet: step rail (1 Rollover · 2 Agent ·
   3 Pick · 4 Focus), progress bar, Back / Skip step / Continue, final "Start the day".
   Steps dispatch to existing engines: task `scheduledAt`/`focusOnDay` mutations and
-  `AgentService.decide`/`snooze`. No claude invocations anywhere — the whole ritual
-  is local and instant.
+  `AgentService.decide`/`snooze`. The ritual adds no claude invocations of its own —
+  all step content is local and instant. (Approving a `vaultNote` rec in step 2 runs
+  through the existing console-parity `decide` path, which may invoke claude exactly
+  as approving from the console would — decision 3 mandates that parity.)
 - `Views/TodayView.swift` — the entry banner (agent-nudge visual treatment) when
   `RitualPrompt.shouldOffer`; focus tasks pinned in a "FOCUS" group above the
   timeline with a star glyph; `DayPlanner.carryForward` call unchanged.

@@ -19,4 +19,13 @@ final class RitualPromptTests: XCTestCase {
     func test_plannedYesterday_offersAgain() {
         XCTAssertTrue(RitualPrompt.shouldOffer(lastPlannedDay: now.addingTimeInterval(-86_400), dismissedDay: now.addingTimeInterval(-86_400), now: now, calendar: cal))
     }
+    func test_midnightBoundary_plannedLateYesterday_offersJustAfterMidnight() {
+        // 1_751_760_000 is exactly midnight UTC; planning at 23:59 must not
+        // suppress the offer at 00:01 — both stamps reset on the day boundary.
+        let midnight = Date(timeIntervalSince1970: 1_751_760_000)
+        let lateYesterday = midnight.addingTimeInterval(-60)     // 23:59
+        let justAfter = midnight.addingTimeInterval(60)          // 00:01
+        XCTAssertTrue(RitualPrompt.shouldOffer(lastPlannedDay: lateYesterday, dismissedDay: lateYesterday, now: justAfter, calendar: cal))
+        XCTAssertFalse(RitualPrompt.shouldOffer(lastPlannedDay: lateYesterday, dismissedDay: nil, now: midnight.addingTimeInterval(-30), calendar: cal))
+    }
 }

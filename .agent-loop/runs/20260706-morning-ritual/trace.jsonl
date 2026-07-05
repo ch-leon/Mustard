@@ -1,0 +1,12 @@
+{"ts":"2026-07-06","event":"run_start","run":"20260706-morning-ritual","issue":"BAK-50","branch":"claude/morning-ritual","base":"ceca506"}
+{"ts":"2026-07-06","event":"brainstorm","result":"6 decisions with Leon (purpose, gentle-prompt entry, inline mini-triage, starred-task intentions, morning-only, wizard form)","spec":"docs/specs/2026-07-06-morning-ritual-design.md","commit":"91909e5"}
+{"ts":"2026-07-06","event":"plan_written","doc":"docs/superpowers/plans/2026-07-06-morning-ritual.md","tasks":7,"commit":"6616cb8"}
+{"ts":"2026-07-06","event":"task_done","task":"T1 stamps + visible carry-forward","commits":["47d8848"],"reviews":"two-stage APPROVE","tests":"557"}
+{"ts":"2026-07-06","event":"task_done","task":"T2+T3 RitualPrompt + RitualPlanner","commits":["7c7d4ef","e1f6140","b1084c7"],"reviews":"APPROVE after open-star-cap fix","tests":"574"}
+{"ts":"2026-07-06","event":"task_done","task":"T4 notch line + ⌘K","commits":["717e594"],"reviews":"APPROVE","tests":"573 (parallel with T2/T3 fix)"}
+{"ts":"2026-07-06","event":"task_done","task":"T5 MorningRitualView wizard","commits":["96cc9fd","e2b3067"],"reviews":"APPROVE after plannedToday-into-Logic fix","tests":"575"}
+{"ts":"2026-07-06","event":"task_done","task":"T6 entry points (banner/FOCUS/⌘K/notch)","commits":["6800cc9","1b2d51a"],"reviews":"APPROVE; channel-key constant folded in","tests":"575"}
+{"ts":"2026-07-06","event":"fresh_context_review","result":"PASS","axes":{"standards":"pass","spec":"pass (2 text deviations → spec amended)","risk":"pass (medium)","test":"pass"},"report":"review-report.md"}
+{"ts":"2026-07-06","event":"post_review_hardening","detail":"midnight-boundary RitualPrompt test added; spec text amended (⌘K ungated by design; vaultNote claude-parity clarified)","tests":"576"}
+{"ts":"2026-07-06","event":"checks","test":"swift test: 576 pass, 1 pre-existing skip","build":"swift build clean","app":"build-app.sh assembles"}
+{"ts":"2026-07-06","event":"risk_classified","class":"medium","high_paths_touched":false,"outward_actions":"none","report":"risk-report.md"}

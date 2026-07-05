@@ -58,14 +58,16 @@ Mustard/
                                    NotchTicker, SweepScheduler, CommandBarEngine, TrustPolicy,
                                    RecommendationAction, Theme (design tokens); Notes Phase A:
                                    WikilinkSyntax, WikilinkIndex, MarkdownBlocks, NoteTree,
-                                   NoteCreation, NoteReindexScheduler, BacklinkSnippets
+                                   NoteCreation, NoteReindexScheduler, BacklinkSnippets;
+                                   morning ritual: RitualPrompt, RitualPlanner
       Agent/                     ClaudeRunner (Process shell), VaultSweep (prompt+parser),
                                    AgentService (@Observable orchestrator), FileVaultIO
                                    (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex)
       Calendar/                  GoogleOAuth (PKCE/URL/token), GoogleCalendarParser
       Views/                     SwiftUI screens + surfaces (Root, Today, Board, Week,
                                    AgentConsole, Notch, Hover, CommandBar, TaskDetail, rows;
-                                   Notes, NoteEditor, MarkdownPreview, BacklinksPanel)
+                                   Notes, NoteEditor, MarkdownPreview, BacklinksPanel,
+                                   MorningRitual)
       MustardContainer.swift     builds the on-disk ModelContainer
       PreviewData.swift          in-memory sample container for #Preview
   Tests/MustardTests/            XCTest — one file per Logic/Agent/Calendar unit
