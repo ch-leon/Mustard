@@ -73,6 +73,14 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       `docs/specs/2026-07-05-notes-vault-backlinks-design.md`; plan:
       `docs/superpowers/plans/2026-07-05-notes-phase-a.md`. Phase B (attach to
       tasks/areas, BAK-154) and Phase C (search/tags/rich editor, BAK-155) deferred.
+- [x] **F21 Morning ritual (was I5 ⭐, BAK-50 morning half)** — four-step "Plan your
+      day" wizard: rollover review (carry-forward now stamps what it moved), inline
+      agent standup, pick-today with capacity line, 1–3 focus stars (`focusOnDay`,
+      auto-expiring) pinned atop Today + in the notch rotation. Gentle-prompt entry
+      (Today banner · notch line · ⌘K), all gated by one pure `RitualPrompt` rule.
+      Spec: `docs/specs/2026-07-06-morning-ritual-design.md`; plan:
+      `docs/superpowers/plans/2026-07-06-morning-ritual.md`. Evening shutdown
+      deliberately deferred (fast-follow once the morning habit sticks).
 
 ## Next — needs Leon ⛔
 
