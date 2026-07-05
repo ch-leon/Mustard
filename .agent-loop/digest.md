@@ -2,6 +2,16 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-06 — MERGED · Notes Phase A hygiene follow-ups + BAK-71 calendar polish (PR #76)
+- **Risk:** HIGH by path letter ("auth" substring via test-only GoogleAuthSessionTests stub dedup) · **Deep-review:** PASS (1 block → fix round → 3/3 clear)
+- **Checks:** swift test 556 pass/1 skip (was 535) · swift build clean · CI (self-hosted) green
+- **Outward actions:** none · zero production auth code touched (panel-verified)
+- **Run:** 
+- **What landed:** reindex change-guard (skip no-op rebuilds; force-path for ⌘K + parserVersion salt + stat-before-read after panel block), any-level note-title derivation, CRLF-tolerant parsing, Theme.Palette.error + SourceSettingsView migration, shared StubRedirectServer, CalendarWindow half-open doc (BAK-71 closed)
+- **Panel value note:** the correctness panelist caught that the change-guard would have made this PR's own parser fixes unreachable for existing indexed notes — the exact class of bug deep-review exists for
+- **Follow-ups:** migrate remaining #D85A30 in AgentConsoleView + MobileBoardView to Theme.error (platform parity); write parser version after first full pass (residual crash-window); test-suite UserDefaults teardown hygiene
+- **Revert:** 
+
 ## 2026-07-05 — MERGED · BAK-145 Notes Phase A — vault-backed markdown notes (PR #74)
 - **Risk:** medium (feature; Sources/ only — no high-risk paths) · **Fresh-context review:** PASS (4/4 axes)
 - **Checks:** swift test 535 pass/1 skip (was 447) · swift build clean · build-app.sh OK · CI (self-hosted) green
