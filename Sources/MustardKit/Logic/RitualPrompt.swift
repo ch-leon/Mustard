@@ -6,6 +6,9 @@ import Foundation
 public enum RitualPrompt {
     public static let lastPlannedKey = "ritualLastPlannedDay"
     public static let dismissedKey = "ritualDismissedDay"
+    /// Cross-view trigger: the command bar can't reach Today's local sheet state,
+    /// so ⌘K "Plan my day" raises this flag and TodayView consumes + resets it.
+    public static let openRequestedKey = "ritualOpenRequested"
 
     public static func shouldOffer(
         lastPlannedDay: Date?, dismissedDay: Date?, now: Date, calendar: Calendar = .current

@@ -19,7 +19,7 @@ public struct TodayView: View {
     // ⌘K → open-ritual channel. The command bar can't reach Today's local
     // `showRitual` state, so it flips this AppStorage flag (the app's existing
     // lightweight cross-view channel); we consume it in onAppear/onChange.
-    @AppStorage("ritualOpenRequested") private var ritualOpenRequested = false
+    @AppStorage(RitualPrompt.openRequestedKey) private var ritualOpenRequested = false
 
     public init(onPlan: @escaping () -> Void = {}) { self.onPlan = onPlan }
 
