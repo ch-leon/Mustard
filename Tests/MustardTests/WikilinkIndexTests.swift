@@ -19,6 +19,13 @@ final class WikilinkIndexTests: XCTestCase {
         let (title, _, body) = Frontmatter.parse("---\ntitle: x\nno end")
         XCTAssertNil(title); XCTAssertEqual(body, "---\ntitle: x\nno end")
     }
+    /// Files that transited Windows use \r\n; the `---` fence must still be detected
+    /// ("---\r" != "---" would have failed) and the body must not leak \r.
+    func test_frontmatter_crlf_parsesTitleTagsAndCleanBody() {
+        let (title, tags, body) = Frontmatter.parse("---\r\ntitle: My Note\r\ntags: [a, b]\r\n---\r\nBody\r\nmore")
+        XCTAssertEqual(title, "My Note"); XCTAssertEqual(tags, ["a", "b"])
+        XCTAssertEqual(body, "Body\nmore")
+    }
 
     // MARK: Title derivation
     func test_title_prefersFrontmatter_thenHeading_thenFilename() {

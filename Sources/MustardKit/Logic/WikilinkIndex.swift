@@ -205,7 +205,12 @@ public struct WikilinkIndex: Equatable {
 /// No general YAML parser (YAGNI); other keys are reserved for Phase B (e.g. `task_id`).
 public enum Frontmatter {
     /// Detects a leading "---\n...\n---" block. Returns nil title/empty tags when absent.
-    public static func parse(_ content: String) -> (title: String?, tags: [String], body: String) {
+    public static func parse(_ rawContent: String) -> (title: String?, tags: [String], body: String) {
+        // Normalize Windows line endings ONCE at entry (BAK-71 hygiene): otherwise a
+        // `---\r` fence line never equals "---" and frontmatter silently fails to
+        // parse. Downstream consumers (WikilinkIndex.build, BacklinkSnippets) take the
+        // body from here, so normalizing here covers their line handling too.
+        let content = rawContent.replacingOccurrences(of: "\r\n", with: "\n")
         let lines = content.components(separatedBy: "\n")
         guard lines.first == "---" else { return (nil, [], content) }
 

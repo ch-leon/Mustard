@@ -8,6 +8,15 @@ final class MarkdownBlocksTests: XCTestCase {
             .heading(level: 3, runs: [.text("Three")]),
         ])
     }
+    func test_crlf_normalized_headingParagraphAndRuleClean() {
+        // \r\n must not leak into runs, and a `---\r\n` line is still a rule.
+        XCTAssertEqual(MarkdownBlocks.parse("# One\r\nbody one\r\n\r\n---\r\nbody two"), [
+            .heading(level: 1, runs: [.text("One")]),
+            .paragraph(runs: [.text("body one")]),
+            .rule,
+            .paragraph(runs: [.text("body two")]),
+        ])
+    }
     func test_paragraph_joinsConsecutiveLines_blankSeparates() {
         XCTAssertEqual(MarkdownBlocks.parse("a\nb\n\nc"), [
             .paragraph(runs: [.text("a\nb")]), .paragraph(runs: [.text("c")]),

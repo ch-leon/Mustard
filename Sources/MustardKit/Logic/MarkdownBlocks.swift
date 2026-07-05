@@ -29,7 +29,10 @@ public enum MarkdownBlocks {
 
     /// `body` is frontmatter-stripped content (callers use `Frontmatter.parse` first),
     /// so a lone `---` line is always a rule, never a YAML fence.
-    public static func parse(_ body: String) -> [MarkdownBlock] {
+    public static func parse(_ rawBody: String) -> [MarkdownBlock] {
+        // Normalize Windows line endings ONCE at entry (BAK-71 hygiene): otherwise a
+        // trailing \r leaks into every text run and `---\r` never matches a rule.
+        let body = rawBody.replacingOccurrences(of: "\r\n", with: "\n")
         var blocks: [MarkdownBlock] = []
 
         // Paragraph buffer: raw lines accumulate, then join-with-\n → runs on flush,
