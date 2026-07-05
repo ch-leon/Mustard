@@ -191,33 +191,17 @@ public struct NotesView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Detail (placeholder — Task 6 replaces this with the editor)
+    // MARK: - Detail (the note editor — BAK-150)
 
     @ViewBuilder
     private var detail: some View {
         if let selected {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title(for: selected))
-                    .font(Theme.Fonts.header)
-                    .foregroundStyle(Theme.Palette.textPrimary)
-                Text(selected.relativePath)
-                    .font(Theme.Fonts.meta)
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(32)
+            NoteEditorView(ref: selected, onNavigate: { self.selected = $0 })
         } else {
             Text("Select a note")
                 .font(Theme.Fonts.body)
                 .foregroundStyle(Theme.Palette.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    /// The indexed title for a ref, falling back to the filename stem (no ".md").
-    private func title(for ref: NoteRef) -> String {
-        entries.first { $0.project == ref.project && $0.relativePath == ref.relativePath }?.title
-            ?? ((ref.relativePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 }
