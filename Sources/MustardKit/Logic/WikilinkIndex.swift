@@ -20,7 +20,7 @@ public struct WikilinkOccurrence: Equatable {
     public let line: String           // full containing line (backlink snippet context)
 }
 
-public struct Backlink: Equatable {
+public struct Backlink: Hashable {
     public let sourcePath: String     // note containing the link
     public let snippet: String        // the containing line
 
@@ -36,28 +36,31 @@ public struct WikilinkIndex: Equatable {
     public let backlinks: [String: [Backlink]]        // path → links into it (sorted by sourcePath)
 
     public static func build(_ docs: [(relativePath: String, content: String)]) -> WikilinkIndex {
-        let paths = docs.map(\.relativePath)
         let notes = docs
             .map { parse(relativePath: $0.relativePath, content: $0.content) }
             .sorted { pathPrecedes($0.relativePath, $1.relativePath) }
 
+        // Precompute lookup maps once so each occurrence resolves in O(1) — a
+        // reindex touches every link in the project (O(links × N log N) otherwise).
+        let maps = ResolutionMaps(paths: docs.map(\.relativePath))
+
         var forwardLinks: [String: [String]] = [:]
-        // (target path) → set of (source, snippet) pairs, so we can dedupe before sorting.
         var backlinkPairs: [String: [Backlink]] = [:]
+        // Set membership keeps (target, source, snippet) dedupe linear;
+        // backlinkPairs preserves insertion order for the final sort.
+        var seenBacklinks: [String: Set<Backlink>] = [:]
 
         for note in notes {
             var seenTargets = Set<String>()
             var resolvedOrder: [String] = []
             for link in note.links {
-                guard let resolved = resolve(target: link.target, in: paths) else { continue }
+                guard let resolved = resolve(target: link.target, using: maps) else { continue }
                 if seenTargets.insert(resolved).inserted {
                     resolvedOrder.append(resolved)
                 }
                 let backlink = Backlink(sourcePath: note.relativePath, snippet: link.line)
-                var existing = backlinkPairs[resolved] ?? []
-                if !existing.contains(backlink) {
-                    existing.append(backlink)
-                    backlinkPairs[resolved] = existing
+                if seenBacklinks[resolved, default: []].insert(backlink).inserted {
+                    backlinkPairs[resolved, default: []].append(backlink)
                 }
             }
             if !resolvedOrder.isEmpty { forwardLinks[note.relativePath] = resolvedOrder }
@@ -70,19 +73,45 @@ public struct WikilinkIndex: Equatable {
     /// Deterministic resolution (addendum #6): exact-path first for "/" targets, else
     /// case-insensitive filename match over candidates sorted by
     /// (path-component count, then lexicographic). nil if nothing matches.
+    /// One-off convenience (e.g. resolving a clicked link); `build` shares the
+    /// same semantics via precomputed `ResolutionMaps`.
     public static func resolve(target: String, in paths: [String]) -> String? {
-        let stripped = stripExtension(target)
-        if stripped.contains("/") {
-            let wanted = stripped.lowercased()
-            if let exact = paths.first(where: { stripExtension($0).lowercased() == wanted }) {
-                return exact
+        resolve(target: target, using: ResolutionMaps(paths: paths))
+    }
+
+    /// Both priority rules folded into O(1)-lookup dictionaries, built in one pass each.
+    private struct ResolutionMaps {
+        /// lowercased extension-stripped full path → path (first in doc order wins).
+        let exactByPath: [String: String]
+        /// lowercased filename stem → winning path. First writer wins over
+        /// candidates pre-sorted by (component count, lexicographic), preserving
+        /// the "shortest path, then alphabetical" priority.
+        let byStem: [String: String]
+
+        init(paths: [String]) {
+            var exact: [String: String] = [:]
+            for path in paths {
+                let key = stripExtension(path).lowercased()
+                if exact[key] == nil { exact[key] = path }
             }
-            // Fall through to filename matching against the last component.
+            exactByPath = exact
+
+            var stems: [String: String] = [:]
+            for path in sortedCandidates(paths) {
+                let key = stripExtension((path as NSString).lastPathComponent).lowercased()
+                if stems[key] == nil { stems[key] = path }
+            }
+            byStem = stems
         }
-        let wantedName = stripExtension((stripped as NSString).lastPathComponent).lowercased()
-        return sortedCandidates(paths).first {
-            stripExtension(($0 as NSString).lastPathComponent).lowercased() == wantedName
+    }
+
+    private static func resolve(target: String, using maps: ResolutionMaps) -> String? {
+        let stripped = stripExtension(target)
+        if stripped.contains("/"), let exact = maps.exactByPath[stripped.lowercased()] {
+            return exact
         }
+        // Fall through to filename matching against the last component.
+        return maps.byStem[stripExtension((stripped as NSString).lastPathComponent).lowercased()]
     }
 
     // MARK: - Parsing
