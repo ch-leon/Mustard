@@ -41,10 +41,6 @@ public final class NoteIndexService {
         isIndexing = true
         defer { isIndexing = false }
         let io = makeIO(workingDirectory)
-        let docs = io.notePaths().compactMap { path -> (relativePath: String, content: String)? in
-            io.read(path).map { (path, $0) }
-        }
-        let index = WikilinkIndex.build(docs)
         // Project-scoped fetch: rows carry full contentSnapshots, so materializing
         // every project's rows just to delete one project's is real churn.
         let descriptor = FetchDescriptor<NoteIndexEntry>(predicate: #Predicate { $0.project == project })
@@ -53,6 +49,23 @@ public final class NoteIndexService {
         // alongside the new ones as duplicate (project, relativePath) rows with no
         // unique constraint to stop them; a skipped cycle just retries next tick.
         guard let existing = try? context.fetch(descriptor) else { return }
+
+        // Cheap change-guard (BAK-71 hygiene): if the disk path SET and every
+        // (path, mtime) pair already match the stored index, skip the delete+reinsert
+        // entirely — just advance the throttle. Avoids disk churn now and CloudKit
+        // sync traffic when N2 lands. `notePaths()`/`modificationDate` are stat-only.
+        let diskPaths = io.notePaths()
+        let disk = diskPaths.map { (path: $0, modified: io.modificationDate($0)) }
+        let indexed = existing.map { (path: $0.relativePath, modified: $0.lastModified) }
+        if NoteReindexScheduler.isUnchanged(disk: disk, indexed: indexed) {
+            lastIndexedAt[project] = now
+            return
+        }
+
+        let docs = diskPaths.compactMap { path -> (relativePath: String, content: String)? in
+            io.read(path).map { (path, $0) }
+        }
+        let index = WikilinkIndex.build(docs)
         for entry in existing { context.delete(entry) }
         let contentByPath = Dictionary(docs.map { ($0.relativePath, $0.content) }, uniquingKeysWith: { a, _ in a })
         for note in index.notes {

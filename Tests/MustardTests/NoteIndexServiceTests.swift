@@ -69,6 +69,68 @@ final class NoteIndexServiceTests: XCTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).count, 2)
     }
 
+    // MARK: Change-guard (skip no-op rebuilds)
+
+    func test_reindex_unchanged_skipsRebuild_entriesNotRecreated() throws {
+        let ctx = try makeContext()
+        let io = FakeNoteIO(["Home.md": "# Home\n[[Setup]]", "Setup.md": "# Setup"])
+        io.mtimes["Home.md"] = t0
+        io.mtimes["Setup.md"] = t0
+        let svc = NoteIndexService(context: ctx, makeIO: { _ in io })
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0)
+        let idsBefore = Set(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).map(\.persistentModelID))
+        XCTAssertEqual(idsBefore.count, 2)
+
+        // Nothing on disk changed → same PersistentIdentifiers survive (no delete+reinsert).
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0.addingTimeInterval(600))
+        let idsAfter = Set(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).map(\.persistentModelID))
+        XCTAssertEqual(idsAfter, idsBefore)
+        // Throttle still advanced so the loop backs off.
+        XCTAssertEqual(svc.lastIndexedAt["KB"], t0.addingTimeInterval(600))
+    }
+
+    func test_reindex_fileTouched_rebuilds() throws {
+        let ctx = try makeContext()
+        let io = FakeNoteIO(["Home.md": "# Home"])
+        io.mtimes["Home.md"] = t0
+        let svc = NoteIndexService(context: ctx, makeIO: { _ in io })
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0)
+        let idBefore = try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).first?.persistentModelID
+
+        io.files["Home.md"] = "# Home renamed"
+        io.mtimes["Home.md"] = t0.addingTimeInterval(60)   // touched
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0.addingTimeInterval(600))
+        let entriesAfter = try ctx.fetch(FetchDescriptor<NoteIndexEntry>())
+        XCTAssertEqual(entriesAfter.count, 1)
+        XCTAssertEqual(entriesAfter[0].title, "Home renamed")
+        XCTAssertNotEqual(entriesAfter.first?.persistentModelID, idBefore)  // deleted + reinserted
+    }
+
+    func test_reindex_fileAdded_rebuilds() throws {
+        let ctx = try makeContext()
+        let io = FakeNoteIO(["Home.md": "# Home"])
+        io.mtimes["Home.md"] = t0
+        let svc = NoteIndexService(context: ctx, makeIO: { _ in io })
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0)
+        io.files["New.md"] = "# New"
+        io.mtimes["New.md"] = t0
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0.addingTimeInterval(600))
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).count, 2)
+    }
+
+    func test_reindex_fileRemoved_rebuilds() throws {
+        let ctx = try makeContext()
+        let io = FakeNoteIO(["Home.md": "# Home", "Gone.md": "# Gone"])
+        io.mtimes["Home.md"] = t0
+        io.mtimes["Gone.md"] = t0
+        let svc = NoteIndexService(context: ctx, makeIO: { _ in io })
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0)
+        io.files["Gone.md"] = nil
+        io.mtimes["Gone.md"] = nil
+        svc.reindex(project: "KB", workingDirectory: "/kb", now: t0.addingTimeInterval(600))
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).map(\.relativePath), ["Home.md"])
+    }
+
     func test_reindexAll_bypassesThrottle() throws {
         let ctx = try makeContext()
         let io = FakeNoteIO(["a.md": "# A"])
