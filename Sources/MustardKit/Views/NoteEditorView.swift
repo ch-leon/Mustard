@@ -103,7 +103,6 @@ struct NoteEditorView: View {
             .autocorrectionDisabled()
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .disabled(loadFailed)
     }
 
     private var missingState: some View {
@@ -119,29 +118,32 @@ struct NoteEditorView: View {
 
     // MARK: - Title derivation
 
-    /// frontmatter title → first `# ` heading → filename stem.
+    /// frontmatter title → first `#{1,6} ` heading → filename stem. Recomputed per
+    /// keystroke (text is @State, read by the header), so it parses frontmatter ONCE
+    /// and scans lines directly rather than running the full block parser.
     private var noteTitle: String {
-        if let fmTitle = Frontmatter.parse(text).title, !fmTitle.isEmpty {
+        let parsed = Frontmatter.parse(text)
+        if let fmTitle = parsed.title, !fmTitle.isEmpty {
             return fmTitle
         }
-        if let heading = firstHeading(Frontmatter.parse(text).body) {
+        if let heading = firstHeading(parsed.body) {
             return heading
         }
         return ((ref.relativePath as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
+    /// Cheap early-exit scan for the first `#{1,6} ` line. Deliberately does NOT
+    /// skip code fences — a fenced `# comment` before any real heading is a
+    /// vanishingly rare title position, not worth a full parse per keystroke.
     private func firstHeading(_ body: String) -> String? {
-        for block in MarkdownBlocks.parse(body) {
-            if case let .heading(_, runs) = block {
-                let text = runs.map { run -> String in
-                    switch run {
-                    case let .text(s): return s
-                    case let .wikilink(target, alias): return alias ?? target
-                    }
-                }.joined()
-                let trimmed = text.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty { return trimmed }
-            }
+        for line in body.split(separator: "\n", omittingEmptySubsequences: true) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let hashes = trimmed.prefix { $0 == "#" }.count
+            guard hashes >= 1, hashes <= 6 else { continue }
+            let rest = trimmed.dropFirst(hashes)
+            guard rest.hasPrefix(" ") else { continue }
+            let title = rest.trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { return title }
         }
         return nil
     }
@@ -157,8 +159,10 @@ struct NoteEditorView: View {
     private func save(to ref: NoteRef, content: String, ifDifferentFrom baseline: String) {
         guard content != baseline else { return }
         let io = FileVaultIO(rootPath: ref.workingDirectory)
+        // Snapshot is belt-and-braces — a failed snapshot must not block the save.
         if let prior = io.read(ref.relativePath) { try? io.snapshot(ref.relativePath, prior) }
-        try? io.write(ref.relativePath, content)
+        // Failed write must stay dirty — the dot is the only honesty signal.
+        do { try io.write(ref.relativePath, content) } catch { return }
         // Only advance the in-view baseline when saving the note still on screen;
         // a save-on-switch targets the OLD ref while state already holds the new one.
         if ref == self.ref { diskText = content }
