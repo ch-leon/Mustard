@@ -2,14 +2,6 @@ import XCTest
 import SwiftData
 @testable import MustardKit
 
-private final class StubServer2: RedirectServing {
-    func start() throws -> Int { 6000 }
-    func awaitCode(timeout: TimeInterval) async throws -> RedirectResult {
-        RedirectResult(code: "code", state: "s")
-    }
-    func stop() {}
-}
-
 @MainActor
 final class GoogleCalendarServiceTests: XCTestCase {
     private func makeContext() throws -> ModelContext {
@@ -22,7 +14,7 @@ final class GoogleCalendarServiceTests: XCTestCase {
                              context: ModelContext, now: @escaping () -> Date) -> GoogleCalendarService {
         let tokenClient = GoogleTokenClient(transport: { _ in (Data(tokenJSON.utf8), tokenStatus) })
         let session = GoogleAuthSession(
-            makeServer: { StubServer2() }, tokenClient: tokenClient, store: store,
+            makeServer: { StubRedirectServer() }, tokenClient: tokenClient, store: store,
             openURL: { _ in }, makePKCE: { PKCE(verifier: "v") }, makeState: { "s" })
         return GoogleCalendarService(
             authSession: session, tokenClient: tokenClient,

@@ -71,7 +71,7 @@ struct SourceSettingsView: View {
             SecureField("OAuth Client Secret", text: $gcalClientSecret)
                 .textFieldStyle(.roundedBorder).font(Theme.Fonts.meta)
             if case .failed(let msg) = calendar.state {
-                Text(msg).font(.system(size: 11)).foregroundStyle(Color(hex: "#D85A30"))
+                Text(msg).font(.system(size: 11)).foregroundStyle(Theme.Palette.error)
             }
             Button("Connect") {
                 Task { await calendar.connect(
@@ -98,7 +98,7 @@ struct SourceSettingsView: View {
                 Button("Refresh now") { Task { await calendar.fetch() } }
                     .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.accent).buttonStyle(.plain)
                 Button("Disconnect", role: .destructive) { calendar.disconnect() }
-                    .font(Theme.Fonts.meta).foregroundStyle(Color(hex: "#D85A30")).buttonStyle(.plain)
+                    .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.error).buttonStyle(.plain)
             }
         }
     }
@@ -119,7 +119,7 @@ struct SourceSettingsView: View {
                     .foregroundStyle(Theme.Palette.textPrimary)
                 Text(statusLine(config: config, state: state))
                     .font(.system(size: 11))
-                    .foregroundStyle(state?.lastError != nil ? Color(hex: "#D85A30") : Theme.Palette.textTertiary)
+                    .foregroundStyle(state?.lastError != nil ? Theme.Palette.error : Theme.Palette.textTertiary)
                     .lineLimit(1).truncationMode(.middle)
             }
 

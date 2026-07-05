@@ -25,6 +25,13 @@ public struct CalendarWindow: Equatable {
     public init(start: Date, end: Date) { self.start = start; self.end = end }
 
     /// Start-of-today through `days` later, in the given calendar.
+    ///
+    /// The window is HALF-OPEN: `[startOfDay(today), startOfDay(today) + days)`.
+    /// Consumers filter with `start >= lo && start < hi` (see CalendarSync) and the
+    /// fetch sends `timeMax = end`, so it covers exactly `days` full days — today
+    /// through day +(days-1). An event that begins at the day +`days` midnight
+    /// boundary is EXCLUDED by design; fetch and reconcile share the same bound, so
+    /// this is consistent (no spurious deletes) — decided exclusive per BAK-71.
     public static func rolling(from now: Date, days: Int, calendar: Calendar = .current) -> CalendarWindow {
         let startOfDay = calendar.startOfDay(for: now)
         let end = calendar.date(byAdding: .day, value: days, to: startOfDay)!

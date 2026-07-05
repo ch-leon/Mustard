@@ -65,6 +65,9 @@ public enum Theme {
         public static let warningSoft = Color(hex: "#FAEEDA")   // amber pill background (needs-you badge)
         public static let warningDeep = Color(hex: "#633806")   // amber pill text (needs-you badge)
 
+        // MARK: Error / destructive
+        public static let error = Color(hex: "#D85A30")          // error text + destructive action
+
         // MARK: Muted status pill
         public static let statusMutedText = Color(hex: "#8A8579")
         public static let statusMutedBg = Color(hex: "#F1EDE4")
