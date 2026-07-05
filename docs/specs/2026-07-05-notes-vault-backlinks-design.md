@@ -1,7 +1,7 @@
 # Notes — vault-backed markdown with wikilinks & backlinks — design spec
 
 - **Date:** 2026-07-05
-- **Status:** Draft — awaiting Leon's review
+- **Status:** Approved (2026-07-05) — reviewed section-by-section during brainstorming; see Decision log below
 - **Supersedes/affects:** generalizes `FileVaultIO` (today meeting-notes-only) into a whole-vault scanner; piggybacks reindexing on `SweepScheduler`; adds a new `Notes` top-level surface, `Logic/WikilinkIndex.swift`, and a `NoteIndexEntry` SwiftData model. Nothing existing is removed.
 
 ## Why
