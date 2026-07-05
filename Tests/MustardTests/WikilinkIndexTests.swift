@@ -51,6 +51,12 @@ final class WikilinkIndexTests: XCTestCase {
         let idx = WikilinkIndex.build([("note.md", "####### too many\nbody")])
         XCTAssertEqual(idx.notes.map(\.title), ["note"])
     }
+    /// NoteEditorView trims the whole line before counting hashes; the index must
+    /// apply the same rule so "  ## Foo" titles identically in both surfaces.
+    func test_title_leadingWhitespaceBeforeHashes_stillAHeading() {
+        let idx = WikilinkIndex.build([("a.md", "  ## Foo\nbody")])
+        XCTAssertEqual(idx.notes.map(\.title), ["Foo"])
+    }
 
     // MARK: Extraction
     func test_links_plainAliasHeadingAndEmbed() {

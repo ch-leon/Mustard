@@ -48,4 +48,12 @@ final class NoteReindexSchedulerTests: XCTestCase {
             disk: [("a.md", nil)],
             indexed: [("a.md", m0)]))
     }
+    func test_isUnchanged_duplicateDiskPaths_false() {
+        // The FS can't produce a duplicate path, but the pure contract must not
+        // permit it either: [(a, a)] vs [(a, b)] would otherwise pass on counts
+        // with every disk entry finding a stored match.
+        XCTAssertFalse(NoteReindexScheduler.isUnchanged(
+            disk: [("a.md", m0), ("a.md", m0)],
+            indexed: [("a.md", m0), ("b.md", m1)]))
+    }
 }

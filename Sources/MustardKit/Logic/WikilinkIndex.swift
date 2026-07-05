@@ -138,14 +138,15 @@ public struct WikilinkIndex: Equatable {
     }
 
     /// First heading of ANY level 1–6 (`#{1,6} `). Matches NoteEditorView's header
-    /// scan (the forgiving choice) so a note starting `## Foo` titles as "Foo" in
-    /// both the sidebar and the editor. Seven+ hashes or no trailing space is not a
-    /// heading. Empty-after-hashes lines are skipped.
+    /// scan exactly — including trimming the line BEFORE counting hashes, so
+    /// "  ## Foo" titles as "Foo" in both the sidebar and the editor. Seven+ hashes
+    /// or no trailing space is not a heading. Empty-after-hashes lines are skipped.
     private static func firstHeading(_ body: String) -> String? {
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
-            let hashes = line.prefix { $0 == "#" }.count
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let hashes = trimmed.prefix { $0 == "#" }.count
             guard hashes >= 1, hashes <= 6 else { continue }
-            let rest = line.dropFirst(hashes)
+            let rest = trimmed.dropFirst(hashes)
             guard rest.hasPrefix(" ") else { continue }
             let title = rest.trimmingCharacters(in: .whitespaces)
             if !title.isEmpty { return title }
