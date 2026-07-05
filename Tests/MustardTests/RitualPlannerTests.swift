@@ -62,6 +62,15 @@ final class RitualPlannerTests: XCTestCase {
         XCTAssertEqual(RitualPlanner.focused(ts, day: day, calendar: cal).count, 2)
     }
 
+    func test_focus_doneStarFreesASlot() {
+        let ts = (0..<4).map { i in task("t\(i)", scheduled: day) }
+        for t in ts.prefix(3) { XCTAssertTrue(RitualPlanner.toggleFocus(t, in: ts, day: day, calendar: cal)) }
+        ts[0].stage = .done                                     // completed star keeps its focusOnDay
+        XCTAssertTrue(RitualPlanner.toggleFocus(ts[3], in: ts, day: day, calendar: cal))   // slot freed
+        XCTAssertEqual(RitualPlanner.focused(ts, day: day, calendar: cal).count, 4)        // done star still shows
+        XCTAssertEqual(RitualPlanner.focused(ts, day: day, calendar: cal).filter { $0.stage.isOpen }.count, 3)
+    }
+
     func test_focusTitle_firstOpenBySchedule_nilWhenNone() {
         let a = task("later", scheduled: day.addingTimeInterval(10 * 3_600)); a.focusOnDay = day
         let b = task("earlier", scheduled: day.addingTimeInterval(8 * 3_600)); b.focusOnDay = day

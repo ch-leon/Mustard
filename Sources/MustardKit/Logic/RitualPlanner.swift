@@ -66,6 +66,10 @@ public enum RitualPlanner {
     }
 
     /// Toggle star; returns false (and does nothing) when adding would exceed focusLimit.
+    /// The cap counts OPEN stars only — a completed star keeps its focusOnDay (so
+    /// Today's FOCUS pinning can still show it) but frees its slot; otherwise the
+    /// wizard (whose candidates are open-only) could never un-star it to make room
+    /// for a replacement.
     @discardableResult
     public static func toggleFocus(_ task: MustardTask, in all: [MustardTask], day: Date, calendar: Calendar = .current) -> Bool {
         let isStarred = task.focusOnDay.map { calendar.isDate($0, inSameDayAs: day) } ?? false
@@ -74,7 +78,8 @@ public enum RitualPlanner {
             task.focusOnDay = nil
             return true
         }
-        guard focused(all, day: day, calendar: calendar).count < focusLimit else { return false }
+        let openStars = focused(all, day: day, calendar: calendar).filter { $0.stage.isOpen }.count
+        guard openStars < focusLimit else { return false }
         task.focusOnDay = calendar.startOfDay(for: day)
         return true
     }
