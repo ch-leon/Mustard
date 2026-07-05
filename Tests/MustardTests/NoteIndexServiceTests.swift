@@ -68,4 +68,20 @@ final class NoteIndexServiceTests: XCTestCase {
         svc.reindexDueProjects(settings, now: t0.addingTimeInterval(301))   // due again
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).count, 2)
     }
+
+    func test_reindexAll_bypassesThrottle() throws {
+        let ctx = try makeContext()
+        let io = FakeNoteIO(["a.md": "# A"])
+        let svc = NoteIndexService(context: ctx, makeIO: { _ in io })
+        let settings = SourceSettings(sources: [
+            SourceConfig(id: .vault, project: "KB", enabled: true, workingDirectory: "/kb"),
+        ], state: [])
+        svc.reindexDueProjects(settings, now: t0)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).count, 1)
+        io.files["b.md"] = "# B"
+        // 60s later the throttle would block reindexDueProjects (see the test above),
+        // but the manual ⌘K path ignores it.
+        svc.reindexAll(settings, now: t0.addingTimeInterval(60))
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<NoteIndexEntry>()).count, 2)
+    }
 }

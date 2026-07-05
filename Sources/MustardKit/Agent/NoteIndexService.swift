@@ -45,8 +45,15 @@ public final class NoteIndexService {
             io.read(path).map { (path, $0) }
         }
         let index = WikilinkIndex.build(docs)
-        let existing = (try? context.fetch(FetchDescriptor<NoteIndexEntry>())) ?? []
-        for entry in existing where entry.project == project { context.delete(entry) }
+        // Project-scoped fetch: rows carry full contentSnapshots, so materializing
+        // every project's rows just to delete one project's is real churn.
+        let descriptor = FetchDescriptor<NoteIndexEntry>(predicate: #Predicate { $0.project == project })
+        // If the fetch throws, bail out of the whole rebuild — no inserts, no
+        // lastIndexedAt advance. Inserting without deleting would leave stale rows
+        // alongside the new ones as duplicate (project, relativePath) rows with no
+        // unique constraint to stop them; a skipped cycle just retries next tick.
+        guard let existing = try? context.fetch(descriptor) else { return }
+        for entry in existing { context.delete(entry) }
         let contentByPath = Dictionary(docs.map { ($0.relativePath, $0.content) }, uniquingKeysWith: { a, _ in a })
         for note in index.notes {
             context.insert(NoteIndexEntry(
