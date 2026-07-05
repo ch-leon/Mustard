@@ -35,6 +35,19 @@ public enum RitualPlanner {
         tasks.filter { $0.scheduledAt == nil && $0.stage.isOpen && $0.owner == .me }
     }
 
+    /// Step 3 — today's already-planned open tasks (the removable set shown with a
+    /// minus above the pick pool). Restricted to `owner == .me` deliberately:
+    /// un-planning agent-owned tasks from the wizard would interfere with the
+    /// agent's own scheduling. The asymmetry with `focusCandidates` (which is
+    /// owner-agnostic) is intentional — starring agent work as YOUR focus is
+    /// legitimate watching; un-planning it is not.
+    public static func plannedToday(_ tasks: [MustardTask], day: Date, calendar: Calendar = .current) -> [MustardTask] {
+        tasks.filter { task in
+            guard task.stage.isOpen, task.owner == .me, let when = task.scheduledAt else { return false }
+            return calendar.isDate(when, inSameDayAs: day)
+        }
+    }
+
     /// Step 3 mutation — plan onto `day`, untimed.
     public static func planToday(_ task: MustardTask, day: Date, calendar: Calendar = .current) {
         task.scheduledAt = calendar.startOfDay(for: day)

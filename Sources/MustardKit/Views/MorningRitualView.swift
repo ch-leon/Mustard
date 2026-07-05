@@ -204,9 +204,6 @@ public struct MorningRitualView: View {
         if pending.isEmpty && outputs == 0 {
             emptyLine("Nothing from the agent overnight.")
         } else {
-            if pending.isEmpty {
-                emptyLine("Nothing from the agent overnight.")
-            }
             ForEach(pending) { rec in
                 standupRow(rec)
                 Divider().overlay(Theme.Palette.hairline)
@@ -280,7 +277,7 @@ public struct MorningRitualView: View {
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(Theme.Palette.textSecondary)
         }
-        let planned = plannedToday
+        let planned = RitualPlanner.plannedToday(tasks, day: day)
         if !planned.isEmpty {
             Text("PLANNED TODAY")
                 .font(Theme.Fonts.meta)
@@ -302,14 +299,6 @@ public struct MorningRitualView: View {
                 pickRow(task, planned: false)
                 Divider().overlay(Theme.Palette.hairline)
             }
-        }
-    }
-
-    /// Today's already-planned open tasks (the removable set at the top of Pick).
-    private var plannedToday: [MustardTask] {
-        tasks.filter { t in
-            guard t.stage.isOpen, t.owner == .me, let when = t.scheduledAt else { return false }
-            return Calendar.current.isDate(when, inSameDayAs: day)
         }
     }
 
@@ -441,6 +430,7 @@ public struct MorningRitualView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Theme.Palette.hairline, lineWidth: 0.5)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }

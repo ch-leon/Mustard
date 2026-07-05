@@ -39,6 +39,18 @@ final class RitualPlannerTests: XCTestCase {
         XCTAssertEqual(RitualPlanner.pickCandidates([inboxTask, scheduled, done, agents]).map(\.title), ["pick me"])
     }
 
+    func test_plannedToday_openMineOnDayOnly() {
+        let mine = task("mine", scheduled: day.addingTimeInterval(9 * 3_600))
+        let agents = task("agent's", scheduled: day); agents.owner = .agent
+        let done = task("done", scheduled: day); done.stage = .done
+        let otherDay = task("tomorrow", scheduled: day.addingTimeInterval(86_400))
+        let loose = task("loose")
+        XCTAssertEqual(
+            RitualPlanner.plannedToday([mine, agents, done, otherDay, loose], day: day, calendar: cal).map(\.title),
+            ["mine"]
+        )
+    }
+
     func test_planToday_setsUntimedToday() {
         let t = task("x")
         RitualPlanner.planToday(t, day: day.addingTimeInterval(13 * 3_600), calendar: cal)
