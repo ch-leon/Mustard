@@ -2,6 +2,17 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-06 — MERGED · BAK-50 Morning ritual — "Plan your day" wizard (PR #77)
+- **Risk:** medium (feature; Sources/ only — zero high-risk paths, wizard calls only existing decision APIs) · **Fresh-context review:** PASS (4/4 axes)
+- **Checks:** swift test 576 pass/1 skip (was 556) · swift build clean · build-app.sh OK · CI (self-hosted) green
+- **Outward actions:** none · no claude invocations added; all mutations local SwiftData/UserDefaults
+- **Run:** `.agent-loop/runs/20260706-morning-ritual/`
+- **What landed:** four-step wizard (rollover review w/ stamped carry-forward · inline agent standup · pick-today + capacity line · 1–3 focus stars via auto-expiring `focusOnDay`); gentle-prompt entry (Today banner + notch line gated by pure `RitualPrompt`, ⌘K always-available by design); FOCUS group pinned on Today; notch prefers open focus task. Spec + plan in docs/. Brainstormed with Leon (6 recorded decisions); evening shutdown deliberately deferred.
+- **Process:** 7 plan tasks, fresh Opus implementer + two-stage review each; 4 review-driven fix commits (open-star focus cap, plannedToday→Logic, standup copy, channel-key constant); post-review hardening (midnight-boundary test, spec text reconciled).
+- **Known limitations:** ⌘K re-plan ungated (deliberate); vaultNote approval in standup uses the console-parity claude path; FOCUS duplicates in timeline (flagged for Leon's eye); overnight-idle banner staleness until next render.
+- **Follow-ups:** evening shutdown ritual (new backlog issue); ritualSubtitle into Logic; mobile ritual UI slice; optional launch-clear of the ⌘K trigger flag; Leon eye-check (banner, wizard steps, FOCUS, notch line).
+- **Revert:** `git revert cc88b1a2e6838ae4fb47e0199a0966dac36d0b9e`
+
 ## 2026-07-06 — MERGED · Notes Phase A hygiene follow-ups + BAK-71 calendar polish (PR #76)
 - **Risk:** HIGH by path letter ("auth" substring via test-only GoogleAuthSessionTests stub dedup) · **Deep-review:** PASS (1 block → fix round → 3/3 clear)
 - **Checks:** swift test 556 pass/1 skip (was 535) · swift build clean · CI (self-hosted) green
