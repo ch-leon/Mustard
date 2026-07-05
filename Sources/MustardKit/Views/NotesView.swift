@@ -305,7 +305,14 @@ public struct NotesView: View {
             presenting: pendingWikilinkTarget
         ) { target in
             Button("Create") {
-                createNote(title: target, project: selected.project,
+                // Create by the target's LAST path component: [[guides/Setup]] →
+                // notes/Setup.md. Sanitizing the full target ("/" → "-") would
+                // yield notes/guides-Setup.md, whose stem never satisfies the
+                // link — dangling and re-offering creation forever. The resolver's
+                // filename fallback (pinned in WikilinkIndexTests) guarantees the
+                // created note satisfies the path-qualified link.
+                createNote(title: ((target as NSString).lastPathComponent),
+                           project: selected.project,
                            workingDirectory: selected.workingDirectory)
                 pendingWikilinkTarget = nil
             }

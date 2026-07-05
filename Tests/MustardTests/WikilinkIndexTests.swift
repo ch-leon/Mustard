@@ -61,6 +61,14 @@ final class WikilinkIndexTests: XCTestCase {
         let paths = ["guides/Setup.md", "Setup.md"]
         XCTAssertEqual(WikilinkIndex.resolve(target: "guides/Setup", in: paths), "guides/Setup.md")
     }
+    /// A path-qualified target with no exact-path match falls back to filename
+    /// matching on its LAST component (Obsidian behavior) — load-bearing for
+    /// create-from-unresolved (BAK-152): creating "Setup" from a tapped
+    /// [[guides/Setup]] must satisfy the link, or it dangles forever.
+    func test_resolve_pathQualified_noExactMatch_fallsBackToFilename() {
+        XCTAssertEqual(WikilinkIndex.resolve(target: "guides/Setup", in: ["notes/Setup.md"]),
+                       "notes/Setup.md")
+    }
     func test_resolve_unresolved_returnsNil() {
         XCTAssertNil(WikilinkIndex.resolve(target: "Ghost", in: ["a.md"]))
     }

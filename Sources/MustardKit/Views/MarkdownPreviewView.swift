@@ -5,8 +5,9 @@ import SwiftUI
 /// `[[wikilinks]]` as tappable link runs. Syntax highlighting is deliberately out
 /// of scope (Phase C); this is a reader, not an editor.
 ///
-/// `resolve` currently only colours wikilinks (accent when the target resolves,
-/// tertiary when it dangles). Real navigation arrives in Task 9 via `onWikilinkTap`.
+/// `resolve` colours wikilinks (accent when the target resolves, tertiary when it
+/// dangles); a tap routes the raw target through `onWikilinkTap`, and the host
+/// navigates to it or offers to create it (BAK-152).
 struct MarkdownPreviewView: View {
     /// Frontmatter-stripped note content. Named `content` (not `body`) to avoid
     /// colliding with SwiftUI's required `var body`.

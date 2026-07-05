@@ -45,8 +45,8 @@ struct NoteEditorView: View {
                 } else {
                     MarkdownPreviewView(
                         content: Frontmatter.parse(text).body,
-                        resolve: { resolveWikilink($0) },
-                        onWikilinkTap: { onWikilinkTap($0) }
+                        resolve: resolveWikilink,
+                        onWikilinkTap: onWikilinkTap
                     )
                 }
                 BacklinksPanel(current: ref, entries: entries, onNavigate: onNavigate)
