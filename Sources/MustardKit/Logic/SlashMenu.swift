@@ -83,9 +83,11 @@ public enum SlashMenu {
             // the existing resolve/create-from-dangling flows take over.
             return (text: "[[]]", caretOffset: 2)
         case .subpage:
-            // The host creates the note FIRST and passes the created title back in,
-            // so the link always matches the real (collision-deduped) filename.
-            // "Untitled" mirrors NoteCreation's empty-title fallback.
+            // Deliberately a DANGLING link — no file is created by the splice
+            // (deep-review: file-creation inside an undoable edit breaks ⌘Z
+            // symmetry and mints orphans on undo→retry). Clicking the link runs
+            // the existing confirmed create-from-dangling flow, which owns
+            // collision dedupe. "Untitled" mirrors NoteCreation's fallback.
             let title = (noteTitle?.isEmpty == false) ? noteTitle! : "Untitled"
             return atEnd("[[\(title)]]\n")
         case .askAgent:

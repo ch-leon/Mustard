@@ -314,12 +314,6 @@ public struct NotesView: View {
                 } else {
                     self.pendingWikilinkTarget = target
                 }
-            },
-            onCreateSubpage: { title in
-                // Sub-page creation must NOT navigate (the user is mid-typing in
-                // the parent note) — writeNote deliberately skips selection.
-                writeNote(title: title, project: selected.project,
-                          workingDirectory: selected.workingDirectory)
             }
         )
         .alert(

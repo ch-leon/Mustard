@@ -22,12 +22,6 @@ struct NoteEditorView: View {
     /// Handles a wikilink click: navigate to the target, or offer to create it
     /// when unresolved. NotesView owns the decision.
     let onWikilinkTap: (String) -> Void
-    /// Creates a sub-page (slash menu → Sub-page) WITHOUT navigating to it —
-    /// title in, created relativePath out (nil on failure). NotesView implements
-    /// it with its write-without-selection primitive; defaulted inert so other
-    /// hosts need not wire it.
-    var onCreateSubpage: (String) -> String? = { _ in nil }
-
     @Environment(NoteIndexService.self) private var noteIndex
 
     @State private var text = ""
@@ -58,7 +52,6 @@ struct NoteEditorView: View {
                     resolveWikilink: resolveWikilink,
                     onWikilinkTap: onWikilinkTap,
                     slashMenu: $slashMenu,
-                    onCreateSubpage: onCreateSubpage,
                     onBlockRectsChange: { blockRects = $0 },
                     proxy: editorProxy
                 )

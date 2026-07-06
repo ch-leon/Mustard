@@ -65,9 +65,6 @@ struct MarkdownTextView: NSViewRepresentable {
     /// selection for key handling. Defaults to an inert constant so callers that
     /// don't mount the menu never see it.
     var slashMenu: Binding<SlashMenuState?> = Binding<SlashMenuState?>.constant(nil)
-    /// Sub-page creation hook (title → created relativePath, nil on failure) —
-    /// NotesView implements it with its write-without-navigation primitive.
-    var onCreateSubpage: (String) -> String? = { _ in nil }
     /// Moveable-block geometry publication for the hover gutter (2b Task 9).
     var onBlockRectsChange: ([MarkdownBlockRect]) -> Void = { _ in }
     var proxy: MarkdownEditorProxy? = nil
@@ -475,23 +472,13 @@ struct MarkdownTextView: NSViewRepresentable {
         func performSlashCommand(_ command: SlashCommand) {
             guard let textView, let menu = parent.slashMenu.wrappedValue else { return }
 
-            var noteTitle: String? = nil
-            if case .subpage = command.kind {
-                // Create the note FIRST (no navigation — NotesView's hook writes
-                // without selecting), then link to the title the file actually
-                // got: NoteCreation dedupes collisions ("Untitled 2"), and a link
-                // to the asked-for title would dangle.
-                guard let relativePath = parent.onCreateSubpage("Untitled") else {
-                    // Creation failed: close calmly, leave the typed trigger as-is
-                    // (deleting the user's text on an error would be worse).
-                    parent.slashMenu.wrappedValue = nil
-                    return
-                }
-                noteTitle = ((relativePath as NSString).lastPathComponent as NSString)
-                    .deletingPathExtension
-            }
-
-            let insertion = SlashMenu.insertion(for: command.kind, noteTitle: noteTitle)
+            // Sub-page inserts a DANGLING [[Untitled]] link — no file is created
+            // here. The deep-review panel showed why: creating the file before an
+            // undoable splice makes ⌘Z asymmetric (text reverts, file persists)
+            // and every undo→retry cycle minted an orphan "Untitled N". A slash
+            // command is now pure text; the existing confirmed
+            // create-from-dangling flow (click → "Create note?") owns creation.
+            let insertion = SlashMenu.insertion(for: command.kind, noteTitle: nil)
             isPerformingEdit = true
             // Isolate from adjacent typing so ⌘Z removes exactly this insertion.
             textView.breakUndoCoalescing()
