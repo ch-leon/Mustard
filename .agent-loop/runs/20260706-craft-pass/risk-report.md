@@ -1,10 +1,16 @@
 # Risk report — Craft pass (Phases 0–2)
 
-**Highest risk class: medium.**
+**Highest risk class: HIGH** (corrected — see below).
 
-- Path risk: touched paths are `Sources/MustardKit/Logic/` (new pure units +
-  Theme additions), `Sources/MustardKit/Views/` (editor + polish), `Tests/`,
-  `docs/` — matches `Sources/` → **medium** in `.agent-loop/risk.yml`.
+- The spec itself marks Phase 2 **High (NSTextView)**: a new live editing
+  surface over user vault files is the product's riskiest new code regardless
+  of `risk.yml` path mechanics. An earlier draft of this report classified the
+  run medium from label/path matching alone — flagged by the fresh-context
+  review as an unrecorded downgrade. Corrected: the run is High, and the
+  `deep-review` adversarial panel was run per the high-risk merge policy
+  (see `deep-review-report.md`).
+- Path risk (mechanical floor, for the record): `Sources/` → medium in
+  `.agent-loop/risk.yml`.
 - No high-risk paths touched: no `ClaudeRunner`, no `TrustPolicy`, no
   `RecommendationAction`, no auth/oauth, no `.github/workflows/`.
 - Label risk: feature work → medium.
