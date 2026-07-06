@@ -1,14 +1,15 @@
 import SwiftUI
 
-/// Raw-markdown note editor for the Notes surface (BAK-150): a plain monospaced
-/// Source editor with a Preview toggle, a dirty indicator, and a snapshot-guarded
-/// save to the vault. Syntax highlighting is out of scope (Phase C) — Source is a
-/// plain `TextEditor`.
+/// Craft-style live note editor for the Notes surface (spec 2026-07-06, Phase 2a):
+/// a document header (derived title + quiet metadata line) over a single
+/// always-rendered, editable MarkdownTextView — no Source/Preview toggle. The text
+/// view's string stays byte-identical to the note on disk; styling is attributes,
+/// never rewrites.
 ///
 /// `onNavigate` routes backlink-row taps back through NotesView selection (so the
-/// editor's save-on-switch fires). `resolveWikilink`/`onWikilinkTap` (Task 9) wire
-/// the preview's `[[wikilinks]]` — the former colours resolved vs dangling links,
-/// the latter navigates on tap (or offers create-from-unresolved in the host).
+/// editor's save-on-switch fires). `resolveWikilink`/`onWikilinkTap` wire the
+/// editor's `[[wikilinks]]` — the former colours resolved vs dangling links, the
+/// latter navigates on click (or offers create-from-unresolved in the host).
 struct NoteEditorView: View {
     let ref: NoteRef
     /// Same-project index entries, passed by NotesView — the backlinks panel reads
@@ -16,42 +17,40 @@ struct NoteEditorView: View {
     let entries: [NoteIndexEntry]
     let onNavigate: (NoteRef) -> Void
     /// Resolves a wikilink target to a same-project note (nil when it dangles) —
-    /// drives the preview's link colour. Built once per NotesView body evaluation.
+    /// drives the editor's link colour. Built once per NotesView body evaluation.
     let resolveWikilink: (String) -> NoteRef?
-    /// Handles a wikilink tap in the preview: navigate to the target, or offer to
-    /// create it when unresolved. NotesView owns the decision.
+    /// Handles a wikilink click: navigate to the target, or offer to create it
+    /// when unresolved. NotesView owns the decision.
     let onWikilinkTap: (String) -> Void
 
     @Environment(NoteIndexService.self) private var noteIndex
 
     @State private var text = ""
     @State private var diskText = ""      // content at load — the dirty-check baseline
-    @State private var mode: EditorMode = .source
     @State private var loadFailed = false
 
-    private enum EditorMode { case source, preview }
+    /// Comfortable long-form reading measure (Craft mockups) — the document column
+    /// is centered at this width; the surface behind stays full-bleed `bg`.
+    private static let readingMeasure: CGFloat = 720
 
     private var isDirty: Bool { text != diskText }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().overlay(Theme.Palette.hairline)
             if loadFailed {
                 missingState
             } else {
-                if mode == .source {
-                    sourceEditor
-                } else {
-                    MarkdownPreviewView(
-                        content: Frontmatter.parse(text).body,
-                        resolve: resolveWikilink,
-                        onWikilinkTap: onWikilinkTap
-                    )
-                }
+                MarkdownTextView(
+                    text: $text,
+                    resolveWikilink: resolveWikilink,
+                    onWikilinkTap: onWikilinkTap
+                )
                 BacklinksPanel(current: ref, entries: entries, onNavigate: onNavigate)
             }
         }
+        .frame(maxWidth: Self.readingMeasure)
+        .frame(maxWidth: .infinity)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
         // Save the OLD note before the ref-keyed .task reloads: onChange(old,new)
@@ -74,50 +73,48 @@ struct NoteEditorView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Document header
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Text(noteTitle)
-                .font(Theme.Fonts.header)
-                .foregroundStyle(Theme.Palette.textPrimary)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                Text(noteTitle)
+                    .font(Theme.Fonts.docTitle)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+                    .lineLimit(1)
 
-            if isDirty {
-                Circle()
-                    .fill(Theme.Palette.warning)
-                    .frame(width: 6, height: 6)
+                if isDirty {
+                    Circle()
+                        .fill(Theme.Palette.warning)
+                        .frame(width: 6, height: 6)
+                }
+
+                Spacer(minLength: 12)
+
+                Button("Save") { save() }
+                    .keyboardShortcut("s", modifiers: .command)
+                    .disabled(!isDirty)
             }
 
-            Spacer(minLength: 12)
-
-            Picker("", selection: $mode) {
-                Text("Source").tag(EditorMode.source)
-                Text("Preview").tag(EditorMode.preview)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 160)
-
-            Button("Save") { save() }
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(!isDirty)
+            Text(metadataLine)
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(Theme.Palette.textTertiary)
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .padding(.top, 24)
+        .padding(.bottom, 8)
     }
 
-    // MARK: - Source editor
-
-    private var sourceEditor: some View {
-        TextEditor(text: $text)
-            .font(.system(size: 13, design: .monospaced))
-            .foregroundStyle(Theme.Palette.textPrimary)
-            .scrollContentBackground(.hidden)
-            .background(Theme.Palette.bg)
-            .autocorrectionDisabled()
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+    /// "project · edited today · 214 words" — the ambient clock/zone is fine in
+    /// the VIEW; only NoteMetadata's tests pin time.
+    private var metadataLine: String {
+        NoteMetadata.line(
+            project: ref.project,
+            modified: FileVaultIO(rootPath: ref.workingDirectory).modificationDate(ref.relativePath),
+            wordCount: NoteMetadata.wordCount(text),
+            now: .now,
+            calendar: .current
+        )
     }
 
     private var missingState: some View {

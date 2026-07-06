@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 extension Color {
     init(hex: String) {
@@ -209,6 +212,44 @@ public enum Theme {
         public static let rXl: CGFloat = 12   // sheets, popovers
     }
 }
+
+#if canImport(AppKit)
+extension Theme {
+    // MARK: AppKit companions (Craft pass Phase 2a) — for the NSTextView editing
+    // surface (MarkdownTextView), which styles via NSTextStorage attributes and so
+    // needs NSColor/NSFont. Every value is BRIDGED from the Palette/Fonts tokens
+    // above — never fresh hex, never fresh sizes.
+
+    public enum NSPalette {
+        public static let bg = NSColor(Palette.bg)
+        public static let surface = NSColor(Palette.surface)
+        public static let textPrimary = NSColor(Palette.textPrimary)
+        public static let textTertiary = NSColor(Palette.textTertiary)
+        public static let accent = NSColor(Palette.accent)
+    }
+
+    /// NSFont equivalents of the editorial scale plus the editor-only variants
+    /// (markers, code, emphasis) the SwiftUI token set has no reason to carry.
+    public enum NSFonts {
+        public static let reading = NSFont.systemFont(ofSize: 16)                       // Fonts.reading
+        public static let readingBold = NSFont.boldSystemFont(ofSize: 16)
+        public static let readingItalic: NSFont = {
+            let base = NSFont.systemFont(ofSize: 16)
+            let descriptor = base.fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: descriptor, size: 16) ?? base
+        }()
+        public static let docH1 = NSFont.systemFont(ofSize: 22, weight: .semibold)      // Fonts.docH1
+        public static let docH2 = NSFont.systemFont(ofSize: 18, weight: .semibold)      // Fonts.docH2
+        /// h3+ — matches the preview's 15.5pt sub-heading size.
+        public static let docH3 = NSFont.systemFont(ofSize: 15.5, weight: .semibold)
+        /// De-emphasized syntax markers ("**", "#", "[["…).
+        public static let marker = NSFont.systemFont(ofSize: 12)
+        public static let code = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        /// The visible-but-quiet YAML frontmatter block.
+        public static let frontmatter = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    }
+}
+#endif
 
 extension View {
     /// Applies an elevation recipe as one unit: `bg` card ground, rounded clip,

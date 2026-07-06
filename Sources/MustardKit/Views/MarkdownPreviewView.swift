@@ -39,31 +39,6 @@ struct MarkdownBlocksView: View {
     /// content (Craft pass Phase 1); headings and code keep their own sizes.
     var bodyFont: Font = Theme.Fonts.body
 
-    /// Custom URL scheme carrying a wikilink target. We encode the raw target in a
-    /// query item rather than the host/path, because host/path round-tripping mangles
-    /// spaces, case, and slashes (URL normalises the authority). `URLQueryItem`
-    /// percent-encodes the value on construction and `URLComponents.queryItems`
-    /// decodes it losslessly — so targets like "My Note", "guides/Deep Dive", and
-    /// unicode all survive the tap round-trip.
-    private static let scheme = "mustard-note"
-    private static let queryKey = "t"
-
-    private static func linkURL(for target: String) -> URL? {
-        var components = URLComponents()
-        components.scheme = scheme
-        components.host = "link"
-        components.queryItems = [URLQueryItem(name: queryKey, value: target)]
-        return components.url
-    }
-
-    private static func target(from url: URL) -> String? {
-        guard url.scheme == scheme,
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let item = components.queryItems?.first(where: { $0.name == queryKey })
-        else { return nil }
-        return item.value
-    }
-
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 10) {
             ForEach(Array(MarkdownBlocks.parse(content).enumerated()), id: \.offset) { _, block in
@@ -71,8 +46,10 @@ struct MarkdownBlocksView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Wikilink taps ride the shared mustard-note:// scheme (WikilinkURL — one
+        // encoding with the live editor's NSTextStorage links).
         .environment(\.openURL, OpenURLAction { url in
-            if let target = Self.target(from: url) {
+            if let target = WikilinkURL.target(from: url) {
                 onWikilinkTap(target)
                 return .handled
             }
@@ -180,7 +157,7 @@ struct MarkdownBlocksView: View {
 
     private func wikilinkText(target: String, alias: String?) -> Text {
         var attributed = AttributedString(alias ?? target)
-        if let url = Self.linkURL(for: target) {
+        if let url = WikilinkURL.url(for: target) {
             attributed.link = url
         }
         attributed.foregroundColor = resolve(target) != nil
