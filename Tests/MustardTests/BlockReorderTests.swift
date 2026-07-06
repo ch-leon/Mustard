@@ -10,7 +10,10 @@ final class BlockReorderTests: XCTestCase {
     private func assertLineMultisetPreserved(_ source: String, _ moved: String,
                                              file: StaticString = #filePath, line: UInt = #line) {
         let lines = { (s: String) in
-            s.split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            // Split on Character.isNewline: "\r\n" is a single grapheme cluster,
+            // so comparing against "\n"/"\r" never fires for CRLF sources and
+            // would treat a whole CRLF document as one "line".
+            s.split(whereSeparator: \.isNewline)
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                 .sorted()
         }

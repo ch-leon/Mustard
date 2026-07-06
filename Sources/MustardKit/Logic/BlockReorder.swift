@@ -46,9 +46,12 @@ public enum BlockReorder {
             var piece = contents[index]
             // Terminator hygiene: a non-final content without its own line ending
             // (the original EOF block moved off the end) gains "\n" so it can't
-            // fuse with the next block's first line.
+            // fuse with the next block's first line. Check the last unicode
+            // scalar, not a Character suffix: "\r\n" is a single grapheme
+            // cluster, so `hasSuffix("\n")` is false for CRLF-terminated
+            // content and would bolt a spurious lone "\n" onto CRLF blocks.
             if index < contents.count - 1, !piece.isEmpty,
-               !piece.hasSuffix("\n"), !piece.hasSuffix("\r") {
+               piece.unicodeScalars.last != "\n", piece.unicodeScalars.last != "\r" {
                 piece += "\n"
             }
             result += piece + tails[index]
