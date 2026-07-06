@@ -61,6 +61,8 @@ public struct AgentConsoleView: View {
                 if pending.isEmpty {
                     emptyLine("Nothing waiting on you. Run a sweep.")
                 }
+                // Rows are elevated cards (Craft pass Phase 1) — spacing separates
+                // them; a hairline divider against a bordered card reads doubled.
                 ForEach(SourceGrouping.grouped(pending)) { group in
                     if group.isMultiSource {
                         SourceGroupHeader(rec: group.header)
@@ -68,13 +70,13 @@ public struct AgentConsoleView: View {
                             RecommendationRow(rec: rec, inGroup: true,
                                               isSelected: selected === rec,
                                               onSelect: { select(rec) })
-                            Divider().overlay(Theme.Palette.hairline)
+                                .padding(.bottom, 8)
                         }
                     } else {
                         RecommendationRow(rec: group.header, inGroup: false,
                                           isSelected: selected === group.header,
                                           onSelect: { select(group.header) })
-                        Divider().overlay(Theme.Palette.hairline)
+                            .padding(.bottom, 8)
                     }
                 }
 
@@ -304,10 +306,13 @@ struct RecommendationRow: View {
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 11)
+        // Selection tint + bar sit above the card ground; .elevation's clip rounds
+        // the bar's corners with the card (Craft pass Phase 1).
         .background(isSelected ? Theme.Palette.accent.opacity(0.07) : .clear)
         .overlay(alignment: .leading) {
             if isSelected { Rectangle().fill(Theme.Palette.accent).frame(width: 2) }
         }
+        .elevation(.card, cornerRadius: Theme.Metrics.rLg)
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
     }
@@ -352,7 +357,7 @@ struct SourceGroupHeader: View {
         VStack(alignment: .leading, spacing: 6) {
             ProvenancePill(rec: rec)
             if let original = rec.originalSource, !original.isEmpty {
-                Button { withAnimation(.snappy(duration: 0.15)) { showEmail.toggle() } } label: {
+                Button { withAnimation(Theme.Motion.settle) { showEmail.toggle() } } label: {
                     Label(showEmail ? "Hide original" : "Original email",
                           systemImage: showEmail ? "chevron.down" : "chevron.right")
                         .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textTertiary)

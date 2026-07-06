@@ -40,10 +40,17 @@ struct BacklinksPanel: View {
     @ViewBuilder
     private var content: some View {
         if linkers.isEmpty {
-            Text("No backlinks yet")
-                .font(Theme.Fonts.meta)
-                .foregroundStyle(Theme.Palette.textTertiary)
-                .padding(.top, 8)
+            // Centered glyph + line — the calm empty-state pattern (Craft pass Phase 1).
+            VStack(spacing: 6) {
+                Image(systemName: "link")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                Text("No backlinks yet")
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
         } else {
             // ONE resolver over the same-project candidate set, shared by every
             // row — hoists the candidate-map build out of the per-row snippet scan.

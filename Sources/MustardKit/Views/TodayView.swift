@@ -55,10 +55,21 @@ public struct TodayView: View {
                     }
                 }
                 if scheduled.isEmpty {
-                    Text("Nothing scheduled yet")
-                        .font(Theme.Fonts.meta)
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                        .padding(.vertical, 16)
+                    // Warm empty state (Craft pass Phase 1) — points at the capture
+                    // field directly below it.
+                    VStack(spacing: 8) {
+                        Image(systemName: "sun.max")
+                            .font(.system(size: 26))
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text("Nothing scheduled yet")
+                            .font(Theme.Fonts.meta)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        Text("Capture a task below to start the day")
+                            .font(Theme.Fonts.meta)
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
                 }
                 QuickCaptureField(scheduleOnto: today)
 
@@ -107,7 +118,7 @@ public struct TodayView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Today")
-                .font(Theme.Fonts.header)
+                .font(Theme.Fonts.docH1)   // editorial weight (Craft pass Phase 1); same 22pt
                 .foregroundStyle(Theme.Palette.textPrimary)
             Text(today.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                 .font(Theme.Fonts.body)

@@ -36,12 +36,13 @@ public struct MustardBoardCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
         .padding(.horizontal, 11)
-        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 9))
-        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.Palette.hairline, lineWidth: 0.5))
+        // Accent border before .elevation so its clip rounds the border with the card.
         .overlay(alignment: .leading) { accentBorder }
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .elevation(hovering ? .float : .card, cornerRadius: 9)
+        .offset(y: hovering ? -1 : 0)   // grabbable hover lift, no layout shift
         .opacity(isDone ? 0.66 : 1)
         .onHover { hovering = $0 }
+        .animation(Theme.Motion.settle, value: hovering)
     }
 
     // MARK: Left accent border (2.5px)

@@ -1,19 +1,43 @@
 import SwiftUI
 
-/// Calm light-markdown preview for the Notes editor (BAK-150). Renders the
-/// frontmatter-stripped body through the pure `MarkdownBlocks.parse`, isolating
-/// `[[wikilinks]]` as tappable link runs. Syntax highlighting is deliberately out
-/// of scope (Phase C); this is a reader, not an editor.
-///
-/// `resolve` colours wikilinks (accent when the target resolves, tertiary when it
-/// dangles); a tap routes the raw target through `onWikilinkTap`, and the host
-/// navigates to it or offers to create it (BAK-152).
+/// Calm light-markdown preview for the Notes editor (BAK-150). A thin scroll +
+/// measure wrapper around the shared `MarkdownBlocksView` block renderer below —
+/// the rendering itself is reusable (task-output review re-uses it, Craft pass
+/// Phase 1). Syntax highlighting is deliberately out of scope (Phase C); this is
+/// a reader, not an editor.
 struct MarkdownPreviewView: View {
     /// Frontmatter-stripped note content. Named `content` (not `body`) to avoid
     /// colliding with SwiftUI's required `var body`.
     let content: String
     let resolve: (String) -> NoteRef?
     let onWikilinkTap: (String) -> Void
+
+    var body: some View {
+        ScrollView {
+            MarkdownBlocksView(content: content, resolve: resolve, onWikilinkTap: onWikilinkTap)
+                .padding(28)
+        }
+        .background(Theme.Palette.bg)
+    }
+}
+
+/// Non-scrolling markdown block stack — renders the parsed blocks through the pure
+/// `MarkdownBlocks.parse`, isolating `[[wikilinks]]` as tappable link runs.
+/// Extracted from the preview so other surfaces can render agent markdown inline;
+/// hosts with no wikilink graph pass `{ _ in nil }` / `{ _ in }`.
+///
+/// `resolve` colours wikilinks (accent when the target resolves, tertiary when it
+/// dangles); a tap routes the raw target through `onWikilinkTap`, and the host
+/// navigates to it or offers to create it (BAK-152).
+struct MarkdownBlocksView: View {
+    /// Frontmatter-stripped markdown. Named `content` (not `body`) to avoid
+    /// colliding with SwiftUI's required `var body`.
+    let content: String
+    let resolve: (String) -> NoteRef?
+    let onWikilinkTap: (String) -> Void
+    /// Paragraph/list/quote type — hosts pick `Theme.Fonts.reading` for long-form
+    /// content (Craft pass Phase 1); headings and code keep their own sizes.
+    var bodyFont: Font = Theme.Fonts.body
 
     /// Custom URL scheme carrying a wikilink target. We encode the raw target in a
     /// query item rather than the host/path, because host/path round-tripping mangles
@@ -41,16 +65,12 @@ struct MarkdownPreviewView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(MarkdownBlocks.parse(content).enumerated()), id: \.offset) { _, block in
-                    blockView(block)
-                }
+        LazyVStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(MarkdownBlocks.parse(content).enumerated()), id: \.offset) { _, block in
+                blockView(block)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(28)
         }
-        .background(Theme.Palette.bg)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.openURL, OpenURLAction { url in
             if let target = Self.target(from: url) {
                 onWikilinkTap(target)
@@ -73,7 +93,7 @@ struct MarkdownPreviewView: View {
 
         case let .paragraph(runs):
             flowingText(runs)
-                .font(Theme.Fonts.body)
+                .font(bodyFont)
                 .foregroundStyle(Theme.Palette.textPrimary)
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -82,7 +102,7 @@ struct MarkdownPreviewView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("•").foregroundStyle(Theme.Palette.textTertiary)
                 flowingText(runs)
-                    .font(Theme.Fonts.body)
+                    .font(bodyFont)
                     .foregroundStyle(Theme.Palette.textPrimary)
                     .lineSpacing(3)
                 Spacer(minLength: 0)
@@ -93,7 +113,7 @@ struct MarkdownPreviewView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("·").foregroundStyle(Theme.Palette.textTertiary)
                 flowingText(runs)
-                    .font(Theme.Fonts.body)
+                    .font(bodyFont)
                     .foregroundStyle(Theme.Palette.textPrimary)
                     .lineSpacing(3)
                 Spacer(minLength: 0)
@@ -106,7 +126,7 @@ struct MarkdownPreviewView: View {
                     .fill(Theme.Palette.hairline)
                     .frame(width: 2)
                 flowingText(runs)
-                    .font(Theme.Fonts.body)
+                    .font(bodyFont)
                     .foregroundStyle(Theme.Palette.onSurfaceSoft)
                     .lineSpacing(3)
                 Spacer(minLength: 0)

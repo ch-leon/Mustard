@@ -64,9 +64,11 @@ public struct NotesView: View {
             filterField
             Divider().overlay(Theme.Palette.hairline)
             if sources.isEmpty {
-                emptyState("Add a project in Agent → Sources to browse notes.")
+                emptyState("Add a project in Agent → Sources to browse notes.",
+                           symbol: "folder.badge.plus")
             } else if entries.isEmpty {
-                emptyState("No notes indexed yet — ⌘K → Reindex notes now.")
+                emptyState("No notes indexed yet — ⌘K → Reindex notes now.",
+                           symbol: "doc.text.magnifyingglass")
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
@@ -242,9 +244,13 @@ public struct NotesView: View {
         selected = NoteRef(project: project, workingDirectory: workingDirectory, relativePath: rel)
     }
 
-    private func emptyState(_ message: String) -> some View {
-        VStack {
+    /// Centered glyph + line — the calm empty-state pattern (Craft pass Phase 1).
+    private func emptyState(_ message: String, symbol: String) -> some View {
+        VStack(spacing: 8) {
             Spacer()
+            Image(systemName: symbol)
+                .font(.system(size: 22))
+                .foregroundStyle(Theme.Palette.textTertiary)
             Text(message)
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(Theme.Palette.textTertiary)
@@ -262,10 +268,15 @@ public struct NotesView: View {
         if let selected {
             editor(for: selected)
         } else {
-            Text("Select a note")
-                .font(Theme.Fonts.body)
-                .foregroundStyle(Theme.Palette.textTertiary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 10) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                Text("Select a note")
+                    .font(Theme.Fonts.body)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
