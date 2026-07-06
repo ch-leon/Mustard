@@ -230,18 +230,27 @@ public struct NotesView: View {
     }
 
     /// Shared write→reindex→select primitive for both the "+" sheet (BAK-153) and
-    /// create-from-unresolved-link (BAK-152). Writes `notes/<title>.md`, reindexes,
-    /// then selects it — setting `selected` flushes any open note's save-on-switch
-    /// (desired) and opens the new one.
+    /// create-from-unresolved-link (BAK-152). Selecting flushes any open note's
+    /// save-on-switch (desired) and opens the new one. A failed write no longer
+    /// navigates anywhere — staying put is calmer than opening a missing state.
     private func createNote(title: String, project: String, workingDirectory: String) {
+        guard let rel = writeNote(title: title, project: project,
+                                  workingDirectory: workingDirectory) else { return }
+        selected = NoteRef(project: project, workingDirectory: workingDirectory, relativePath: rel)
+    }
+
+    /// Write→reindex WITHOUT selection — extracted (2b Task 7) because the slash
+    /// menu's Sub-page command creates a note mid-typing, and navigating away from
+    /// the note being edited would yank the caret out from under the user. The
+    /// "+"-sheet and create-from-link flows layer selection back on via
+    /// `createNote`. Returns the created relativePath, nil when the write fails.
+    private func writeNote(title: String, project: String, workingDirectory: String) -> String? {
         let io = FileVaultIO(rootPath: workingDirectory)
         let rel = NoteCreation.relativePath(title: title, existing: io.notePaths())
-        // write() creates the notes/ folder if absent (FileVaultIO, Task 1). If the
-        // write throws (try?), the reindex simply finds nothing new and selection of
-        // a missing file shows the editor's calm missing state — acceptable per style.
-        try? io.write(rel, NoteCreation.stub(title: title))
+        // write() creates the notes/ folder if absent (FileVaultIO, Task 1).
+        do { try io.write(rel, NoteCreation.stub(title: title)) } catch { return nil }
         noteIndex.reindex(project: project, workingDirectory: workingDirectory)
-        selected = NoteRef(project: project, workingDirectory: workingDirectory, relativePath: rel)
+        return rel
     }
 
     /// Centered glyph + line — the calm empty-state pattern (Craft pass Phase 1).
@@ -305,6 +314,12 @@ public struct NotesView: View {
                 } else {
                     self.pendingWikilinkTarget = target
                 }
+            },
+            onCreateSubpage: { title in
+                // Sub-page creation must NOT navigate (the user is mid-typing in
+                // the parent note) — writeNote deliberately skips selection.
+                writeNote(title: title, project: selected.project,
+                          workingDirectory: selected.workingDirectory)
             }
         )
         .alert(

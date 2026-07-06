@@ -223,6 +223,7 @@ extension Theme {
     public enum NSPalette {
         public static let bg = NSColor(Palette.bg)
         public static let surface = NSColor(Palette.surface)
+        public static let hairline = NSColor(Palette.hairline)
         public static let textPrimary = NSColor(Palette.textPrimary)
         public static let textTertiary = NSColor(Palette.textTertiary)
         public static let accent = NSColor(Palette.accent)

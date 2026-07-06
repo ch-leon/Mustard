@@ -22,12 +22,24 @@ struct NoteEditorView: View {
     /// Handles a wikilink click: navigate to the target, or offer to create it
     /// when unresolved. NotesView owns the decision.
     let onWikilinkTap: (String) -> Void
+    /// Creates a sub-page (slash menu → Sub-page) WITHOUT navigating to it —
+    /// title in, created relativePath out (nil on failure). NotesView implements
+    /// it with its write-without-selection primitive; defaulted inert so other
+    /// hosts need not wire it.
+    var onCreateSubpage: (String) -> String? = { _ in nil }
 
     @Environment(NoteIndexService.self) private var noteIndex
 
     @State private var text = ""
     @State private var diskText = ""      // content at load — the dirty-check baseline
     @State private var loadFailed = false
+    /// Slash-menu presentation (2b): written by the text view's coordinator via
+    /// the binding, rendered here as a caret-anchored overlay.
+    @State private var slashMenu: SlashMenuState?
+    /// Moveable-block geometry from the layout manager — drives the hover gutter.
+    @State private var blockRects: [MarkdownBlockRect] = []
+    /// Imperative bridge overlay clicks/drags use to reach the coordinator.
+    @State private var editorProxy = MarkdownEditorProxy()
 
     /// Comfortable long-form reading measure (Craft mockups) — the document column
     /// is centered at this width; the surface behind stays full-bleed `bg`.
@@ -44,8 +56,25 @@ struct NoteEditorView: View {
                 MarkdownTextView(
                     text: $text,
                     resolveWikilink: resolveWikilink,
-                    onWikilinkTap: onWikilinkTap
+                    onWikilinkTap: onWikilinkTap,
+                    slashMenu: $slashMenu,
+                    onCreateSubpage: onCreateSubpage,
+                    onBlockRectsChange: { blockRects = $0 },
+                    proxy: editorProxy
                 )
+                // Hover gutter under the menu: ⠿ drag-reorder + per-block insert.
+                .overlay(alignment: .topLeading) {
+                    BlockGutterOverlay(
+                        rects: blockRects,
+                        onMove: { from, to in editorProxy.moveBlock(from: from, to: to) },
+                        onInsert: { editorProxy.openSlashMenu(atBlock: $0) }
+                    )
+                }
+                .overlay(alignment: .topLeading) { slashMenuOverlay }
+                // Keep the editor's overlays (menu near the bottom edge) above
+                // the later BacklinksPanel sibling, which would otherwise draw
+                // over them.
+                .zIndex(1)
                 BacklinksPanel(current: ref, entries: entries, onNavigate: onNavigate)
             }
         }
@@ -58,6 +87,7 @@ struct NoteEditorView: View {
         // that would otherwise be dropped when switching notes.
         .onChange(of: ref) { oldRef, _ in
             save(to: oldRef, content: text, ifDifferentFrom: diskText)
+            slashMenu = nil   // a half-typed trigger must not survive a note switch
         }
         .task(id: ref) {
             let io = FileVaultIO(rootPath: ref.workingDirectory)
@@ -115,6 +145,26 @@ struct NoteEditorView: View {
             now: .now,
             calendar: .current
         )
+    }
+
+    /// The caret-anchored slash menu, positioned by the coordinator-published
+    /// anchor (already in this overlay's coordinate space). Appear/disappear with
+    /// `Theme.Motion.pop`; keyboard selection lives in the coordinator, clicks
+    /// route back through the proxy.
+    @ViewBuilder
+    private var slashMenuOverlay: some View {
+        ZStack(alignment: .topLeading) {
+            if let menu = slashMenu {
+                SlashMenuView(
+                    query: menu.query,
+                    selectedIndex: menu.selectedIndex,
+                    onPick: { editorProxy.pick($0) }
+                )
+                .offset(x: menu.anchor.minX, y: menu.anchor.maxY + 6)
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
+            }
+        }
+        .animation(Theme.Motion.pop, value: slashMenu != nil)
     }
 
     private var missingState: some View {
