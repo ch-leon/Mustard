@@ -37,12 +37,18 @@ thesis ("plan your day and your agents' day together").
 
 Each phase is independently shippable and reviewable; later phases depend on earlier.
 
+**Decisions (2026-07-06, Leon):** build the **full** Craft editor — Phase 2 targets **2b**
+(block handles + slash menu + subpage cards), not just the live-render half — with the
+hard constraint that **markdown stays the on-disk source of truth** (see Phase 2).
+**Phase 3 (Daily Note) is PINNED** — deferred to a later slice; its section below is kept
+as the parked design, not active scope. Active build = Phases 0 → 1 → 2 (2a then 2b).
+
 | Phase | What | Risk | Depends on |
 |---|---|---|---|
 | **0. Theme foundation** | Elevation (shadow), motion, radius/spacing, and editorial-type tokens in `Theme` | Low | — |
 | **1. Surface polish** | Apply the tokens: markdown-render `OutputCard`, card depth + hover on board/output/rec rows, reading typography on Today + output, warmer empty states | Low | 0 |
-| **2. Craft live Notes editor** | Replace Source/Preview toggle with a live WYSIWYG editor: document header, inline-rendered markdown, wikilink pills, linked-references card **(2a)**; block hover-handles, `/` slash menu, subpage cards **(2b)** | **High** (NSTextView) | 0 |
-| **3. Agent-drafted Daily Note** | A persistent daily `.md` the agent pre-fills (standup, rollover, focus, calendar), edited like any note; ritual fused | Medium | 0, 2a |
+| **2. Craft live Notes editor (full)** | Replace Source/Preview toggle with a live WYSIWYG editor. **2a:** document header, inline-rendered markdown, wikilink pills, linked-references card. **2b:** block hover-handles, `/` slash menu, subpage cards. Markdown stays the source of truth. | **High** (NSTextView) | 0 |
+| **3. Agent-drafted Daily Note** *(PINNED — deferred)* | A persistent daily `.md` the agent pre-fills (standup, rollover, focus, calendar), edited like any note; ritual fused | Medium | 0, 2a |
 
 **Explicitly out of scope (considered — see Decision log):** dark mode (Mustard is
 light-locked by **ADR-0005**; a dark theme needs an ADR revisit + the Xcode/entitlements
@@ -118,8 +124,16 @@ truth** — the editor reads/writes markdown text via the existing `FileVaultIO`
 block tree (consistent with the Notes spec's file-native architecture — there is no block
 database, and we are not adding one).
 
-Split into two sub-phases so the high-value, lower-risk half can ship first (this is the
-"live-render first" recommendation from the exploration):
+**Decision: build the full editor (2b is the target), not just 2a.** The two sub-phases
+are a *build sequence* — 2a lands first as a reviewable milestone, then 2b — but the goal
+is the complete Craft experience, not stopping at live-render.
+
+**Markdown-as-truth guarantee (hard constraint).** Every affordance, including 2b's block
+drag-reorder and slash-menu insertions, operates by editing the underlying **markdown
+text** — there is no serialized block model and no block database. A block move rewrites
+the `.md` byte range; a slash command inserts markdown; the file on disk is always plain
+markdown the agent and Obsidian can read. This is enforced by a **round-trip test**
+(`parse(render(source)) == source` for the supported grammar) in `NoteDecorationTests`.
 
 ### 2a — Live document surface (lower risk)
 - Kill the segmented Source/Preview control. One surface that renders markdown as you
@@ -162,6 +176,10 @@ header, gutter, and popover are build + Leon's eye. Existing `MarkdownBlocksTest
 ---
 
 ## Phase 3 — Agent-drafted Daily Note (ritual fused)
+
+> **PINNED / deferred (2026-07-06).** Not in the active build. The design below is kept as
+> the parked plan; revisit after Phase 2 ships, and settle the "where it lives" question
+> then. Nothing in Phases 0–2 depends on it.
 
 Turn the transient ritual into a **daily `.md` document the agent drafts overnight**, then
 Leon edits like any Craft note (via Phase 2's editor).
@@ -247,13 +265,20 @@ already covers the offer gating. Views build + eye.
    Theme foundation → surface polish → Craft live editor (Notes Phase C) → agent-drafted
    Daily Note; with dark mode / focus mode / cover images / full-text search explicitly
    recorded as considered-but-deferred.
+5. Leon (2026-07-06): resolved the two open decisions — **build the full editor (2b)** with
+   markdown kept as the on-disk source of truth, and **pin the Daily Note (Phase 3)** for
+   later. Active build is now Phases 0 → 1 → 2.
 
 ## Open questions / risks
 
 - **NSTextView live editor (Phase 2)** is the real cost centre and the main schedule risk;
-  2a/2b split de-risks it, and Phase 1 already banks most of the read-side polish.
-- **Daily Note location (Phase 3)** — needs Leon's pick among the three options above
-  (recommended: a designated journal project).
+  building 2a first as a reviewable milestone de-risks the full-editor commitment, and
+  Phase 1 already banks most of the read-side polish independently.
+- **Markdown round-trip fidelity** — the block editor must never lossily rewrite a file;
+  the `parse(render(source)) == source` round-trip test is the guard, and any grammar the
+  editor can't round-trip stays as raw text rather than being silently normalised.
+- **Daily Note location (Phase 3)** — *pinned;* decide among the three options above when
+  Phase 3 is unpinned (recommended: a designated journal project).
 - **Dark mode tension** — Craft's signature adaptive look conflicts with ADR-0005's light
   lock; deferred here rather than quietly breaking the ADR.
 - **Agent auto-writing the daily note** — kept local-by-default and behind `TrustPolicy`
