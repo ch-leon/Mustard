@@ -171,6 +171,14 @@ struct MarkdownTextView: NSViewRepresentable {
             context.coordinator.isProgrammaticUpdate = true
             let selected = textView.selectedRange()
             textView.string = text
+            // A programmatic replace means THIS view now shows a different
+            // document (note switch / disk reload). The window's undo manager
+            // still holds the previous document's operations — replaying one
+            // against the new text passes shouldChangeText's length-only check
+            // and splices old-note bytes into the new note, which save-on-switch
+            // would then persist (deep-review panel finding). Drop the stack:
+            // undo history is per-document, and this view just changed documents.
+            textView.undoManager?.removeAllActions()
             // Preserve (clamp) the selection across the replace.
             let length = (text as NSString).length
             textView.setSelectedRange(NSRange(location: min(selected.location, length), length: 0))
