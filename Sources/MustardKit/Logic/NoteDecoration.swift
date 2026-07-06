@@ -114,6 +114,13 @@ public enum NoteDecoration {
         case codeBlock                                    // fence interior
         case listMarker                                   // "- " / "1. " / "> " prefix
         case wikilink(target: String, alias: String?)     // the VISIBLE label span
+        /// A plain paragraph line whose ENTIRE trimmed content is one bare
+        /// wikilink (`[[Target]]` alone on the line) — 2b renders it as a subpage
+        /// card. Additive: the line keeps its normal wikilink/marker spans (the
+        /// characters stay, the link stays clickable); this span only grounds the
+        /// card drawing behind them. Deliberately tight: aliases, anchors, embeds,
+        /// or any surrounding text stay ordinary wikilinks.
+        case subpageCard(target: String)
     }
 
     /// All spans for the whole source.
@@ -206,7 +213,13 @@ public enum NoteDecoration {
             return prefixedLineSpans(content, base: base, prefix: spaces + digits + 2)
 
         case .text:
-            return inlineSpans(in: content, at: base)
+            var spans = inlineSpans(in: content, at: base)
+            if let target = subpageCardTarget(content) {
+                // Card span covers the line's content range (whitespace included)
+                // so the drawn card grounds the whole line, not just the glyphs.
+                spans.append(Span(range: line.contentRange, kind: .subpageCard(target: target)))
+            }
+            return spans
 
         case .fence:
             // A fence line inside a normal block can't happen (it opens its own
@@ -309,6 +322,25 @@ public enum NoteDecoration {
         }
 
         return spans
+    }
+
+    /// The subpage-card shape (2b, deliberately tight): the trimmed line is
+    /// exactly `[[Target]]` — no alias, no `#anchor`, no `![[embed]]`, no
+    /// surrounding text, and the target carries no stray brackets/pipes and no
+    /// edge whitespace (`[[ T ]]`'s raw inner " T " differs from the trimmed
+    /// target WikilinkSyntax/resolvers use, so it stays an ordinary link rather
+    /// than a card with a mismatched title). Anything looser renders as a normal
+    /// wikilink.
+    private static func subpageCardTarget(_ content: String) -> String? {
+        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("[["), trimmed.hasSuffix("]]") else { return nil }
+        let target = String(trimmed.dropFirst(2).dropLast(2))
+        guard !target.isEmpty,
+              !target.contains("["), !target.contains("]"),
+              !target.contains("|"), !target.contains("#"),
+              target == target.trimmingCharacters(in: .whitespaces)
+        else { return nil }
+        return target
     }
 
     // MARK: - Line scanning + classification

@@ -233,4 +233,46 @@ final class NoteDecorationTests: XCTestCase {
     func test_spans_emptySource_isEmpty() {
         XCTAssertEqual(NoteDecoration.spans(""), [])
     }
+
+    // MARK: - Subpage cards (2b, Task 10 — additive span kind)
+
+    private func isCard(_ kind: NoteDecoration.Kind) -> Bool {
+        if case .subpageCard = kind { return true }
+        return false
+    }
+
+    func test_spans_wikilinkAloneOnLine_isSubpageCard() {
+        let spans = NoteDecoration.spans("[[Target]]")
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 0, length: 10),
+                                          kind: .subpageCard(target: "Target"))))
+        // Additive: the ordinary wikilink span (and its markers) remain — the
+        // characters stay clickable text; the card is only drawn behind them.
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 2, length: 6),
+                                          kind: .wikilink(target: "Target", alias: nil))))
+    }
+    func test_spans_subpageCard_coversLineContent_withSurroundingSpaces() {
+        // "  [[T]]  \n" — trimmed content is exactly one link; the card span
+        // covers the line's content range (terminator excluded).
+        let spans = NoteDecoration.spans("  [[T]]  \nafter")
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 0, length: 9),
+                                          kind: .subpageCard(target: "T"))))
+    }
+    func test_spans_wikilinkWithSurroundingText_isNotCard() {
+        XCTAssertFalse(NoteDecoration.spans("see [[Target]]").contains { isCard($0.kind) })
+        XCTAssertFalse(NoteDecoration.spans("[[Target]] trailing").contains { isCard($0.kind) })
+    }
+    func test_spans_aliasAnchorEmbedOrListLine_isNotCard() {
+        for source in ["[[T|alias]]", "[[T#anchor]]", "![[T]]", "- [[T]]",
+                       "[[a]] [[b]]", "[[ T ]]"] {
+            XCTAssertFalse(NoteDecoration.spans(source).contains { isCard($0.kind) },
+                           "unexpected card in \(source)")
+        }
+    }
+    func test_spans_cardInsideFence_staysRaw_andPartitionLossless() {
+        let source = "```\n[[NotACard]]\n```\n\n[[Card]]\n"
+        XCTAssertEqual(NoteDecoration.spans(source).filter { isCard($0.kind) },
+                       [Span(range: NSRange(location: 22, length: 8),
+                             kind: .subpageCard(target: "Card"))])
+        assertPartitionLossless(source)
+    }
 }
