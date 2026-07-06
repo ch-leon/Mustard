@@ -81,6 +81,17 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       Spec: `docs/specs/2026-07-06-morning-ritual-design.md`; plan:
       `docs/superpowers/plans/2026-07-06-morning-ritual.md`. Evening shutdown
       deliberately deferred (fast-follow once the morning habit sticks).
+- [x] **F22 Craft pass — Theme depth/motion + live Notes editor (Notes Phase C)** —
+      `Theme.Elevation/Motion/Metrics` + editorial type (with NS bridges), surface
+      polish (markdown-rendered task-notes preview, card depth + hover lift, warmer
+      empty states), and the live Craft-style editor replacing the Source/Preview
+      toggle: TextKit-1 `MarkdownTextView` styling-as-you-type over pure
+      `NoteDecoration` spans (no rewrite API — markdown on disk stays truth),
+      slash menu (`SlashMenu`), block drag-reorder (`BlockReorder`, byte-pinned),
+      hover gutter, subpage cards. Spec:
+      `docs/specs/2026-07-06-craft-inspired-notes-and-daily-note-design.md`; plans:
+      `docs/superpowers/plans/2026-07-06-craft-pass-phase0-1.md` +
+      `…-craft-editor-phase2.md`. Daily Note (spec Phase 3) pinned/deferred.
 
 ## Next — needs Leon ⛔
 

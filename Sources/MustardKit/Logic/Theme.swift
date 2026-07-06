@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 extension Color {
     init(hex: String) {
@@ -141,5 +144,129 @@ public enum Theme {
         public static let meta = Font.system(size: 13)
         public static let gutter = Font.system(size: 13)
         public static let header = Font.system(size: 22, weight: .medium)
+
+        // Editorial scale (Craft pass Phase 0, spec 2026-07-06) — long-form
+        // note/output content. The chrome tokens above stay for lists and controls.
+        public static let docTitle = Font.system(size: 33, weight: .semibold)
+        public static let docH1 = Font.system(size: 22, weight: .semibold)
+        public static let docH2 = Font.system(size: 18, weight: .semibold)
+        public static let reading = Font.system(size: 16)
+    }
+
+    // MARK: Elevation — depth recipes (Craft pass Phase 0, spec 2026-07-06)
+
+    /// Three named shadow recipes. Applied via the `.elevation(_:cornerRadius:)`
+    /// View extension below so background, clip, border, and shadow always travel
+    /// together — no view hand-rolls a shadow, and a surface can swap levels
+    /// (e.g. card → float on hover) without re-deriving any part.
+    public enum Elevation {
+        /// Resting card — board cards, recommendation rows, callouts.
+        case card
+        /// Lifted — hover state, open-editor feel.
+        case float
+        /// Highest — menus and popovers.
+        case pop
+
+        var shadowOpacity: Double {
+            switch self {
+            case .card: return 0.05
+            case .float: return 0.10
+            case .pop: return 0.14
+            }
+        }
+
+        var shadowRadius: CGFloat {
+            switch self {
+            case .card: return 14
+            case .float: return 24
+            case .pop: return 28
+            }
+        }
+
+        var shadowY: CGFloat {
+            switch self {
+            case .card: return 4
+            case .float: return 10
+            case .pop: return 12
+            }
+        }
+    }
+
+    // MARK: Motion — canonical animation tokens (one feel across the app)
+
+    public enum Motion {
+        /// Small state changes settling into place (hover lift, selection).
+        public static let settle = Animation.snappy(duration: 0.16)
+        /// Content expanding or collapsing (drawers, disclosure, trays).
+        public static let expand = Animation.snappy(duration: 0.18)
+        /// Menus and popovers arriving (slash menu, ⌘K).
+        public static let pop = Animation.spring(duration: 0.22)
+    }
+
+    // MARK: Metrics — radius scale (codifies the hand-used 6/7/10/12)
+
+    public enum Metrics {
+        public static let rSm: CGFloat = 6    // chips, small fields
+        public static let rMd: CGFloat = 7    // list rows, inputs
+        public static let rLg: CGFloat = 10   // cards, banners
+        public static let rXl: CGFloat = 12   // sheets, popovers
+    }
+}
+
+#if canImport(AppKit)
+extension Theme {
+    // MARK: AppKit companions (Craft pass Phase 2a) — for the NSTextView editing
+    // surface (MarkdownTextView), which styles via NSTextStorage attributes and so
+    // needs NSColor/NSFont. Every value is BRIDGED from the Palette/Fonts tokens
+    // above — never fresh hex, never fresh sizes.
+
+    public enum NSPalette {
+        public static let bg = NSColor(Palette.bg)
+        public static let surface = NSColor(Palette.surface)
+        public static let hairline = NSColor(Palette.hairline)
+        public static let textPrimary = NSColor(Palette.textPrimary)
+        public static let textTertiary = NSColor(Palette.textTertiary)
+        public static let accent = NSColor(Palette.accent)
+    }
+
+    /// NSFont equivalents of the editorial scale plus the editor-only variants
+    /// (markers, code, emphasis) the SwiftUI token set has no reason to carry.
+    public enum NSFonts {
+        public static let reading = NSFont.systemFont(ofSize: 16)                       // Fonts.reading
+        public static let readingBold = NSFont.boldSystemFont(ofSize: 16)
+        public static let readingItalic: NSFont = {
+            let base = NSFont.systemFont(ofSize: 16)
+            let descriptor = base.fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: descriptor, size: 16) ?? base
+        }()
+        public static let docH1 = NSFont.systemFont(ofSize: 22, weight: .semibold)      // Fonts.docH1
+        public static let docH2 = NSFont.systemFont(ofSize: 18, weight: .semibold)      // Fonts.docH2
+        /// h3+ — matches the preview's 15.5pt sub-heading size.
+        public static let docH3 = NSFont.systemFont(ofSize: 15.5, weight: .semibold)
+        /// De-emphasized syntax markers ("**", "#", "[["…).
+        public static let marker = NSFont.systemFont(ofSize: 12)
+        public static let code = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        /// The visible-but-quiet YAML frontmatter block.
+        public static let frontmatter = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    }
+}
+#endif
+
+extension View {
+    /// Applies an elevation recipe as one unit: `bg` card ground, rounded clip,
+    /// faint hairline border, and the level's soft shadow. Every card surface in
+    /// this pass sits on `Theme.Palette.bg`; parameterise the ground the day a
+    /// non-bg card needs depth.
+    public func elevation(
+        _ level: Theme.Elevation, cornerRadius: CGFloat = Theme.Metrics.rLg
+    ) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        return background(Theme.Palette.bg, in: shape)
+            .clipShape(shape)
+            .overlay(shape.stroke(Theme.Palette.hairline, lineWidth: 0.5))
+            .shadow(
+                color: .black.opacity(level.shadowOpacity),
+                radius: level.shadowRadius, x: 0, y: level.shadowY
+            )
     }
 }
