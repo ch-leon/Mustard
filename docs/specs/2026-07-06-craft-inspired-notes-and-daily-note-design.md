@@ -93,12 +93,17 @@ them. No new pure logic to TDD here.
 
 Low-risk, no schema change; makes the app visibly Craft-warmer immediately.
 
-- **Markdown-render `OutputCard` content.** `OutputCard.content` is already markdown
-  (the agent emits it) but the console renders it as plain `Text`. Render it through the
-  **existing `MarkdownPreviewView`** block renderer, passing no-op `resolve`/`onWikilinkTap`
-  closures (output cards have no wikilink graph). Reuse, not new code. File:
-  `Views/AgentConsoleView.swift` (the output-card row) + `Views/MarkdownPreviewView.swift`
-  (already parameterised).
+> **Drift note (build time):** ADR-0010 (2026-06-29) superseded the execute→OutputCard
+> flow — agent output now lands in `MustardTask.notes` and is reviewed from the board's
+> Needs Review column via `TaskDetailSheet`. The markdown-rendering item below therefore
+> landed in the TaskDetailSheet notes *preview* (with `Theme.Fonts.reading`), not an
+> output-card row. Recorded in the Phase 0+1 plan's drift note.
+
+- **Markdown-render agent output.** The agent's run output is markdown but was rendered
+  as plain `Text`. Render it through a reusable **`MarkdownBlocksView`** extracted from
+  `MarkdownPreviewView` (non-scrolling block stack), passing no-op `resolve`/`onWikilinkTap`
+  closures. Reuse, not new code. Files: `Views/TaskDetailSheet.swift` (notes preview) +
+  `Views/MarkdownPreviewView.swift` (extraction).
 - **Card depth + hover-lift.** Apply `Theme.Elevation.card` to `MustardBoardCard`,
   the output-card container, and `RecommendationRow`; add an `onHover` lift
   (`Theme.Motion.settle`, `elevation(.float)`) on board cards so they read as grabbable
