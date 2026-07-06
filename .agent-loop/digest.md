@@ -2,6 +2,31 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-06 — HOLD (Leon: eye pass + merge call) · Craft pass — Theme tokens, surface polish, live Notes editor (PR #78)
+- **Risk:** HIGH (new live editing surface over vault files — spec's own call; an earlier
+  mechanical-medium classification was corrected after fresh-context review flagged it)
+- **Fresh-context review:** standards PASS · spec BLOCK → remediated (Task 11 docs, risk
+  call, process drift recorded) — `review-report.md`
+- **Deep-review panel:** 2 lenses REFUTED → both findings fixed in-run (stale undo stack
+  across note switch → `removeAllActions()` on document swap; /Sub-page file-creation
+  inside an undoable edit → dangling-link design), 1 lens UPHELD (no regressions).
+  **PASS after fix round** — `deep-review-report.md`
+- **Checks:** swift test 647 pass/1 skip (was 576) · swift build clean · macOS CI green
+  through `89a662b`; final run on HEAD (deep-review fixes) linked from PR checks
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260706-craft-pass/`
+- **What landed:** Theme.Elevation/Motion/Metrics + editorial type (+NS bridges); surface
+  polish (MarkdownBlocksView extraction, task-notes markdown preview, card depth+hover,
+  warmer empty states); live Craft editor replacing Source/Preview (TextKit-1
+  MarkdownTextView over pure NoteDecoration spans — no rewrite API; SlashMenu;
+  byte-pinned BlockReorder + hover gutter; subpage cards). Spec Phase 3 (Daily Note)
+  pinned/deferred. Single-PR delivery per Leon's "build the whole thing".
+- **Why held:** views need Leon's eye (editor checklist in the Phase 2 plan) and the
+  driving session is branch-pinned — merge is Leon's call, not auto-merged despite the
+  panel pass.
+- **Revert:** unmerged — close PR #78 to discard; on squash-merge, revert line becomes
+  that squash commit (fill in at merge).
+
 ## 2026-07-06 — MERGED · BAK-50 Morning ritual — "Plan your day" wizard (PR #77)
 - **Risk:** medium (feature; Sources/ only — zero high-risk paths, wizard calls only existing decision APIs) · **Fresh-context review:** PASS (4/4 axes)
 - **Checks:** swift test 576 pass/1 skip (was 556) · swift build clean · build-app.sh OK · CI (self-hosted) green

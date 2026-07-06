@@ -12,6 +12,8 @@ to PR #78 ("Build & test (macOS)"). Every slice below links its run.
 | 2a fix — explicit AppKit types | `352b613` | [28785946214](https://github.com/ch-leon/Mustard/actions/runs/28785946214) | ✅ build + full suite green (incl. all 2a tests) |
 | Milestone 2b — slash menu, block reorder, gutter, subpage cards (21+ new tests) | `f97dcbc`..`7ce2d67` | [28787344892](https://github.com/ch-leon/Mustard/actions/runs/28787344892) | ❌ compiled; 7 test failures (CRLF grapheme-cluster bugs) |
 | 2b fix — unicodeScalars terminator check + isNewline test helper | `89a662b` | [28787673938](https://github.com/ch-leon/Mustard/actions/runs/28787673938) | ✅ build + full suite green — **647 tests, 1 pre-existing skip, 0 failures** |
+| Review remediation — Task 11 docs, risk→High, review artifacts | `8732971` | docs-only | ✅ (same code as green run) |
+| Deep-review fixes — /Sub-page dangling link (undo symmetry) + undo-stack clear on note switch | `e274e49` + HEAD | final run on HEAD | see PR checks — must be green before merge |
 
 Views are verified per CLAUDE.md convention by build + Leon's eye — the agent
 does not claim visual correctness. Eye checklist for Leon is in the Phase 2 plan
