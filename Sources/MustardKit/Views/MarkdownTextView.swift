@@ -28,7 +28,7 @@ struct MarkdownTextView: NSViewRepresentable {
         let textStorage = NSTextStorage()
         let layoutManager = NSLayoutManager()
         textStorage.addLayoutManager(layoutManager)
-        let textContainer = NSTextContainer(size: NSSize(width: 0, height: .greatestFiniteMagnitude))
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         textContainer.widthTracksTextView = true
         layoutManager.addTextContainer(textContainer)
         let textView = NSTextView(frame: .zero, textContainer: textContainer)
@@ -53,15 +53,15 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 20, height: 14)
         // Our wikilink spans carry their own colour/underline; empty this so
         // AppKit's default link styling (system blue) doesn't paint over them.
-        textView.linkTextAttributes = [.cursor: NSCursor.pointingHand]
+        textView.linkTextAttributes = [NSAttributedString.Key.cursor: NSCursor.pointingHand]
         textView.typingAttributes = context.coordinator.baseAttributes
 
-        textView.minSize = .zero
+        textView.minSize = NSSize.zero
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
                                   height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
+        textView.autoresizingMask = [NSView.AutoresizingMask.width]
 
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
