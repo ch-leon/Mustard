@@ -191,6 +191,9 @@ public struct BoardView: View {
 
     private func column(_ stage: TaskStage) -> some View {
         let style = ColumnStyle(stage.kind)
+        // The concrete Area backing the current scope, so an agent-lane quick-add can
+        // inherit it for a real hand-off. Nil in the All / personal lenses.
+        let hostArea: Area? = { if case .area(let name) = area { return areas.first { $0.name == name } }; return nil }()
         let all = PersonalBoard.filterBySearch(
             PersonalBoard.tasks(allTasks, in: stage, view: view, area: area), query: searchText)
         let isDone = stage == .done
@@ -248,7 +251,7 @@ public struct BoardView: View {
                             .padding(.horizontal, 4)
                             .padding(.top, 2)
                     }
-                    QuickColumnAdd(stage: stage)
+                    QuickColumnAdd(stage: stage, boardArea: area, hostArea: hostArea)
                 }
             }
         }
@@ -267,9 +270,7 @@ public struct BoardView: View {
             guard task.stage != stage else { return true }
             // BAK-90: dropping into an agent lane is a hand-off — require a client area
             // first, or the bridge export silently won't route it. Reject + surface a hint.
-            let isAgentLane = stage == .forAgent || stage == .needsApproval
-                || stage == .queued || stage == .needsReview
-            if isAgentLane && !PersonalBoard.canHandOffToAgent(task) {
+            if PersonalBoard.isAgentLane(stage) && !PersonalBoard.canHandOffToAgent(task) {
                 agent.delegate(task)   // no-ops the hand-off and sets the hint banner
                 return false
             }
@@ -376,11 +377,20 @@ private struct ColumnStyle {
     }
 }
 
-/// Per-column "+ Add" affordance: inserts a new `.me` task at this stage. `stage` is
-/// the source of truth; the legacy `status` field is left at its default.
+/// Per-column "+ Add" affordance. `stage` is the source of truth. Creating into a
+/// non-agent column makes a plain `.me` task at that stage; creating into an agent lane
+/// is a hand-off — it inherits the board's scoped client area (owner agent) so it will
+/// actually export, or, when the board isn't scoped to one area, lands in Planned with a
+/// hint rather than stranding area-less in the lane (BAK-90 follow-up).
 struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
+    @Environment(AgentService.self) private var agent
     let stage: TaskStage
+    /// The board's current area scope, so agent-lane creates can inherit it.
+    let boardArea: BoardArea
+    /// The concrete Area to attach when handing off (resolved by the parent from the
+    /// scoped area). Nil when the board isn't scoped to a single area.
+    let hostArea: Area?
     @State private var text = ""
     @FocusState private var focused: Bool
 
@@ -407,11 +417,29 @@ struct QuickColumnAdd: View {
     private func add() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { focused = true; return }
-        let task = MustardTask(title: trimmed)
-        task.stage = stage
+        let placement = PersonalBoard.newTaskPlacement(inColumn: stage, boardArea: boardArea)
+        let task = MustardTask(title: trimmed, owner: placement.owner)
+        task.stage = placement.stage
+        if placement.attachArea, let host = hostArea {
+            task.list = listForHandOff(in: host)
+            agent.clearHint()
+        }
         context.insert(task)
+        if placement.blockedHandOff {
+            agent.setHint("New agent tasks need a client area — pick an area tab first, "
+                + "or hand it off from the card. Saved to Planned for now.")
+        }
         text = ""
         focused = true
+    }
+
+    /// Reuse an existing list under the area, else create one — so a handed-off quick-add
+    /// task carries an area the bridge export can route by (mirrors MeetingTaskSync).
+    private func listForHandOff(in area: Area) -> TaskList {
+        if let existing = (area.lists ?? []).first { return existing }
+        let list = TaskList(name: area.name, area: area)
+        context.insert(list)
+        return list
     }
 }
 

@@ -67,9 +67,7 @@ public struct TaskDetailSheet: View {
                                 get: { task.stage },
                                 set: { newStage in
                                     // Moving into an agent lane is a hand-off — gate it.
-                                    // Same four stages the board drop guard treats as agent.
-                                    let agentLanes: [TaskStage] = [.forAgent, .needsApproval, .queued, .needsReview]
-                                    if agentLanes.contains(newStage), !gateHandOff() { return }
+                                    if PersonalBoard.isAgentLane(newStage), !gateHandOff() { return }
                                     task.stage = newStage
                                 }
                             )) {

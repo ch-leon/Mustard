@@ -357,6 +357,10 @@ public final class AgentService {
     /// Clear the transient hand-off hint (e.g. after a successful drop into an agent lane).
     public func clearHint() { lastHint = nil }
 
+    /// Surface a transient hand-off hint (e.g. quick-add into an agent lane with no area
+    /// scope to inherit — the task lands in Planned instead of stranding in the lane).
+    public func setHint(_ message: String) { lastHint = message }
+
     /// Run an approved in-vault note headless via claude (it CAN reach the vault).
     /// Promote a board task either way; on success mark it DONE, on failure leave it
     /// at `.queued` and surface the error on `lastError` (no silent completion).

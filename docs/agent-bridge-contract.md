@@ -153,17 +153,29 @@ A `prep` example — `results/u-77.json` for a `forAgent` task:
 After ingest, task `u-77` moves to **Needs Approval** with the classified action and the
 prepared draft as its notes.
 
-## Phase 3 boundary
+## The worker — `drain-agent-queue` (Phase 3, implemented)
 
-Phase 2 ships export + ingest + this contract. The **worker** — a skill/routine that reads
-`outbox/`, runs `dl-create-shortcut-story` (and the email/Slack equivalents) in a connected
-session, writes `results/`, and archives the work order to `outbox/done/` — is **Phase 3**,
-with its own spec.
+The session side of this contract is the **`drain-agent-queue`** skill. It reads `outbox/`,
+does the work (routing to a matching vault skill — `dl-create-shortcut-story`, the email/
+Slack equivalents — or best-effort with the KB + connectors), writes `results/`, and
+archives the order to `outbox/done/`.
+
+**Where it lives:** `Codeheroes work/.claude/skills/drain-agent-queue/SKILL.md` — in the
+sibling **`Codeheroes work`** vault repo, **not** in the Mustard repo, and **never pushed**
+(that repo has tracked secrets). So it will not appear in a Mustard-repo session's skill
+list; look for it in the vault.
+
+**How to run it:** on-demand, in a **connected Claude session** (needs Shortcut/Gmail/Slack/
+Chrome — headless `claude -p` inside Mustard cannot reach connectors, ADR-0003). Trigger it
+with "drain the agent queue" / "run the agent worker" from a session in the `Codeheroes work`
+directory. A scheduled routine wrapping it is still deferred (the Jira/Chrome step needs a
+logged-in session). **Nothing consumes `outbox/` automatically** — if a card sits on
+"Waiting for agent to pick up," the usual cause is simply that this worker has not been run.
 
 ## Manual end-to-end test
 
-This is the Phase-2 acceptance check (Mustard's two halves work against a hand-written
-result, standing in for the Phase-3 session):
+Mustard's two halves can be checked against a hand-written result, standing in for the
+worker (use this when `drain-agent-queue` isn't being run):
 
 1. In the app, approve an outward recommendation so a task enters **Approved · Queued**.
 2. Confirm `<KB>/_agent/outbox/<uid>.json` appears with `"mode":"execute"`.
@@ -173,3 +185,5 @@ result, standing in for the Phase-3 session):
    ```
 4. Wait for the ~10-min loop (or relaunch the app); confirm the task moved to **Needs
    Review** with the link, and the result file is now under `results/done/<uid>.json`.
+
+For the real path, run `drain-agent-queue` in a connected session instead of steps 3–4.
