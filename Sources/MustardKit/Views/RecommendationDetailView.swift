@@ -20,15 +20,15 @@ struct RecommendationDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             ProvenancePill(rec: rec)
             HStack(spacing: 6) {
-                Image(systemName: "sparkles").font(.system(size: 13)).foregroundStyle(Theme.Palette.agent)
+                Image(systemName: "sparkles").font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.agent)
                 Text(rec.title).font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)
                 Spacer()
             }
             if rec.action.isGated {
                 HStack(spacing: 6) {
-                    Image(systemName: "lock").font(.system(size: 11))
+                    Image(systemName: "lock").font(Theme.Fonts.caption)
                     Text("\(rec.action.label) — always reviewed by you, regardless of trust level.")
-                        .font(.system(size: 11))
+                        .font(Theme.Fonts.caption)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(Theme.Palette.agentText)
@@ -53,8 +53,8 @@ struct RecommendationDetailView: View {
     private var actionAndConfidence: some View {
         HStack(spacing: 8) {
             Text("✦ \(rec.action.label)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(hex: "#534AB7"))
+                .font(Theme.Fonts.caption.weight(.medium))
+                .foregroundStyle(Theme.Palette.agentTextDeep)
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Theme.Palette.agent.opacity(0.14), in: Capsule())
             Spacer()

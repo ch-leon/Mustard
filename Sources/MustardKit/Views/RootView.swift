@@ -171,7 +171,7 @@ public struct RootView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: item.systemImage)
-                            .font(.system(size: 13))
+                            .font(Theme.Fonts.meta)
                             .frame(width: 16)
                         Text(item.rawValue)
                             .font(Theme.Fonts.body)
@@ -202,7 +202,7 @@ public struct RootView: View {
             Button { screen = .settings } label: {
                 HStack(spacing: 8) {
                     Image(systemName: MustardScreen.settings.systemImage)
-                        .font(.system(size: 13)).frame(width: 16)
+                        .font(Theme.Fonts.meta).frame(width: 16)
                     Text("Settings").font(Theme.Fonts.body)
                     Spacer()
                 }

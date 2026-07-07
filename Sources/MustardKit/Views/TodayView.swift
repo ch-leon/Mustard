@@ -147,12 +147,12 @@ public struct TodayView: View {
             let recs = AgentInbox.pendingRecCount(recommendations)
             HStack(spacing: 10) {
                 Image(systemName: "sunrise")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Theme.Fonts.meta.weight(.semibold))
                     .foregroundStyle(Theme.Palette.accent)
                     .frame(width: 24, height: 24)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Plan your day")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Theme.Fonts.meta.weight(.medium))
                         .foregroundStyle(Theme.Palette.textPrimary)
                     Text(ritualSubtitle(rolled: rolled, recs: recs))
                         .font(Theme.Fonts.meta)
@@ -163,7 +163,7 @@ public struct TodayView: View {
                     ritualDismissed = Date.now.timeIntervalSince1970
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Theme.Fonts.caption.weight(.medium))
                         .foregroundStyle(Theme.Palette.textTertiary)
                 }
                 .buttonStyle(.plain)
@@ -202,7 +202,7 @@ public struct TodayView: View {
                 ForEach(focus) { task in
                     HStack(spacing: 8) {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 11))
+                            .font(Theme.Fonts.caption)
                             .foregroundStyle(Theme.Palette.accent)
                         TimelineRow(task: task, onToggleDone: { toggle(task) }, onOpen: { selectedTask = task })
                     }
@@ -220,16 +220,16 @@ public struct TodayView: View {
         if n > 0 && !nudgeDismissed {
             HStack(spacing: 10) {
                 Text("✦")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Theme.Fonts.meta.weight(.semibold))
                     .foregroundStyle(Theme.Palette.agentText)
                     .frame(width: 24, height: 24)
                     .background(Theme.Palette.agentTintLight, in: Circle())
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Agent has \(n) thing\(n == 1 ? "" : "s") for you")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Theme.Fonts.meta.weight(.medium))
                         .foregroundStyle(Theme.Palette.textPrimary)
                     Text("Tap to review in the Agent console")
-                        .font(.system(size: 11.5))
+                        .font(Theme.Fonts.label)
                         .foregroundStyle(Theme.Palette.textSecondary)
                 }
                 Spacer(minLength: 0)
@@ -237,7 +237,7 @@ public struct TodayView: View {
                     nudgeDismissed = true
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Theme.Fonts.caption.weight(.medium))
                         .foregroundStyle(Theme.Palette.textTertiary)
                 }
                 .buttonStyle(.plain)
@@ -267,7 +267,7 @@ public struct TodayView: View {
                 }
                 .frame(height: 4)
                 Text("\(p.done) of \(p.total) done")
-                    .font(.system(size: 11.5))
+                    .font(Theme.Fonts.label)
                     .foregroundStyle(Theme.Palette.textSecondary)
             }
             .padding(.bottom, 16)
