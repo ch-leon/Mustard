@@ -30,6 +30,7 @@ public enum Theme {
         public static let titleBar = Color(hex: "#F4F1EA")     // title bar / panels
         public static let sidebar = Color(hex: "#F7F4ED")
         public static let chipActive = Color(hex: "#EAE5DB")
+        public static let chipActiveBorder = Color(hex: "#DAD3C6") // active area-chip stroke (Board)
         public static let navActive = Color(hex: "#EDE9E0")
         public static let hairline = Color(hex: "#E7E3DA")     // borders are 0.5px
         public static let divider = Color(hex: "#E1DCD1")      // secondary divider
@@ -38,6 +39,7 @@ public enum Theme {
         public static let textPrimary = Color(hex: "#2B2A26")
         public static let textSecondary = Color(hex: "#9A968B")
         public static let textTertiary = Color(hex: "#B0ACA1")
+        public static let textFaint = Color(hex: "#C0BCB1")    // column counts, quick-add chrome — near but distinct from textTertiary
         public static let textMuted = Color(hex: "#A6A296")    // completed title
         public static let strikethrough = Color(hex: "#C8C3B7")
         public static let onSurface = Color(hex: "#46433B")
@@ -47,11 +49,14 @@ public enum Theme {
         public static let accent = Color(hex: "#2D7FF9")
         public static let agent = Color(hex: "#7F77DD")
         public static let agentText = Color(hex: "#6A61C9")
+        public static let agentTextDeep = Color(hex: "#534AB7")  // deeper purple fg — action-label chips/pills (Board/AgentConsole)
         public static let agentMid = Color(hex: "#8079C6")
         public static let agentTintLight = Color(hex: "#EEEBFA")
         public static let agentTintMid = Color(hex: "#CFC9F0")
         public static let agentTintStrong = Color(hex: "#BCB6EC")
         public static let agentTintFaint = Color(hex: "#F3F1FA")
+        public static let agentTintBorder = Color(hex: "#E2DCF4") // review-queue toggle capsule stroke
+        public static let agentTintOnDark = Color(hex: "#B9B2F0") // agent accent for text on dark chrome (mobile undo toast)
         public static let ownerTabInactive = Color(hex: "#BBB6AA")
 
         // MARK: Done (green) / review
@@ -65,6 +70,7 @@ public enum Theme {
         public static let warning = Color(hex: "#D98A29")       // overdue / needs-attention
         public static let warnText = Color(hex: "#B07A29")
         public static let warnTintSoft = Color(hex: "#FBF1E2")  // amber pill bg (needs-action)
+        public static let warnTintBorder = Color(hex: "#EFE2C9") // amber hand-off banner divider
         public static let warningSoft = Color(hex: "#FAEEDA")   // amber pill background (needs-you badge)
         public static let warningDeep = Color(hex: "#633806")   // amber pill text (needs-you badge)
 
@@ -92,6 +98,12 @@ public enum Theme {
         public static let areaGreen = Color(hex: "#3E8E7E")     // Admin
         public static let areaPurple = Color(hex: "#7F77DD")    // Errands
         public static let areaGrey = Color(hex: "#B0ACA1")      // Reading
+        /// Raw hex twin of `areaGrey` — for call sites that need a `String` fallback
+        /// default (e.g. `Area.colorHex` when a list has no area) rather than a `Color`.
+        public static let areaGreyHex = "#B0ACA1"
+
+        // MARK: Load / capacity (Week — mobile day-load dots)
+        public static let loadEmptyDot = Color(hex: "#D8D3C8") // no scheduled load
     }
 
     // MARK: Confidence tiers — single source of truth (BAK-98)
@@ -144,6 +156,13 @@ public enum Theme {
         public static let meta = Font.system(size: 13)
         public static let gutter = Font.system(size: 13)
         public static let header = Font.system(size: 22, weight: .medium)
+
+        // Chrome micro-text — count badges, capsule labels, inline icons. Weighted
+        // variants chain `.weight(_:)` off these (e.g. `Fonts.caption.weight(.medium)`)
+        // rather than re-declaring a size, so every call site stays byte-identical
+        // to the literal `.system(size:...)` it replaces.
+        public static let caption = Font.system(size: 11)
+        public static let label = Font.system(size: 11.5)
 
         // Editorial scale (Craft pass Phase 0, spec 2026-07-06) — long-form
         // note/output content. The chrome tokens above stay for lists and controls.
