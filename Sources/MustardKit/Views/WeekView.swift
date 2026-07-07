@@ -176,7 +176,7 @@ public struct WeekView: View {
     private func railSection(title: String, tasks: [MustardTask], accent: Color?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(Theme.Fonts.caption.weight(.semibold))
                 .foregroundStyle(accent ?? Theme.Palette.textTertiary)
             if tasks.isEmpty {
                 Text(title == "UNSCHEDULED" ? "All scheduled" : "")
@@ -216,7 +216,7 @@ public struct WeekView: View {
                         .foregroundStyle(Theme.Palette.textTertiary)
                     Spacer(minLength: 0)
                     Text(WeekPlanner.capacityLabel(minutes: capMinutes))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Theme.Fonts.caption.weight(.medium))
                         .foregroundStyle(loadColor(tier))
                 }
                 loadBar(minutes: capMinutes, tier: tier)
@@ -450,7 +450,7 @@ struct AxisMeetingBlock: View {
             Text(event.start.formatted(date: .omitted, time: .shortened))
                 .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.Palette.textSecondary)
             Text(event.title)
-                .font(.system(size: 11)).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
+                .font(Theme.Fonts.caption).foregroundStyle(Theme.Palette.textPrimary).lineLimit(2)
             Spacer(minLength: 0)
         }
         .padding(5)
@@ -477,7 +477,7 @@ struct AxisTaskBlock: View {
             HStack(spacing: 4) {
                 Button(action: onToggle) {
                     Image(systemName: task.stage == .done ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 11)).foregroundStyle(tint)
+                        .font(Theme.Fonts.caption).foregroundStyle(tint)
                 }
                 .buttonStyle(.plain)
                 if let when = task.scheduledAt {
@@ -487,7 +487,7 @@ struct AxisTaskBlock: View {
                 Spacer(minLength: 0)
             }
             Text(task.title)
-                .font(.system(size: 11)).foregroundStyle(Theme.Palette.textPrimary)
+                .font(Theme.Fonts.caption).foregroundStyle(Theme.Palette.textPrimary)
                 .strikethrough(task.stage == .done, color: Theme.Palette.textTertiary)
                 .lineLimit(2)
             Spacer(minLength: 0)
@@ -530,7 +530,7 @@ struct WeekBlock: View {
         HStack(spacing: 6) {
             Button(action: onToggle) {
                 Image(systemName: task.stage == .done ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 11)).foregroundStyle(tint)
+                    .font(Theme.Fonts.caption).foregroundStyle(tint)
             }
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 2) {

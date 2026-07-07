@@ -25,7 +25,7 @@ struct MobileAreaChips: View {
             Text(label).font(.caption.weight(.medium))
                 .foregroundStyle(active ? .white : .secondary)
                 .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(active ? AnyShapeStyle(Color(hex: "#2B2A26")) : AnyShapeStyle(Color(hex: "#EFEBE2")), in: Capsule())
+                .background(active ? AnyShapeStyle(Theme.Palette.textPrimary) : AnyShapeStyle(Theme.Palette.surface), in: Capsule())
         }.buttonStyle(.plain)
     }
 }

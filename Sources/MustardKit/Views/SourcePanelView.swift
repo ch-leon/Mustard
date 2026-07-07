@@ -31,7 +31,7 @@ struct SourcePanelView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: link.symbol)
-                    .font(.system(size: 13)).foregroundStyle(Theme.Palette.agent)
+                    .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.agent)
                 Text(link.label)
                     .font(Theme.Fonts.title).foregroundStyle(Theme.Palette.textPrimary)
                     .lineLimit(1).truncationMode(.tail)

@@ -8,7 +8,7 @@ struct ListBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(Color(hex: list.area?.colorHex ?? "#B0ACA1"))
+                .fill(Color(hex: list.area?.colorHex ?? Theme.Palette.areaGreyHex))
                 .frame(width: 6, height: 6)
             Text(list.name.isEmpty ? "Untitled list" : list.name)
                 .foregroundStyle(Theme.Palette.textTertiary)

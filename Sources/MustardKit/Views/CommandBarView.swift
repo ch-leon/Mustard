@@ -35,7 +35,7 @@ struct CommandBarView: View {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 HStack(spacing: 10) {
                     Image(systemName: item.icon)
-                        .font(.system(size: 13))
+                        .font(Theme.Fonts.meta)
                         .foregroundStyle(index == selected ? Theme.Palette.accent : Theme.Palette.textTertiary)
                         .frame(width: 18)
                     Text(item.title)

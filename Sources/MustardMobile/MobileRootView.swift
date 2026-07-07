@@ -22,7 +22,7 @@ struct MobileRootView: View {
     @State private var comingSoon = false
 
     private var triageCount: Int { AgentInbox.pendingRecCount(recommendations) }
-    private var accent: Color { tab == .agent ? Color(hex: "#7F77DD") : Color(hex: "#2D7FF9") }
+    private var accent: Color { tab == .agent ? Theme.Palette.agent : Theme.Palette.accent }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -68,7 +68,7 @@ struct MobileRootView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 52, height: 52)
-                .background(Color(hex: "#2B2A26"), in: Circle())
+                .background(Theme.Palette.textPrimary, in: Circle())
                 .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
@@ -78,10 +78,10 @@ struct MobileRootView: View {
 
     private var comingSoonToast: some View {
         Text("✦ New task — coming soon")
-            .font(.system(size: 13, weight: .medium))
+            .font(Theme.Fonts.meta.weight(.medium))
             .foregroundStyle(.white)
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(Color(hex: "#2B2A26"), in: Capsule())
+            .background(Theme.Palette.textPrimary, in: Capsule())
             .padding(.top, 12)
             .transition(.move(edge: .top).combined(with: .opacity))
     }

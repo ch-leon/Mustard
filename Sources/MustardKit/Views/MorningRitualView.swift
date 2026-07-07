@@ -262,7 +262,7 @@ public struct MorningRitualView: View {
                 .foregroundStyle(Theme.Palette.textTertiary)
         } else {
             Label(badge.label, systemImage: badge.symbol)
-                .labelStyle(.titleAndIcon).font(.system(size: 11, weight: .medium))
+                .labelStyle(.titleAndIcon).font(Theme.Fonts.caption.weight(.medium))
                 .foregroundStyle(Color(hex: badge.fgHex))
                 .padding(.horizontal, 7).padding(.vertical, 2)
                 .background(Color(hex: badge.bgHex), in: Capsule())
@@ -393,7 +393,7 @@ public struct MorningRitualView: View {
                 if step == lastStep { onFinish() } else { advance() }
             } label: {
                 Text(step == lastStep ? "Start the day" : "Continue")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(Theme.Fonts.meta.weight(.medium))
                     .foregroundStyle(Theme.Palette.accent)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
@@ -423,7 +423,7 @@ public struct MorningRitualView: View {
     private func pill(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 11))
+                .font(Theme.Fonts.caption)
                 .foregroundStyle(tint)
                 .padding(.horizontal, 9).padding(.vertical, 3)
                 .background(

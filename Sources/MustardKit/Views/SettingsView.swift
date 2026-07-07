@@ -40,7 +40,7 @@ public struct SettingsView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.Palette.textSecondary)
                     Text("🔒 Email, Slack and tickets are always reviewed by you — at every trust level.")
-                        .font(.system(size: 11))
+                        .font(Theme.Fonts.caption)
                         .foregroundStyle(Theme.Palette.textTertiary)
                 }
             }

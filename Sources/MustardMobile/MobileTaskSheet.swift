@@ -18,12 +18,12 @@ struct MobileTaskSheet: View {
                     HStack {
                         Text(task.stage.label.uppercased())
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(isAgent ? Color(hex: "#6A61C9") : .secondary)
+                            .foregroundStyle(isAgent ? Theme.Palette.agentText : .secondary)
                             .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background((isAgent ? Color(hex: "#6A61C9") : .gray).opacity(0.14), in: Capsule())
+                            .background((isAgent ? Theme.Palette.agentText : .gray).opacity(0.14), in: Capsule())
                         if task.isGated {
                             Label("Gated", systemImage: "lock").font(.caption2)
-                                .foregroundStyle(Color(hex: "#6A61C9"))
+                                .foregroundStyle(Theme.Palette.agentText)
                         }
                         Spacer()
                     }
@@ -57,7 +57,7 @@ struct MobileTaskSheet: View {
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { i in
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(i < Int((c * 5).rounded(.down)) ? Theme.confidenceColor(c) : Color(hex: "#E4DFD5"))
+                        .fill(i < Int((c * 5).rounded(.down)) ? Theme.confidenceColor(c) : Theme.Palette.confidenceUnfilled)
                         .frame(width: 16, height: 5)
                 }
             }
@@ -94,7 +94,7 @@ struct MobileTaskSheet: View {
             ForEach(task.tags.prefix(6), id: \.self) { t in
                 Text("#\(t)").font(.caption)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color(hex: "#F1EDE4"), in: Capsule())
+                    .background(Theme.Palette.statusMutedBg, in: Capsule())
             }
         }
     }
@@ -110,7 +110,7 @@ struct MobileTaskSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: sub.stage == .done ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(sub.stage == .done ? Color(hex: "#1D9E75") : .secondary)
+                            .foregroundStyle(sub.stage == .done ? Theme.Palette.done : .secondary)
                         Text(sub.title).strikethrough(sub.stage == .done).foregroundStyle(.primary)
                         Spacer()
                     }.font(.subheadline)
@@ -126,15 +126,15 @@ struct MobileTaskSheet: View {
             case .needsApproval:
                 Button("Deny", role: .destructive) { context.delete(task); dismiss() }
                 Spacer()
-                Button(task.isGated ? "Approve & run" : "Approve") { approve() }.buttonStyle(.borderedProminent).tint(Color(hex: "#7F77DD"))
+                Button(task.isGated ? "Approve & run" : "Approve") { approve() }.buttonStyle(.borderedProminent).tint(Theme.Palette.agent)
             case .needsReview:
                 Button("Discard", role: .destructive) { context.delete(task); dismiss() }
                 Spacer()
-                Button("Accept output") { TaskCompletion.complete(task, in: context); dismiss() }.buttonStyle(.borderedProminent).tint(Color(hex: "#1D9E75"))
+                Button("Accept output") { TaskCompletion.complete(task, in: context); dismiss() }.buttonStyle(.borderedProminent).tint(Theme.Palette.done)
             case .queued:
                 Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }
                 Spacer()
-                Button("Move to review") { PersonalBoard.move(task, to: .needsReview) }.buttonStyle(.borderedProminent).tint(Color(hex: "#7F77DD"))
+                Button("Move to review") { PersonalBoard.move(task, to: .needsReview) }.buttonStyle(.borderedProminent).tint(Theme.Palette.agent)
             case .forAgent:
                 Spacer()
                 Button("Take back") { task.owner = .me; if task.stage.isOpen { task.stage = .planned } }.buttonStyle(.borderedProminent)
@@ -143,7 +143,7 @@ struct MobileTaskSheet: View {
                 Button("Reopen") { task.stage = .planned; task.completedAt = nil }
             default:
                 Spacer()
-                Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }.buttonStyle(.borderedProminent).tint(Color(hex: "#1D9E75"))
+                Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }.buttonStyle(.borderedProminent).tint(Theme.Palette.done)
             }
         }
         .font(.subheadline)

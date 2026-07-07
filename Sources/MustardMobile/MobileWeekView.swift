@@ -28,7 +28,7 @@ struct MobileWeekView: View {
     private var dayTasks: [MustardTask] { WeekPlanner.tasks(scoped, on: selectedDay) }
     private var dayEvents: [CalendarEvent] { events.filter { cal.isDate($0.start, inSameDayAs: selectedDay) } }
 
-    private var accent: Color { Color(hex: "#2D7FF9") }
+    private var accent: Color { Theme.Palette.accent }
 
     var body: some View {
         NavigationStack {
@@ -92,12 +92,12 @@ struct MobileWeekView: View {
                     .font(.subheadline.weight(isToday ? .bold : .regular))
                     .foregroundStyle(isSelected ? .white : .primary)
                 Circle()
-                    .fill(minutes == 0 ? Color(hex: "#D8D3C8") : loadColor(tier))
+                    .fill(minutes == 0 ? Theme.Palette.loadEmptyDot : loadColor(tier))
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(isSelected ? AnyShapeStyle(Color(hex: "#2B2A26")) : AnyShapeStyle(Color(hex: "#F4F1EA")),
+            .background(isSelected ? AnyShapeStyle(Theme.Palette.textPrimary) : AnyShapeStyle(Theme.Palette.titleBar),
                         in: RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10)
                 .stroke(isToday && !isSelected ? accent.opacity(0.4) : .clear, lineWidth: 1))
@@ -106,9 +106,9 @@ struct MobileWeekView: View {
 
     private func loadColor(_ tier: WeekPlanner.LoadTier) -> Color {
         switch tier {
-        case .green: Color(hex: "#1D9E75")
-        case .amber: Color(hex: "#B07A29")
-        case .red: Color(hex: "#C2603F")
+        case .green: Theme.Palette.done
+        case .amber: Theme.Palette.warnText
+        case .red: Theme.Palette.priorityUrgentBg
         }
     }
 
@@ -128,7 +128,7 @@ struct MobileWeekView: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(hex: "#E7E3DA"))
+                    Capsule().fill(Theme.Palette.hairline)
                     Capsule().fill(loadColor(tier))
                         .frame(width: geo.size.width * min(1, CGFloat(minutes) / 480))
                 }
@@ -164,7 +164,7 @@ struct MobileWeekView: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(Color(hex: "#F1EDE4"), in: RoundedRectangle(cornerRadius: 10))
+        .background(Theme.Palette.statusMutedBg, in: RoundedRectangle(cornerRadius: 10))
     }
 
     /// A scheduled task on the selected day. Tap opens the sheet; the completion
@@ -177,8 +177,8 @@ struct MobileWeekView: View {
                 else { TaskCompletion.complete(task, in: context) }
             } label: {
                 Image(systemName: done ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(done ? Color(hex: "#1D9E75")
-                                     : (task.owner == .agent ? Color(hex: "#7F77DD") : .secondary))
+                    .foregroundStyle(done ? Theme.Palette.done
+                                     : (task.owner == .agent ? Theme.Palette.agent : .secondary))
             }.buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -187,10 +187,10 @@ struct MobileWeekView: View {
                     if task.isTimed, let when = task.scheduledAt {
                         Text(when.formatted(date: .omitted, time: .shortened))
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(task.owner == .agent ? Color(hex: "#6A61C9") : accent)
+                            .foregroundStyle(task.owner == .agent ? Theme.Palette.agentText : accent)
                     }
                     if task.owner == .agent {
-                        Text("✦ Agent").font(.caption2).foregroundStyle(Color(hex: "#6A61C9"))
+                        Text("✦ Agent").font(.caption2).foregroundStyle(Theme.Palette.agentText)
                     }
                     if let area = task.list?.area {
                         HStack(spacing: 4) {
@@ -204,8 +204,8 @@ struct MobileWeekView: View {
             Spacer(minLength: 0)
         }
         .padding(11)
-        .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "#E7E3DA"), lineWidth: 0.5))
+        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Palette.hairline, lineWidth: 0.5))
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { selected = task }
         .contextMenu {
@@ -221,7 +221,7 @@ struct MobileWeekView: View {
     @ViewBuilder private var rail: some View {
         let dayLabel = selectedDay.formatted(.dateTime.weekday(.abbreviated))
         if !overdue.isEmpty {
-            railSection("OVERDUE", overdue, dayLabel: dayLabel, accent: Color(hex: "#C2603F"))
+            railSection("OVERDUE", overdue, dayLabel: dayLabel, accent: Theme.Palette.priorityUrgentBg)
         }
         railSection("UNSCHEDULED", unscheduled, dayLabel: dayLabel, accent: nil)
     }
@@ -256,7 +256,7 @@ struct MobileWeekView: View {
                     }
                     if overdue, let when = task.scheduledAt {
                         Text("was \(when.formatted(.dateTime.day().month()))")
-                            .font(.caption2).foregroundStyle(Color(hex: "#C2603F"))
+                            .font(.caption2).foregroundStyle(Theme.Palette.priorityUrgentBg)
                     }
                 }
             }
@@ -267,9 +267,9 @@ struct MobileWeekView: View {
                 .background(accent.opacity(0.12), in: Capsule())
         }
         .padding(11)
-        .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 10))
+        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10)
-            .stroke(overdue ? Color(hex: "#C2603F").opacity(0.4) : Color(hex: "#E7E3DA"), lineWidth: 0.5))
+            .stroke(overdue ? Theme.Palette.priorityUrgentBg.opacity(0.4) : Theme.Palette.hairline, lineWidth: 0.5))
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { schedule(task) }
         .contextMenu {
@@ -288,9 +288,9 @@ struct MobileWeekView: View {
         Group {
             if let scheduledToast {
                 Text(scheduledToast)
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+                    .font(Theme.Fonts.meta.weight(.medium)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Color(hex: "#2B2A26"), in: Capsule())
+                    .background(Theme.Palette.textPrimary, in: Capsule())
                     .padding(.bottom, 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }

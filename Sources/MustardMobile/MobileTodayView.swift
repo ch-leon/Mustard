@@ -47,8 +47,8 @@ struct MobileTodayView: View {
         VStack(alignment: .leading, spacing: 5) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(hex: "#E7E3DA"))
-                    Capsule().fill(Color(hex: "#1D9E75"))
+                    Capsule().fill(Theme.Palette.hairline)
+                    Capsule().fill(Theme.Palette.done)
                         .frame(width: geo.size.width * CGFloat(progress.done) / CGFloat(progress.total))
                 }
             }.frame(height: 4)
@@ -60,7 +60,7 @@ struct MobileTodayView: View {
     private var nudgeCard: some View {
         Button(action: onOpenTriage) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles").foregroundStyle(Color(hex: "#6A61C9"))
+                Image(systemName: "sparkles").foregroundStyle(Theme.Palette.agentText)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Agent has \(nudge) thing\(nudge == 1 ? "" : "s") for you")
                         .font(.subheadline.weight(.medium)).foregroundStyle(.primary)
@@ -70,7 +70,7 @@ struct MobileTodayView: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
             }
             .padding(12)
-            .background(Color(hex: "#F3F1FA"), in: RoundedRectangle(cornerRadius: 12))
+            .background(Theme.Palette.agentTintFaint, in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(.plain)
     }
 
@@ -83,8 +83,8 @@ struct MobileTodayView: View {
                     else { TaskCompletion.complete(task, in: context) }
                 } label: {
                     Image(systemName: done ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(done ? Color(hex: "#1D9E75")
-                                         : (task.owner == .agent ? Color(hex: "#7F77DD") : .secondary))
+                        .foregroundStyle(done ? Theme.Palette.done
+                                         : (task.owner == .agent ? Theme.Palette.agent : .secondary))
                 }.buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -93,7 +93,7 @@ struct MobileTodayView: View {
                         .foregroundStyle(done ? .secondary : .primary)
                     HStack(spacing: 8) {
                         if task.owner == .agent {
-                            Text("✦ Agent").font(.caption2).foregroundStyle(Color(hex: "#6A61C9"))
+                            Text("✦ Agent").font(.caption2).foregroundStyle(Theme.Palette.agentText)
                         }
                         if let area = task.list?.area {
                             HStack(spacing: 4) {
@@ -118,9 +118,9 @@ struct MobileTodayView: View {
     /// Mobile-only gate-status pill on the timeline row.
     private func gatePill(_ task: MustardTask) -> (String, Color)? {
         switch task.stage {
-        case .needsApproval: ("Approve", Color(hex: "#6A61C9"))
-        case .needsReview: ("Review", Color(hex: "#1B7A57"))
-        case .blocked: ("Blocked", Color(hex: "#B07A29"))
+        case .needsApproval: ("Approve", Theme.Palette.agentText)
+        case .needsReview: ("Review", Theme.Palette.reviewText)
+        case .blocked: ("Blocked", Theme.Palette.warnText)
         default: nil
         }
     }
