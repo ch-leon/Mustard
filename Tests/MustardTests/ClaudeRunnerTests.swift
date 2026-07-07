@@ -107,6 +107,35 @@ final class ClaudeRunnerTests: XCTestCase {
         XCTAssertEqual(result.text, "stub says hi after noise")
     }
 
+    // MARK: - final drain after exit (no truncated tail write)
+
+    func test_run_largeStdoutWrittenJustBeforeExit_isNotTruncated() async throws {
+        // waitUntilExit doesn't guarantee the readability handlers consumed the
+        // child's final write; without a post-exit drain the tail chunk is lost and
+        // a successful run is misreported as unparsed with partial text. A large
+        // payload flushed immediately before exit maximizes the chance a chunk is
+        // still in the pipe when waitUntilExit returns; repeat to widen the window.
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-big.sh")
+        // ~1MB result payload emitted right before exit.
+        try """
+        #!/bin/zsh
+        payload=$(printf 'x%.0s' {1..1048576})
+        echo "{\\"is_error\\":false,\\"result\\":\\"$payload\\"}"
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+
+        for attempt in 1...5 {
+            let result = await ClaudeRunner.run("any", "/tmp")
+            XCTAssertTrue(result.ok, "attempt \(attempt): run should succeed")
+            XCTAssertFalse(result.unparsed,
+                           "attempt \(attempt): truncated stdout breaks the JSON decode and misreports the run as unparsed")
+            XCTAssertEqual(result.text.count, 1_048_576, "attempt \(attempt): payload must arrive complete")
+        }
+    }
+
     // MARK: - timeout
 
     func test_run_timesOut_returnsTimeoutError_andKillsTheProcess() async throws {

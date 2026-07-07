@@ -133,6 +133,14 @@ public enum ClaudeRunner {
                 timeoutItem.cancel()
                 out.fileHandleForReading.readabilityHandler = nil
                 err.fileHandleForReading.readabilityHandler = nil
+                // Final drain: waitUntilExit does NOT guarantee the readability
+                // handlers consumed the child's last write — a tail chunk can still
+                // be sitting in the pipe when the handlers are detached, silently
+                // truncating stdout (a successful run would then fail the JSON decode
+                // and be misreported as unparsed with partial text). The writer has
+                // exited, so reading to EOF here cannot deadlock.
+                stdoutBuffer.withLock { $0.append(out.fileHandleForReading.readDataToEndOfFile()) }
+                stderrBuffer.withLock { $0.append(err.fileHandleForReading.readDataToEndOfFile()) }
 
                 if timedOut.withLock({ $0 }) {
                     continuation.resume(returning: ClaudeResult(
