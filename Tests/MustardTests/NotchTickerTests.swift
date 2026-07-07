@@ -42,6 +42,23 @@ final class NotchTickerTests: XCTestCase {
         )
     }
 
+    func test_idleItems_planPromptLeadsRotation() {
+        let items = NotchTicker.idleItems(focusTitle: "Deep work", waitingCount: 2, planPrompt: true)
+        XCTAssertEqual(items.first, "Plan your day ✦")
+        XCTAssertTrue(items.contains("Deep work"))
+    }
+
+    func test_idleItems_noPlanPrompt_unchanged() {
+        XCTAssertEqual(NotchTicker.idleItems(focusTitle: nil, waitingCount: 0, planPrompt: false), ["All clear"])
+    }
+
+    func test_idleItems_planPromptAlone_leadsWithoutAllClear() {
+        XCTAssertEqual(
+            NotchTicker.idleItems(focusTitle: nil, waitingCount: 0, planPrompt: true),
+            ["Plan your day ✦"]
+        )
+    }
+
     func test_item_cyclesByIndex() {
         let items = ["a", "b", "c"]
         XCTAssertEqual(NotchTicker.item(items, tick: 0), "a")

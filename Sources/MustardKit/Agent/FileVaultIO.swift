@@ -47,8 +47,9 @@ public struct FileVaultIO: MeetingVaultIO {
     }
 
     public func write(_ relativePath: String, _ contents: String) throws {
-        try contents.write(
-            to: root.appendingPathComponent(relativePath), atomically: true, encoding: .utf8)
+        let url = root.appendingPathComponent(relativePath)
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
     }
 
     public func snapshot(_ relativePath: String, _ contents: String) throws {
@@ -76,4 +77,38 @@ public struct FileVaultIO: MeetingVaultIO {
         f.dateFormat = "yyyy-MM-dd'T'HHmm"
         return f
     }()
+}
+
+/// Whole-vault note access for the Notes surface (BAK-146). Same IO boundary as
+/// `MeetingVaultIO`, but enumerates every `.md` file rather than `meetings/` only.
+public protocol NoteVaultIO {
+    func notePaths() -> [String]
+    func read(_ relativePath: String) -> String?
+    func write(_ relativePath: String, _ contents: String) throws
+    func snapshot(_ relativePath: String, _ contents: String) throws
+    func modificationDate(_ relativePath: String) -> Date?
+}
+
+extension FileVaultIO: NoteVaultIO {
+    /// Structural prune (as meetingNotePaths) + Mustard/agent scratch. `_filed/`
+    /// stays visible — Notes is a human-browsing surface (spec: Ignore rules).
+    public func notePaths() -> [String] {
+        let prune: Set<String> = ["node_modules", ".git", ".build", "_artifacts",
+                                  ".obsidian", "_recs", "_agent", "hub", ".snapshots"]
+        guard let walker = fileManager.enumerator(
+            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        ) else { return [] }
+        var paths: [String] = []
+        for case let url as URL in walker {
+            if prune.contains(url.lastPathComponent) { walker.skipDescendants(); continue }
+            guard url.pathExtension == "md" else { continue }
+            paths.append(relativePath(of: url))
+        }
+        return paths.sorted()
+    }
+
+    public func modificationDate(_ relativePath: String) -> Date? {
+        let path = root.appendingPathComponent(relativePath).path
+        return (try? fileManager.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+    }
 }

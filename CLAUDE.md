@@ -29,7 +29,7 @@ structured app data (tasks, recommendations, outputs, events) lives in SwiftData
 ```
 ┌─ macOS ─────────────────────────────────────────────┐
 │  Mustard.app (SwiftUI)                                │
-│   Today · Board · Week · Agent   + Notch + Hover + ⌘K │
+│   Today · Board · Week · Notes · Agent + Notch/Hover/⌘K│
 │        │ @Query / @Bindable                           │
 │        ▼                                              │
 │  SwiftData (mustard.store)  ◀── AgentService ──▶ claude -p (subscription)
@@ -53,15 +53,26 @@ Mustard/
     Mustard/                     executable: MustardApp.swift (@main, windows, panels, scheduler loop)
     MustardKit/
       Models/                    @Model types: Area, TaskList, MustardTask, Recommendation,
-                                   OutputCard, CalendarEvent, Enums
+                                   OutputCard, CalendarEvent, NoteIndexEntry, Enums
       Logic/                     PURE, unit-tested: DayPlanner, WeekPlanner, PersonalBoard,
                                    NotchTicker, SweepScheduler, CommandBarEngine, TrustPolicy,
-                                   RecommendationAction, Theme (design tokens)
+                                   RecommendationAction, Theme (design tokens incl. Elevation/
+                                   Motion/Metrics + NS bridges); Notes Phase A: WikilinkSyntax,
+                                   WikilinkIndex, MarkdownBlocks, NoteTree, NoteCreation,
+                                   NoteReindexScheduler, BacklinkSnippets;
+                                   morning ritual: RitualPrompt, RitualPlanner;
+                                   Craft editor: NoteDecoration, SlashMenu, BlockReorder,
+                                   NoteMetadata, WikilinkURL
       Agent/                     ClaudeRunner (Process shell), VaultSweep (prompt+parser),
-                                   AgentService (@Observable orchestrator)
+                                   AgentService (@Observable orchestrator), FileVaultIO
+                                   (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex)
       Calendar/                  GoogleOAuth (PKCE/URL/token), GoogleCalendarParser
       Views/                     SwiftUI screens + surfaces (Root, Today, Board, Week,
-                                   AgentConsole, Notch, Hover, CommandBar, TaskDetail, rows)
+                                   AgentConsole, Notch, Hover, CommandBar, TaskDetail, rows;
+                                   Notes, NoteEditor [live Craft editor — no Source/Preview
+                                   toggle], MarkdownTextView (TextKit-1 surface), SlashMenuView,
+                                   BlockGutterOverlay, MarkdownPreview, BacklinksPanel,
+                                   MorningRitual)
       MustardContainer.swift     builds the on-disk ModelContainer
       PreviewData.swift          in-memory sample container for #Preview
   Tests/MustardTests/            XCTest — one file per Logic/Agent/Calendar unit
@@ -101,7 +112,7 @@ explicit dark hex, not `Theme`.
 ## Build & run
 
 ```bash
-swift test            # 73 tests
+swift test            # full suite (647 tests as of the Craft editor pass)
 swift build           # compile check
 ./build-app.sh        # → build/Mustard.app (ad-hoc signed, double-clickable)
 open build/Mustard.app

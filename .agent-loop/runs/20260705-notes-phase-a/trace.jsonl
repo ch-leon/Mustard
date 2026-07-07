@@ -1,0 +1,15 @@
+{"ts":"2026-07-05","event":"run_start","run":"20260705-notes-phase-a","epic":"BAK-145","branch":"claude/intelligent-jackson-b2b96f","base":"f88a53a"}
+{"ts":"2026-07-05","event":"spec_review","doc":"docs/specs/2026-07-05-notes-vault-backlinks-design.md","result":"6-item technical addendum added (projectId→project string, reindex cadence, source-cue descope, MarkdownBlocks renderer, snapshot-before-save, deterministic resolution)","commit":"8993cae"}
+{"ts":"2026-07-05","event":"plan_written","doc":"docs/superpowers/plans/2026-07-05-notes-phase-a.md","tasks":10,"commit":"8993cae"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-146 NoteVaultIO scanner","commits":["90207c8"],"reviews":"spec PASS, quality APPROVE","tests":"452"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-147 WikilinkIndex","commits":["f8dff1e","3957e24"],"reviews":"spec PASS, quality APPROVE after perf fix (200k-trial differential fuzz verified)","tests":"470"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-150-logic MarkdownBlocks","commits":["4b9bcda"],"reviews":"spec PASS, quality APPROVE","tests":"494"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-148 NoteIndexEntry + NoteIndexService + wiring","commits":["9d0bb83","e59f52a"],"reviews":"spec PASS, quality APPROVE after predicate-delete/bail fix","tests":"496"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-149 Notes tab + sidebar","commits":["7e6184f","bf4cab2","1f485fe"],"reviews":"spec PASS, quality APPROVE after expansion-key fix","tests":"503"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-150 editor + preview + save","commits":["2450635","ddae2a2"],"reviews":"spec PASS (17-case URL round-trip verified), quality APPROVE after honest-dirty-state fix","tests":"503"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-151 backlinks panel","commits":["f10c01a","0a701e2","14a6673"],"reviews":"spec PASS, quality APPROVE after WikilinkSyntax extraction + resolver hoist","tests":"518"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-153 new note creation","commits":["38ccbff","cddde53","a5a01c2","8e7bce0"],"reviews":"spec PASS, quality APPROVE after filename/YAML hardening + grapheme-clamp fallback","tests":"534"}
+{"ts":"2026-07-05","event":"task_done","task":"BAK-152 wikilink navigation","commits":["81b3ca6","07c47f1"],"reviews":"spec PASS, quality APPROVE after path-qualified create fix","tests":"535"}
+{"ts":"2026-07-05","event":"checks","test":"swift test: 535 pass, 1 pre-existing skip, 0 failures","build":"swift build clean","app":"build-app.sh assembles Mustard.app"}
+{"ts":"2026-07-05","event":"fresh_context_review","result":"PASS","axes":{"standards":"pass","spec":"pass","risk":"pass (medium)","test":"pass"},"report":"review-report.md"}
+{"ts":"2026-07-05","event":"risk_classified","class":"medium","high_paths_touched":false,"outward_actions":"none","report":"risk-report.md"}

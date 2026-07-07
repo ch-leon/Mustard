@@ -1,21 +1,13 @@
 import XCTest
 @testable import MustardKit
 
-private final class StubServer: RedirectServing {
-    let port: Int; let result: RedirectResult
-    init(port: Int, result: RedirectResult) { self.port = port; self.result = result }
-    func start() throws -> Int { port }
-    func awaitCode(timeout: TimeInterval) async throws -> RedirectResult { result }
-    func stop() {}
-}
-
 final class GoogleAuthSessionTests: XCTestCase {
     func testConnectExchangesAndPersists() async throws {
         let json = #"{"access_token":"AT","refresh_token":"RT","expires_in":3600}"#
         let store = InMemoryTokenStore()
         var openedURL: URL?
         let session = GoogleAuthSession(
-            makeServer: { StubServer(port: 5123, result: .init(code: "the-code", state: "fixed-state")) },
+            makeServer: { StubRedirectServer(port: 5123, result: .init(code: "the-code", state: "fixed-state")) },
             tokenClient: GoogleTokenClient(transport: { _ in (Data(json.utf8), 200) }),
             store: store,
             openURL: { openedURL = $0 },
@@ -36,7 +28,7 @@ final class GoogleAuthSessionTests: XCTestCase {
         let json = #"{"access_token":"AT","refresh_token":"RT","expires_in":3600}"#
         let store = InMemoryTokenStore()
         let session = GoogleAuthSession(
-            makeServer: { StubServer(port: 5123, result: .init(code: "the-code", state: "attacker-state")) },
+            makeServer: { StubRedirectServer(port: 5123, result: .init(code: "the-code", state: "attacker-state")) },
             tokenClient: GoogleTokenClient(transport: { _ in (Data(json.utf8), 200) }),
             store: store,
             openURL: { _ in },

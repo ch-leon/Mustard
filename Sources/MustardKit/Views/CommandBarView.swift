@@ -6,6 +6,7 @@ import SwiftData
 struct CommandBarView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
+    @Environment(NoteIndexService.self) private var noteIndex
     @AppStorage("vaultPath") private var vaultPath = ""
     @Binding var isPresented: Bool
     @Binding var screen: MustardScreen
@@ -83,16 +84,25 @@ struct CommandBarView: View {
                 task.stage = .planned
             }
             context.insert(task)
+        case .planDay:
+            // Today owns the ritual sheet state; the command bar can't reach it,
+            // so route through the shared AppStorage flag TodayView consumes.
+            screen = .today
+            UserDefaults.standard.set(true, forKey: RitualPrompt.openRequestedKey)
         case .goToday:
             screen = .today
         case .goBoard:
             screen = .board
         case .goWeek:
             screen = .week
+        case .goNotes:
+            screen = .notes
         case .goAgent:
             screen = .agent
         case .sweep:
             Task { await agent.sweep(vaultPath: vaultPath) }
+        case .reindexNotes:
+            noteIndex.reindexAll(SourceSettingsStore.loadOrMigrate())
         }
         isPresented = false
     }

@@ -65,6 +65,33 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       → task done + output appended to Notes; agent may decline; `DelegationPhase`
       status badge. Plan: `docs/plans/2026-06-22-you-agent-delegation.md`.
       *On `feat/you-agent-delegation` — pending merge + Leon's eye-check of the surfaces.*
+- [x] **F20 Notes Phase A (BAK-145)** — vault-backed markdown notes: whole-vault
+      scanner (`NoteVaultIO`), `WikilinkIndex` link graph, `NoteIndexEntry` SwiftData
+      mirror on a 5-min reindex, Notes tab (project sidebar, folder tree, filter),
+      raw+preview editor with snapshot-guarded save, backlinks panel, wikilink
+      navigation + create-from-unresolved, "+" note creation. Spec:
+      `docs/specs/2026-07-05-notes-vault-backlinks-design.md`; plan:
+      `docs/superpowers/plans/2026-07-05-notes-phase-a.md`. Phase B (attach to
+      tasks/areas, BAK-154) and Phase C (search/tags/rich editor, BAK-155) deferred.
+- [x] **F21 Morning ritual (was I5 ⭐, BAK-50 morning half)** — four-step "Plan your
+      day" wizard: rollover review (carry-forward now stamps what it moved), inline
+      agent standup, pick-today with capacity line, 1–3 focus stars (`focusOnDay`,
+      auto-expiring) pinned atop Today + in the notch rotation. Gentle-prompt entry
+      (Today banner · notch line · ⌘K), all gated by one pure `RitualPrompt` rule.
+      Spec: `docs/specs/2026-07-06-morning-ritual-design.md`; plan:
+      `docs/superpowers/plans/2026-07-06-morning-ritual.md`. Evening shutdown
+      deliberately deferred (fast-follow once the morning habit sticks).
+- [x] **F22 Craft pass — Theme depth/motion + live Notes editor (Notes Phase C)** —
+      `Theme.Elevation/Motion/Metrics` + editorial type (with NS bridges), surface
+      polish (markdown-rendered task-notes preview, card depth + hover lift, warmer
+      empty states), and the live Craft-style editor replacing the Source/Preview
+      toggle: TextKit-1 `MarkdownTextView` styling-as-you-type over pure
+      `NoteDecoration` spans (no rewrite API — markdown on disk stays truth),
+      slash menu (`SlashMenu`), block drag-reorder (`BlockReorder`, byte-pinned),
+      hover gutter, subpage cards. Spec:
+      `docs/specs/2026-07-06-craft-inspired-notes-and-daily-note-design.md`; plans:
+      `docs/superpowers/plans/2026-07-06-craft-pass-phase0-1.md` +
+      `…-craft-editor-phase2.md`. Daily Note (spec Phase 3) pinned/deferred.
 
 ## Next — needs Leon ⛔
 

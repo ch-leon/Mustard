@@ -226,10 +226,22 @@ public struct NotchView: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             TimelineView(.periodic(from: .now, by: 4)) { timeline in
+                // Prefer a starred focus task's title over the plain in-progress/next
+                // fallback; when the agent is executing its work still wins the slot.
+                let idleFocus = RitualPlanner.focusTitle(tasks, day: .now) ?? focusTask?.title
+                // Same gate as the Today banner — read the ritual keys straight from
+                // UserDefaults (0 == never → nil) since the notch has no @AppStorage.
+                let last = UserDefaults.standard.double(forKey: RitualPrompt.lastPlannedKey)
+                let dismissed = UserDefaults.standard.double(forKey: RitualPrompt.dismissedKey)
+                let planPrompt = RitualPrompt.shouldOffer(
+                    lastPlannedDay: last > 0 ? Date(timeIntervalSince1970: last) : nil,
+                    dismissedDay: dismissed > 0 ? Date(timeIntervalSince1970: dismissed) : nil,
+                    now: .now)
                 let items = NotchTicker.idleItems(
-                    focusTitle: agent.isExecuting ? (agent.currentTitle ?? "Agent working…") : focusTask?.title,
+                    focusTitle: agent.isExecuting ? (agent.currentTitle ?? "Agent working…") : idleFocus,
                     waitingCount: waitingCount,
-                    nextEvent: nextMeetingLabel()
+                    nextEvent: nextMeetingLabel(),
+                    planPrompt: planPrompt
                 )
                 let tick = Int(timeline.date.timeIntervalSinceReferenceDate / 4)
                 HStack(spacing: 5) {

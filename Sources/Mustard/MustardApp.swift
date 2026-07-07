@@ -7,6 +7,7 @@ import MustardKit
 struct MustardApp: App {
     private let container: ModelContainer
     @State private var agent: AgentService
+    @State private var noteIndex: NoteIndexService
     @State private var calendar: GoogleCalendarService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
@@ -17,6 +18,7 @@ struct MustardApp: App {
         let container = MustardContainer.make()
         self.container = container
         self._agent = State(initialValue: AgentService(context: container.mainContext))
+        self._noteIndex = State(initialValue: NoteIndexService(context: container.mainContext))
 
         let keychain = KeychainTokenStore()
         self._calendar = State(initialValue: GoogleCalendarService(
@@ -35,6 +37,7 @@ struct MustardApp: App {
         WindowGroup {
             RootView()
                 .environment(agent)
+                .environment(noteIndex)
                 .environment(calendar)
                 .environment(notchNav)
                 .frame(minWidth: 640, minHeight: 520)
@@ -92,6 +95,10 @@ struct MustardApp: App {
                                 lastInbox = .now
                             }
                         }
+                        // Notes reindex (BAK-148): cheap local FS work — no claude, no
+                        // cost — so it runs every tick (throttled internally to ~5 min per
+                        // project), independent of the sweep/exec gate above.
+                        noteIndex.reindexDueProjects(SourceSettingsStore.loadOrMigrate())
                         // One-time backlog prune (2026-06-24 spec): retire the pre-filter
                         // flood of teammates' meeting tasks — mark anything from a meeting
                         // older than a week done (Mustard-only; never touches the vault).

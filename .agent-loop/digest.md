@@ -2,6 +2,67 @@
 
 Append-only ledger of merges and holds. Each entry carries a ready `git revert` line.
 
+## 2026-07-06 — MERGED · Craft pass — Theme tokens, surface polish, live Notes editor (PR #78)
+- **Risk:** HIGH (new live editing surface over vault files — spec's own call; an earlier
+  mechanical-medium classification was corrected after fresh-context review flagged it)
+- **Fresh-context review:** standards PASS · spec BLOCK → remediated (Task 11 docs, risk
+  call, process drift recorded) — `review-report.md`
+- **Deep-review panel:** 2 lenses REFUTED → both findings fixed in-run (stale undo stack
+  across note switch → `removeAllActions()` on document swap; /Sub-page file-creation
+  inside an undoable edit → dangling-link design), 1 lens UPHELD (no regressions).
+  **PASS after fix round** — `deep-review-report.md`
+- **Checks:** swift test 647 pass/1 skip (was 576) · swift build clean · macOS CI green on
+  final HEAD (`ba02425`, run 28788800603)
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260706-craft-pass/`
+- **What landed:** Theme.Elevation/Motion/Metrics + editorial type (+NS bridges); surface
+  polish (MarkdownBlocksView extraction, task-notes markdown preview, card depth+hover,
+  warmer empty states); live Craft editor replacing Source/Preview (TextKit-1
+  MarkdownTextView over pure NoteDecoration spans — no rewrite API; SlashMenu;
+  byte-pinned BlockReorder + hover gutter; subpage cards). Spec Phase 3 (Daily Note)
+  pinned/deferred. Single-PR delivery per Leon's "build the whole thing".
+- **Merge:** Leon reviewed the process (CI green, fresh-context review, deep-review panel
+  pass after fix round) and authorized the merge directly — the planned "eye pass" in the
+  running app happens after, on main, rather than gating the merge itself.
+- **Follow-ups (non-gating, from the panel):** CRLF-aware BlockReorder terminator hygiene;
+  close the one-runloop ⌘S save window during note switch; guard textViewDidChangeSelection
+  with isProgrammaticUpdate; hasMarkedText() checks around the slash menu; surface failed
+  note creation (currently a silent no-op); strip frontmatter before block-rendering
+  task.notes in TaskDetailSheet; delete or repurpose the now-uncalled MarkdownPreviewView.
+- **Revert:** `git revert 117db0e95cac50f20115d66f9eaf10ec424cec8c`
+
+## 2026-07-06 — MERGED · BAK-50 Morning ritual — "Plan your day" wizard (PR #77)
+- **Risk:** medium (feature; Sources/ only — zero high-risk paths, wizard calls only existing decision APIs) · **Fresh-context review:** PASS (4/4 axes)
+- **Checks:** swift test 576 pass/1 skip (was 556) · swift build clean · build-app.sh OK · CI (self-hosted) green
+- **Outward actions:** none · no claude invocations added; all mutations local SwiftData/UserDefaults
+- **Run:** `.agent-loop/runs/20260706-morning-ritual/`
+- **What landed:** four-step wizard (rollover review w/ stamped carry-forward · inline agent standup · pick-today + capacity line · 1–3 focus stars via auto-expiring `focusOnDay`); gentle-prompt entry (Today banner + notch line gated by pure `RitualPrompt`, ⌘K always-available by design); FOCUS group pinned on Today; notch prefers open focus task. Spec + plan in docs/. Brainstormed with Leon (6 recorded decisions); evening shutdown deliberately deferred.
+- **Process:** 7 plan tasks, fresh Opus implementer + two-stage review each; 4 review-driven fix commits (open-star focus cap, plannedToday→Logic, standup copy, channel-key constant); post-review hardening (midnight-boundary test, spec text reconciled).
+- **Known limitations:** ⌘K re-plan ungated (deliberate); vaultNote approval in standup uses the console-parity claude path; FOCUS duplicates in timeline (flagged for Leon's eye); overnight-idle banner staleness until next render.
+- **Follow-ups:** evening shutdown ritual (new backlog issue); ritualSubtitle into Logic; mobile ritual UI slice; optional launch-clear of the ⌘K trigger flag; Leon eye-check (banner, wizard steps, FOCUS, notch line).
+- **Revert:** `git revert cc88b1a2e6838ae4fb47e0199a0966dac36d0b9e`
+
+## 2026-07-06 — MERGED · Notes Phase A hygiene follow-ups + BAK-71 calendar polish (PR #76)
+- **Risk:** HIGH by path letter ("auth" substring via test-only GoogleAuthSessionTests stub dedup) · **Deep-review:** PASS (1 block → fix round → 3/3 clear)
+- **Checks:** swift test 556 pass/1 skip (was 535) · swift build clean · CI (self-hosted) green
+- **Outward actions:** none · zero production auth code touched (panel-verified)
+- **Run:** `.agent-loop/runs/20260706-notes-hygiene/`
+- **What landed:** reindex change-guard (skip no-op rebuilds; force-path for ⌘K + parserVersion salt + stat-before-read after panel block), any-level note-title derivation, CRLF-tolerant parsing, Theme.Palette.error + SourceSettingsView migration, shared StubRedirectServer, CalendarWindow half-open doc (BAK-71 closed)
+- **Panel value note:** the correctness panelist caught that the change-guard would have made this PR's own parser fixes unreachable for existing indexed notes — the exact class of bug deep-review exists for
+- **Follow-ups:** migrate remaining #D85A30 in AgentConsoleView + MobileBoardView to Theme.error (platform parity); write parser version after first full pass (residual crash-window); test-suite UserDefaults teardown hygiene
+- **Revert:** `git revert 9d065c9991557edab330db789e091db571d069dc`
+
+## 2026-07-05 — MERGED · BAK-145 Notes Phase A — vault-backed markdown notes (PR #74)
+- **Risk:** medium (feature; Sources/ only — no high-risk paths) · **Fresh-context review:** PASS (4/4 axes)
+- **Checks:** swift test 535 pass/1 skip (was 447) · swift build clean · build-app.sh OK · CI (self-hosted) green
+- **Outward actions:** none · all writes stay inside project working dirs + local SwiftData
+- **Run:** `.agent-loop/runs/20260705-notes-phase-a/`
+- **What landed:** NoteVaultIO whole-vault scanner; WikilinkIndex link graph (+ shared WikilinkSyntax grammar); MarkdownBlocks preview parser; NoteIndexEntry mirror + NoteIndexService (300s throttle, on-save, ⌘K reindex); Notes tab (project sidebar/folder tree/filter); raw+preview editor with snapshot-guarded save; backlinks panel with snippets; wikilink navigate + create-from-unresolved; "+" note creation. Spec addendum + plan in docs/. BAK-146→153 closed.
+- **Process:** 9 Opus implementer subagents, TDD each, two-stage review per task (spec + quality) with 8 review-driven fix commits, whole-feature fresh-context review.
+- **Known limitations:** edits drop on tab-switch/app-quit (note→note protected); reindex rewrites unchanged rows (needs change-guard before CloudKit N2); reindex/save IO synchronous on main actor; duplicate-title first-match; CRLF frontmatter unparsed.
+- **Follow-ups:** autosave/onDisappear save in NoteEditorView; skip no-op reindexes via lastModified compare; extract save-flow decision into Logic/; unify title derivation (index H1-only vs editor H1–H6); Leon eye-check of all Notes surfaces.
+- **Revert:** `git revert a7e01c7d00708b9bb8bb583a07b94f59b3a206d4`
+
 ## 2026-07-01 — MERGED · Docs: mark Agent worker Phase 3 spec Implemented (PR #70)
 - **Risk:** low (docs-only, 1 line) · **Deep-review:** n/a · **Checks:** CI (self-hosted) green 47s
 - **What landed:** base Phase 3 spec status Draft→Implemented (the worker is the live-tested local-only vault skill `drain-agent-queue`, enhanced per the skill-aware design); notes the deferred items (scheduled routine; KBs beyond DL). Corrects a stale doc that had wrongly read as open backlog.

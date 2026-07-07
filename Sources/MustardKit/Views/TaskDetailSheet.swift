@@ -472,8 +472,12 @@ public struct TaskDetailSheet: View {
                 }.labelsHidden().pickerStyle(.segmented).fixedSize().controlSize(.small)
             }
             if bodyPreview {
-                Text(markdownBody)
-                    .font(Theme.Fonts.body).foregroundStyle(Theme.Palette.textPrimary)
+                // Agent output lands in `notes` (a Needs Review task carries the run's
+                // markdown — ADR-0010), so preview block-renders it via the shared
+                // notes renderer at reading size. No wikilink graph here → no-ops.
+                MarkdownBlocksView(content: task.notes,
+                                   resolve: { _ in nil }, onWikilinkTap: { _ in },
+                                   bodyFont: Theme.Fonts.reading)
                     .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
             } else {
                 TextEditor(text: $task.notes)
@@ -482,13 +486,6 @@ public struct TaskDetailSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline))
             }
         }
-    }
-
-    private var markdownBody: AttributedString {
-        (try? AttributedString(
-            markdown: task.notes,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(task.notes)
     }
 
     private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {

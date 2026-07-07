@@ -3,11 +3,16 @@ import Foundation
 /// Pure content provider for the notch's idle rotation.
 public enum NotchTicker {
     /// The strings the idle strip rotates through, in order:
-    /// current focus → next meeting → agent-waiting count.
+    /// plan-your-day prompt → current focus → next meeting → agent-waiting count.
+    /// When `planPrompt` is true the prompt leads the rotation and shows even when
+    /// everything else is empty (a plan prompt alone is not "All clear").
     public static func idleItems(
-        focusTitle: String?, waitingCount: Int, nextEvent: String? = nil
+        focusTitle: String?, waitingCount: Int, nextEvent: String? = nil, planPrompt: Bool = false
     ) -> [String] {
         var items: [String] = []
+        if planPrompt {
+            items.append("Plan your day ✦")
+        }
         if let focus = focusTitle, !focus.isEmpty {
             items.append(focus)
         }
