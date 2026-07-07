@@ -627,4 +627,51 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(stored.count, 1)
         XCTAssertEqual(stored.first?.source, "jira", "a Gmail-delivered Jira notification should be stored as source=jira")
     }
+
+    // Malformed rec files used to be dropped with zero trace. Surface the count so
+    // Leon can tell "nothing new" apart from "N files were silently unreadable."
+    func test_ingestInbox_malformedRecFiles_surfacesSkipCountInLastError() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "{ not valid json".write(toFile: recs + "/bad.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+        XCTAssertEqual(service.lastError, "1 file skipped (malformed)")
+    }
+
+    func test_ingestInbox_multipleMalformedRecFiles_pluralizesSkipMessage() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "{ not valid json".write(toFile: recs + "/bad1.json", atomically: true, encoding: .utf8)
+        try "also not valid".write(toFile: recs + "/bad2.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertEqual(service.lastError, "2 files skipped (malformed)")
+    }
+
+    func test_ingestInbox_allValid_doesNotSetLastError() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let json = #"{"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"e1","sourceContext":"","title":"x","body":"b","actionType":"fyi","confidence":0.5,"reasoning":"r","draft":"d"}"#
+        try json.write(toFile: recs + "/a.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertNil(service.lastError)
+    }
 }

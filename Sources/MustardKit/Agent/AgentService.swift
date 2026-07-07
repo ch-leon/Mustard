@@ -142,9 +142,13 @@ public final class AgentService {
     /// shared dedupe + insert pipeline. Files are local (the routine writes them directly
     /// — no git). vaultPath = the KB folder, so any later execution runs in-project.
     public func ingestInbox(workingDirectory: String) async {
-        let proposals = InboxIngest.readRecs(in: workingDirectory)
-        guard !proposals.isEmpty else { return }
-        ingest(proposals, vaultPath: workingDirectory)
+        let result = InboxIngest.read(in: workingDirectory)
+        if result.skippedCount > 0 {
+            let noun = result.skippedCount == 1 ? "file" : "files"
+            lastError = "\(result.skippedCount) \(noun) skipped (malformed)"
+        }
+        guard !result.proposals.isEmpty else { return }
+        ingest(result.proposals, vaultPath: workingDirectory)
         await applyTrust(Self.storedTrust())
     }
 
