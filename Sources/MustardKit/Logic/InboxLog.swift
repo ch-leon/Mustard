@@ -4,6 +4,12 @@ import Foundation
 /// The actual append is a thin side effect in `AgentService`; content and path live
 /// here so they stay unit-tested (CLAUDE.md: logic is TDD; pin time/timezone).
 public enum InboxLog {
+    /// UTC is always a valid `TimeZone` identifier, so this is non-nil in practice;
+    /// hoisted to a constant purely for style consistency with the rest of Logic/.
+    /// (Must be `public`: a `public` function's default-argument value must be able
+    /// to see it.)
+    public static let utc = TimeZone(identifier: "UTC")!
+
     /// `<workingDirectory>/_filed/inbox-log.md` — one rolling log per project. The
     /// `_filed/` folder is excluded from the vault sweep, so kept notes never loop back.
     public static func logURL(workingDirectory: String) -> URL {
@@ -16,7 +22,7 @@ public enum InboxLog {
     public static func entry(
         title: String, body: String, source: String, sourceURL: String?, now: Date,
         calendar: Calendar = Calendar(identifier: .gregorian),
-        timeZone: TimeZone = TimeZone(identifier: "UTC")!
+        timeZone: TimeZone = utc
     ) -> String {
         var cal = calendar
         cal.timeZone = timeZone
