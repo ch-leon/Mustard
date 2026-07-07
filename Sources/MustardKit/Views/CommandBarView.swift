@@ -84,6 +84,11 @@ struct CommandBarView: View {
                 task.stage = .planned
             }
             context.insert(task)
+        case .planDay:
+            // Today owns the ritual sheet state; the command bar can't reach it,
+            // so route through the shared AppStorage flag TodayView consumes.
+            screen = .today
+            UserDefaults.standard.set(true, forKey: RitualPrompt.openRequestedKey)
         case .goToday:
             screen = .today
         case .goBoard:

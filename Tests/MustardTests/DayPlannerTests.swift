@@ -14,6 +14,27 @@ final class DayPlannerTests: XCTestCase {
         ISO8601DateFormatter().date(from: iso)!
     }
 
+    private func utcCalendar() -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    func test_carryForward_stampsMovedTasks_only() {
+        let cal = utcCalendar()
+        let today = Date(timeIntervalSince1970: 1_751_760_000)
+        let stale = MustardTask(title: "old", scheduledAt: today.addingTimeInterval(-86_400))
+        let todayTask = MustardTask(title: "today", scheduledAt: today.addingTimeInterval(3_600))
+        let unscheduled = MustardTask(title: "loose")
+
+        DayPlanner.carryForward([stale, todayTask, unscheduled], to: today, calendar: cal)
+
+        XCTAssertNotNil(stale.carriedForwardAt)
+        XCTAssertTrue(cal.isDate(stale.carriedForwardAt!, inSameDayAs: today))
+        XCTAssertNil(todayTask.carriedForwardAt)      // already on today — not moved, not stamped
+        XCTAssertNil(unscheduled.carriedForwardAt)
+    }
+
     func test_tasksForDay_returnsOnlySameDayScheduled_sortedByTime() {
         let day = at("2026-06-12T00:00:00Z")
         let a = MustardTask(title: "late", scheduledAt: at("2026-06-12T15:00:00Z"))

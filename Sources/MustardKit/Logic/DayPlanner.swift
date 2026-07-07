@@ -116,6 +116,9 @@ public enum DayPlanner {
                 bySettingHour: time.hour ?? 9, minute: time.minute ?? 0, second: 0,
                 of: startOfToday
             )
+            // Record what rolled over — the morning ritual keys its rollover step off
+            // this stamp. Only tasks actually moved (past the guard above) get stamped.
+            task.carriedForwardAt = startOfToday
         }
     }
 }

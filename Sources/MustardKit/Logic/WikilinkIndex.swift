@@ -8,7 +8,7 @@ import Foundation
 /// One parsed note: frontmatter stripped, links extracted (not yet resolved).
 public struct ParsedNote: Equatable {
     public let relativePath: String
-    public let title: String          // frontmatter title ?? first "# " heading ?? filename sans .md
+    public let title: String          // frontmatter title ?? first "#{1,6} " heading ?? filename sans .md
     public let tags: [String]
     public let body: String           // content minus frontmatter block
     public let links: [WikilinkOccurrence]
@@ -137,11 +137,19 @@ public struct WikilinkIndex: Equatable {
         )
     }
 
+    /// First heading of ANY level 1–6 (`#{1,6} `). Matches NoteEditorView's header
+    /// scan exactly — including trimming the line BEFORE counting hashes, so
+    /// "  ## Foo" titles as "Foo" in both the sidebar and the editor. Seven+ hashes
+    /// or no trailing space is not a heading. Empty-after-hashes lines are skipped.
     private static func firstHeading(_ body: String) -> String? {
         for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("# ") {
-                return String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-            }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let hashes = trimmed.prefix { $0 == "#" }.count
+            guard hashes >= 1, hashes <= 6 else { continue }
+            let rest = trimmed.dropFirst(hashes)
+            guard rest.hasPrefix(" ") else { continue }
+            let title = rest.trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { return title }
         }
         return nil
     }
@@ -198,7 +206,12 @@ public struct WikilinkIndex: Equatable {
 /// No general YAML parser (YAGNI); other keys are reserved for Phase B (e.g. `task_id`).
 public enum Frontmatter {
     /// Detects a leading "---\n...\n---" block. Returns nil title/empty tags when absent.
-    public static func parse(_ content: String) -> (title: String?, tags: [String], body: String) {
+    public static func parse(_ rawContent: String) -> (title: String?, tags: [String], body: String) {
+        // Normalize Windows line endings ONCE at entry (BAK-71 hygiene): otherwise a
+        // `---\r` fence line never equals "---" and frontmatter silently fails to
+        // parse. Downstream consumers (WikilinkIndex.build, BacklinkSnippets) take the
+        // body from here, so normalizing here covers their line handling too.
+        let content = rawContent.replacingOccurrences(of: "\r\n", with: "\n")
         let lines = content.components(separatedBy: "\n")
         guard lines.first == "---" else { return (nil, [], content) }
 

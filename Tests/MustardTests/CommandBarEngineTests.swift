@@ -4,7 +4,7 @@ import XCTest
 final class CommandBarEngineTests: XCTestCase {
     func test_emptyQuery_offersDefaultActions() {
         let items = CommandBarEngine.items(query: "")
-        XCTAssertEqual(items.map(\.kind), [.goToday, .goBoard, .goWeek, .goNotes, .goAgent, .sweep, .reindexNotes])
+        XCTAssertEqual(items.map(\.kind), [.planDay, .goToday, .goBoard, .goWeek, .goNotes, .goAgent, .sweep, .reindexNotes])
     }
 
     func test_freeText_offersAddTaskFirst() {
@@ -25,7 +25,7 @@ final class CommandBarEngineTests: XCTestCase {
     }
 
     func test_whitespaceOnly_treatedAsEmpty() {
-        XCTAssertEqual(CommandBarEngine.items(query: "   ").map(\.kind), [.goToday, .goBoard, .goWeek, .goNotes, .goAgent, .sweep, .reindexNotes])
+        XCTAssertEqual(CommandBarEngine.items(query: "   ").map(\.kind), [.planDay, .goToday, .goBoard, .goWeek, .goNotes, .goAgent, .sweep, .reindexNotes])
     }
 
     func test_boardMatches() {
@@ -35,5 +35,9 @@ final class CommandBarEngineTests: XCTestCase {
     func test_notesCommands() {
         XCTAssertTrue(CommandBarEngine.items(query: "notes").contains { $0.kind == .goNotes })
         XCTAssertTrue(CommandBarEngine.items(query: "reindex").contains { $0.kind == .reindexNotes })
+    }
+
+    func test_planDayCommand_present() {
+        XCTAssertTrue(CommandBarEngine.items(query: "plan").contains { $0.kind == .planDay })
     }
 }

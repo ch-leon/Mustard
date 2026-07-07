@@ -64,9 +64,11 @@ public struct NotesView: View {
             filterField
             Divider().overlay(Theme.Palette.hairline)
             if sources.isEmpty {
-                emptyState("Add a project in Agent → Sources to browse notes.")
+                emptyState("Add a project in Agent → Sources to browse notes.",
+                           symbol: "folder.badge.plus")
             } else if entries.isEmpty {
-                emptyState("No notes indexed yet — ⌘K → Reindex notes now.")
+                emptyState("No notes indexed yet — ⌘K → Reindex notes now.",
+                           symbol: "doc.text.magnifyingglass")
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
@@ -228,23 +230,36 @@ public struct NotesView: View {
     }
 
     /// Shared write→reindex→select primitive for both the "+" sheet (BAK-153) and
-    /// create-from-unresolved-link (BAK-152). Writes `notes/<title>.md`, reindexes,
-    /// then selects it — setting `selected` flushes any open note's save-on-switch
-    /// (desired) and opens the new one.
+    /// create-from-unresolved-link (BAK-152). Selecting flushes any open note's
+    /// save-on-switch (desired) and opens the new one. A failed write no longer
+    /// navigates anywhere — staying put is calmer than opening a missing state.
     private func createNote(title: String, project: String, workingDirectory: String) {
-        let io = FileVaultIO(rootPath: workingDirectory)
-        let rel = NoteCreation.relativePath(title: title, existing: io.notePaths())
-        // write() creates the notes/ folder if absent (FileVaultIO, Task 1). If the
-        // write throws (try?), the reindex simply finds nothing new and selection of
-        // a missing file shows the editor's calm missing state — acceptable per style.
-        try? io.write(rel, NoteCreation.stub(title: title))
-        noteIndex.reindex(project: project, workingDirectory: workingDirectory)
+        guard let rel = writeNote(title: title, project: project,
+                                  workingDirectory: workingDirectory) else { return }
         selected = NoteRef(project: project, workingDirectory: workingDirectory, relativePath: rel)
     }
 
-    private func emptyState(_ message: String) -> some View {
-        VStack {
+    /// Write→reindex WITHOUT selection — extracted (2b Task 7) because the slash
+    /// menu's Sub-page command creates a note mid-typing, and navigating away from
+    /// the note being edited would yank the caret out from under the user. The
+    /// "+"-sheet and create-from-link flows layer selection back on via
+    /// `createNote`. Returns the created relativePath, nil when the write fails.
+    private func writeNote(title: String, project: String, workingDirectory: String) -> String? {
+        let io = FileVaultIO(rootPath: workingDirectory)
+        let rel = NoteCreation.relativePath(title: title, existing: io.notePaths())
+        // write() creates the notes/ folder if absent (FileVaultIO, Task 1).
+        do { try io.write(rel, NoteCreation.stub(title: title)) } catch { return nil }
+        noteIndex.reindex(project: project, workingDirectory: workingDirectory)
+        return rel
+    }
+
+    /// Centered glyph + line — the calm empty-state pattern (Craft pass Phase 1).
+    private func emptyState(_ message: String, symbol: String) -> some View {
+        VStack(spacing: 8) {
             Spacer()
+            Image(systemName: symbol)
+                .font(.system(size: 22))
+                .foregroundStyle(Theme.Palette.textTertiary)
             Text(message)
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(Theme.Palette.textTertiary)
@@ -262,10 +277,15 @@ public struct NotesView: View {
         if let selected {
             editor(for: selected)
         } else {
-            Text("Select a note")
-                .font(Theme.Fonts.body)
-                .foregroundStyle(Theme.Palette.textTertiary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 10) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.Palette.textTertiary)
+                Text("Select a note")
+                    .font(Theme.Fonts.body)
+                    .foregroundStyle(Theme.Palette.textTertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
