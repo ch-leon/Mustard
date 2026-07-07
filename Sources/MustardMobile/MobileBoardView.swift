@@ -40,7 +40,7 @@ struct MobileBoardView: View {
                 if waiting > 0 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Text("● \(waiting) waiting").font(.caption.weight(.medium))
-                            .foregroundStyle(Color(hex: "#6A61C9"))
+                            .foregroundStyle(Theme.Palette.agentText)
                     }
                 }
             }
@@ -51,19 +51,19 @@ struct MobileBoardView: View {
     private var ownerChips: some View {
         HStack(spacing: 8) {
             ForEach(BoardOwnerView.allCases) { v in
-                chip(v.label, active: filters.owner == v, tint: v == .agent ? Color(hex: "#7F77DD") : Color(hex: "#2D7FF9")) {
+                chip(v.label, active: filters.owner == v, tint: v == .agent ? Theme.Palette.agent : Theme.Palette.accent) {
                     filters.owner = v
                 }
             }
         }
     }
 
-    private func chip(_ label: String, active: Bool, tint: Color = Color(hex: "#2B2A26"), action: @escaping () -> Void) -> some View {
+    private func chip(_ label: String, active: Bool, tint: Color = Theme.Palette.textPrimary, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label).font(.caption.weight(.medium))
                 .foregroundStyle(active ? .white : .secondary)
                 .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(active ? AnyShapeStyle(tint) : AnyShapeStyle(Color(hex: "#EFEBE2")), in: Capsule())
+                .background(active ? AnyShapeStyle(tint) : AnyShapeStyle(Theme.Palette.surface), in: Capsule())
         }.buttonStyle(.plain)
     }
 
@@ -103,15 +103,15 @@ private struct MobileBoardCard: View {
         VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     if task.priority == .urgent {
-                        flag("URGENT", .white, Color(hex: "#C2603F"))
+                        flag("URGENT", .white, Theme.Palette.priorityUrgentBg)
                     } else if task.priority == .high {
-                        flag("HIGH", Color(hex: "#A8502E"), Color(hex: "#F7E4D8"))
+                        flag("HIGH", Theme.Palette.priorityHighText, Theme.Palette.priorityHighBg)
                     }
                     if task.owner == .agent {
-                        Text("✦ Agent").font(.caption2.weight(.medium)).foregroundStyle(Color(hex: "#6A61C9"))
+                        Text("✦ Agent").font(.caption2.weight(.medium)).foregroundStyle(Theme.Palette.agentText)
                     }
                     if task.isProposed {
-                        Text("✦ Proposed").font(.caption2.weight(.semibold)).foregroundStyle(Color(hex: "#6A61C9"))
+                        Text("✦ Proposed").font(.caption2.weight(.semibold)).foregroundStyle(Theme.Palette.agentText)
                     }
                     Spacer(minLength: 0)
                     if task.isGated { Image(systemName: "lock").font(.caption2).foregroundStyle(.secondary) }
@@ -127,10 +127,10 @@ private struct MobileBoardCard: View {
                 if stage == .needsApproval || stage == .needsReview { gateButtons }
             }
             .padding(11)
-            .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "#E7E3DA"), lineWidth: 0.5))
+            .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Palette.hairline, lineWidth: 0.5))
             .overlay(alignment: .leading) {
-                if task.owner == .agent { Color(hex: "#7F77DD").frame(width: 2.5).clipShape(Capsule()) }
+                if task.owner == .agent { Theme.Palette.agent.frame(width: 2.5).clipShape(Capsule()) }
             }
     }
 
@@ -147,9 +147,9 @@ private struct MobileBoardCard: View {
             }
             .font(.caption.weight(.semibold)).foregroundStyle(.white)
             .padding(.horizontal, 9).padding(.vertical, 4)
-            .background(Color(hex: "#7F77DD"), in: RoundedRectangle(cornerRadius: 7))
+            .background(Theme.Palette.agent, in: RoundedRectangle(cornerRadius: 7))
             Button(stage == .needsReview ? "Discard" : "Deny") { onDelete(task) }
-                .font(.caption.weight(.medium)).foregroundStyle(Color(hex: "#D85A30"))
+                .font(.caption.weight(.medium)).foregroundStyle(Theme.Palette.error)
             Spacer(minLength: 0)
         }
         .buttonStyle(.plain)

@@ -17,8 +17,8 @@ struct MobileRecommendationSheet: View {
     @State private var commenting = false
     @State private var commentText = ""
 
-    private let agentPurple = Color(hex: "#7F77DD")
-    private let agentText = Color(hex: "#534AB7")
+    private let agentPurple = Theme.Palette.agent
+    private let agentText = Theme.Palette.agentTextDeep
     /// Re-bucket options — the full action set, matching the desktop FlowChips.
     private let rebucket = RecommendationAction.allCases
 
@@ -84,7 +84,7 @@ struct MobileRecommendationSheet: View {
         }
         .foregroundStyle(agentText)
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(Color(hex: "#F3F1FA"), in: RoundedRectangle(cornerRadius: 8))
+        .background(Theme.Palette.agentTintFaint, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var actionAndConfidence: some View {
@@ -99,7 +99,7 @@ struct MobileRecommendationSheet: View {
             HStack(spacing: 2) {
                 ForEach(0..<5, id: \.self) { i in
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(i < Int((rec.confidence * 5).rounded(.down)) ? Theme.confidenceColor(rec.confidence) : Color(hex: "#E4DFD5"))
+                        .fill(i < Int((rec.confidence * 5).rounded(.down)) ? Theme.confidenceColor(rec.confidence) : Theme.Palette.confidenceUnfilled)
                         .frame(width: 16, height: 5)
                 }
             }
@@ -117,7 +117,7 @@ struct MobileRecommendationSheet: View {
                             Text(a.label).font(.caption.weight(.medium))
                                 .foregroundStyle(active ? .white : .secondary)
                                 .padding(.horizontal, 11).padding(.vertical, 5)
-                                .background(active ? AnyShapeStyle(agentPurple) : AnyShapeStyle(Color(hex: "#EFEBE2")), in: Capsule())
+                                .background(active ? AnyShapeStyle(agentPurple) : AnyShapeStyle(Theme.Palette.surface), in: Capsule())
                         }.buttonStyle(.plain)
                     }
                 }
@@ -132,8 +132,8 @@ struct MobileRecommendationSheet: View {
                 .font(.subheadline).scrollContentBackground(.hidden)
                 .frame(minHeight: 90, maxHeight: 220)
                 .padding(8)
-                .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(hex: "#E7E3DA"), lineWidth: 0.5))
+                .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline, lineWidth: 0.5))
         }
     }
 
@@ -163,7 +163,7 @@ struct MobileRecommendationSheet: View {
                 Button("Dismiss", role: .destructive) { rec.decision = .denied; dismiss() }
                 Spacer()
                 Button("Keep") { agent.keep(rec); dismiss() }
-                    .buttonStyle(.borderedProminent).tint(Color(hex: "#2D7FF9"))
+                    .buttonStyle(.borderedProminent).tint(Theme.Palette.accent)
             } else {
                 Button("Reject", role: .destructive) { rec.decision = .denied; dismiss() }
                 Spacer()

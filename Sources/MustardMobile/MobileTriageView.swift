@@ -77,9 +77,9 @@ struct MobileTriageView: View {
                     Text("Trust · \(trust.label)").font(.caption.weight(.semibold))
                     Image(systemName: "arrow.trianglehead.clockwise").font(.caption2)
                 }
-                .foregroundStyle(Color(hex: "#534AB7"))
+                .foregroundStyle(Theme.Palette.agentTextDeep)
                 .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Color(hex: "#F3F1FA"), in: Capsule())
+                .background(Theme.Palette.agentTintFaint, in: Capsule())
                 Text(trust.blurb).font(.caption2).foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center).lineLimit(2)
             }
@@ -140,9 +140,9 @@ struct MobileTriageView: View {
     private func currentHint() -> (String, Color)? {
         guard let dir = direction(drag) else { return nil }
         switch TriageDeck.outcome(for: dir) {
-        case .approve: return ("APPROVE", Color(hex: "#1D9E75"))
-        case .reject: return ("REJECT", Color(hex: "#C2603F"))
-        case .snooze: return ("SNOOZE", Color(hex: "#B07A29"))
+        case .approve: return ("APPROVE", Theme.Palette.done)
+        case .reject: return ("REJECT", Theme.Palette.priorityUrgentBg)
+        case .snooze: return ("SNOOZE", Theme.Palette.warnText)
         }
     }
 
@@ -227,9 +227,9 @@ struct MobileTriageView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 28) {
-            circle("xmark", Color(hex: "#C2603F")) { if let r = pending.first { fling(r, .left, .reject) } }
-            circle("moon.zzz.fill", Color(hex: "#B07A29")) { if let r = pending.first { fling(r, .down, .snooze) } }
-            circle("checkmark", Color(hex: "#1D9E75")) { if let r = pending.first { fling(r, .right, .approve) } }
+            circle("xmark", Theme.Palette.priorityUrgentBg) { if let r = pending.first { fling(r, .left, .reject) } }
+            circle("moon.zzz.fill", Theme.Palette.warnText) { if let r = pending.first { fling(r, .down, .snooze) } }
+            circle("checkmark", Theme.Palette.done) { if let r = pending.first { fling(r, .right, .approve) } }
         }
         .disabled(flinging)
     }
@@ -239,7 +239,7 @@ struct MobileTriageView: View {
             Image(systemName: symbol).font(.system(size: 20, weight: .bold))
                 .foregroundStyle(color)
                 .frame(width: 56, height: 56)
-                .background(Color(hex: "#FBFAF7"), in: Circle())
+                .background(Theme.Palette.bg, in: Circle())
                 .overlay(Circle().stroke(color.opacity(0.3), lineWidth: 1))
                 .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
         }.buttonStyle(.plain)
@@ -249,7 +249,7 @@ struct MobileTriageView: View {
 
     private var allClear: some View {
         VStack(spacing: 10) {
-            Image(systemName: "checkmark.circle").font(.system(size: 40)).foregroundStyle(Color(hex: "#1D9E75"))
+            Image(systemName: "checkmark.circle").font(.system(size: 40)).foregroundStyle(Theme.Palette.done)
             Text("All clear").font(.title3.bold())
             Text("Nothing waiting on you.").font(.footnote).foregroundStyle(.secondary)
         }
@@ -259,14 +259,14 @@ struct MobileTriageView: View {
     @ViewBuilder private var undoToast: some View {
         if let undo {
             HStack(spacing: 12) {
-                Text("\(undo.verb) “\(undo.rec.title)”").font(.system(size: 13, weight: .medium))
+                Text("\(undo.verb) “\(undo.rec.title)”").font(Theme.Fonts.meta.weight(.medium))
                     .foregroundStyle(.white).lineLimit(1)
                 Button("Undo") { performUndo(undo) }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(hex: "#B9B2F0"))
+                    .font(Theme.Fonts.meta.weight(.semibold))
+                    .foregroundStyle(Theme.Palette.agentTintOnDark)
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(Color(hex: "#2B2A26"), in: Capsule())
+            .background(Theme.Palette.textPrimary, in: Capsule())
             .padding(.bottom, 8)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -295,7 +295,7 @@ private struct DeckCard: View {
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color(hex: badge.bgHex), in: Capsule())
                 }
-                Text("✦ \(rec.action.label)").font(.caption.weight(.medium)).foregroundStyle(Color(hex: "#534AB7"))
+                Text("✦ \(rec.action.label)").font(.caption.weight(.medium)).foregroundStyle(Theme.Palette.agentTextDeep)
                 Spacer(minLength: 0)
                 if rec.action.isGated {
                     Label("Gated", systemImage: "lock").font(.caption2).foregroundStyle(.secondary)
@@ -311,7 +311,7 @@ private struct DeckCard: View {
                         Text(area).font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color(hex: "#EFEBE2"), in: Capsule())
+                            .background(Theme.Palette.surface, in: Capsule())
                     }
                     Text((rec.occurredAt ?? rec.createdAt).formatted(.relative(presentation: .named)))
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -333,7 +333,7 @@ private struct DeckCard: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(hex: "#F4F1EA"), in: RoundedRectangle(cornerRadius: 8))
+                .background(Theme.Palette.titleBar, in: RoundedRectangle(cornerRadius: 8))
             }
 
             Spacer(minLength: 0)
@@ -343,23 +343,23 @@ private struct DeckCard: View {
                 HStack(spacing: 2) {
                     ForEach(0..<5, id: \.self) { i in
                         RoundedRectangle(cornerRadius: 1)
-                            .fill(i < Int((rec.confidence * 5).rounded(.down)) ? Theme.confidenceColor(rec.confidence) : Color(hex: "#E4DFD5"))
+                            .fill(i < Int((rec.confidence * 5).rounded(.down)) ? Theme.confidenceColor(rec.confidence) : Theme.Palette.confidenceUnfilled)
                             .frame(width: 16, height: 5)
                     }
                 }
                 Spacer(minLength: 0)
                 if let s = rec.sourceURL, let url = URL(string: s) {
-                    Link("Open ↗", destination: url).font(.caption2).foregroundStyle(Color(hex: "#2D7FF9"))
+                    Link("Open ↗", destination: url).font(.caption2).foregroundStyle(Theme.Palette.accent)
                 }
                 Text("Tap for detail").font(.caption2).foregroundStyle(.tertiary)
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(hex: "#FBFAF7"), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(hex: "#E7E3DA"), lineWidth: 0.5))
+        .background(Theme.Palette.bg, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Theme.Palette.hairline, lineWidth: 0.5))
         .overlay(alignment: .leading) {
-            Color(hex: "#7F77DD").frame(width: 3).clipShape(Capsule()).padding(.vertical, 18)
+            Theme.Palette.agent.frame(width: 3).clipShape(Capsule()).padding(.vertical, 18)
         }
         .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
     }
