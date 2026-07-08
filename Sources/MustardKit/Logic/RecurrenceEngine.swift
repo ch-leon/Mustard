@@ -8,18 +8,21 @@ public enum RecurrenceEngine {
     ) -> Date {
         switch rule {
         case .daily:
-            return calendar.date(byAdding: .day, value: 1, to: date)!
+            // `calendar.date(byAdding:...)` is effectively always non-nil for these
+            // simple additions; the `??` fallback is a never-hit safety net, not a
+            // behavior change.
+            return calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
         case .weekly:
-            return calendar.date(byAdding: .day, value: 7, to: date)!
+            return calendar.date(byAdding: .day, value: 7, to: date) ?? date.addingTimeInterval(7 * 86_400)
         case .weekdays:
-            var next = calendar.date(byAdding: .day, value: 1, to: date)!
+            var next = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
             while calendar.isDateInWeekend(next) {
-                next = calendar.date(byAdding: .day, value: 1, to: next)!
+                next = calendar.date(byAdding: .day, value: 1, to: next) ?? next.addingTimeInterval(86_400)
             }
             return next
         case .monthly:
             // Foundation clamps the day to the target month's last valid day.
-            return calendar.date(byAdding: .month, value: 1, to: date)!
+            return calendar.date(byAdding: .month, value: 1, to: date) ?? date.addingTimeInterval(30 * 86_400)
         }
     }
 

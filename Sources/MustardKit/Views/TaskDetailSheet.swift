@@ -165,7 +165,7 @@ public struct TaskDetailSheet: View {
                         PropertyRow(label: "Tags") {
                             TagChipInput(tags: $task.tags)
                         }
-                        PropertyRow(label: "Blocked by") {
+                        PropertyRow(label: "Blocked reason") {
                             TextField("reason (optional)", text: $task.blockedReason)
                                 .textFieldStyle(.plain).font(Theme.Fonts.meta)
                         }
