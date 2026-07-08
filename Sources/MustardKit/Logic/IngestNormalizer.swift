@@ -5,7 +5,8 @@ import Foundation
 /// and demote routine Shortcut "PO Review" assignments to `ignore`. Pure + tested.
 public enum IngestNormalizer {
     public static func normalize(_ p: SourceProposal) -> SourceProposal {
-        let source = SourceClassifier.logicalSource(transport: p.source, sourceContext: p.sourceContext)
+        let source = SourceClassifier.logicalSource(
+            transport: p.source, sourceContext: p.sourceContext, labels: p.labels)
         let action = demotesToIgnore(source: source, title: p.title, sourceContext: p.sourceContext)
             ? "ignore" : p.actionType
         return p.reclassified(source: source, actionType: action)

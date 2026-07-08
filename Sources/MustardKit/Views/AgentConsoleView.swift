@@ -90,7 +90,9 @@ public struct AgentConsoleView: View {
     private var detailColumn: some View {
         Group {
             if let selected {
-                ScrollView { RecommendationDetailView(rec: selected).padding(20) }
+                // Key to the selected rec so its detail view (and the @State comment
+                // field inside) is rebuilt fresh per selection — no carry-over.
+                ScrollView { RecommendationDetailView(rec: selected).id(selected.persistentModelID).padding(20) }
             } else {
                 detailEmpty
             }

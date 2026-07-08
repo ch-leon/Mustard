@@ -18,9 +18,17 @@ public struct SourceLink: Equatable {
             let url = URL(string: raw),
             let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https"
         else { return nil }
+        let kind = source.lowercased()
+        // A Shortcut item's link must point at Shortcut. The scout sometimes synthesizes
+        // a Jira `browse/DLA-xxxx` URL from a ticket key in the story title — distrust
+        // that rather than open Jira for a Shortcut rec.
+        if kind == "shortcut", let host = url.host?.lowercased(),
+           host.contains("jira") || host.contains("atlassian") {
+            return nil
+        }
         self.url = url
         self.label = title
-        self.sourceKind = source.lowercased()
+        self.sourceKind = kind
     }
 
     /// SF Symbol for the source glyph. Mirrors `SourceBadge` for gmail/vault and
