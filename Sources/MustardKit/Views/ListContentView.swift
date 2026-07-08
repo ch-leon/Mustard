@@ -58,7 +58,7 @@ struct ListContentView: View {
                     .font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)
             case .list(let list):
                 Circle()
-                    .fill(Color(hex: list.area?.colorHex ?? "#B0ACA1"))
+                    .fill(Color(hex: list.area?.colorHex ?? Theme.Palette.areaGreyHex))
                     .frame(width: 10, height: 10)
                 Text(list.name.isEmpty ? "Untitled list" : list.name)
                     .font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)

@@ -46,15 +46,15 @@ public struct BoardView: View {
     private func handoffHintBanner(_ hint: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 11))
+                .font(Theme.Fonts.caption)
             Text(hint).font(Theme.Fonts.meta)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(Color(hex: "#B07A29"))
+        .foregroundStyle(Theme.Palette.warnText)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "#FBF1E2"))
-        .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: "#EFE2C9")).frame(height: 0.5) }
+        .background(Theme.Palette.warnTintSoft)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.Palette.warnTintBorder).frame(height: 0.5) }
     }
 
     // MARK: Header
@@ -74,7 +74,7 @@ public struct BoardView: View {
                             .padding(.horizontal, 11)
                             .padding(.vertical, 4)
                             .background(reviewFocus ? AnyShapeStyle(Theme.Palette.agent) : AnyShapeStyle(Theme.Palette.agentTintLight), in: Capsule())
-                            .overlay(Capsule().stroke(reviewFocus ? Color.clear : Color(hex: "#E2DCF4"), lineWidth: 0.5))
+                            .overlay(Capsule().stroke(reviewFocus ? Color.clear : Theme.Palette.agentTintBorder, lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
                     .help(reviewFocus ? "Show the full board." : "Focus the board on just the two gate columns.")
@@ -82,7 +82,7 @@ public struct BoardView: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11)).foregroundStyle(Theme.Palette.textTertiary)
+                        .font(Theme.Fonts.caption).foregroundStyle(Theme.Palette.textTertiary)
                     TextField("Search", text: $searchText)
                         .textFieldStyle(.plain).font(Theme.Fonts.meta).frame(width: 120)
                 }
@@ -103,7 +103,7 @@ public struct BoardView: View {
                 Text(reviewFocus ? "Review queue — everything waiting on you, both gates." : view.caption)
             }
             .font(.system(size: 12.5))
-            .foregroundStyle(Color(hex: "#8A8579"))
+            .foregroundStyle(Theme.Palette.statusMutedText)
             .padding(.top, 12)
         }
         .padding(.horizontal, 24)
@@ -114,7 +114,7 @@ public struct BoardView: View {
         HStack(spacing: 14) {
             ownerSegmentedControl
             Rectangle()
-                .fill(Color(hex: "#E1DCD1"))
+                .fill(Theme.Palette.divider)
                 .frame(width: 0.5, height: 22)
             areaChips
         }
@@ -126,8 +126,8 @@ public struct BoardView: View {
                 let active = v == view
                 let activeBg = v == .agent ? Theme.Palette.agent : Theme.Palette.textPrimary
                 Text(v.label)
-                    .font(.system(size: 13, weight: active ? .semibold : .medium))
-                    .foregroundStyle(active ? Color.white : Color(hex: "#8A8579"))
+                    .font(Theme.Fonts.meta.weight(active ? .semibold : .medium))
+                    .foregroundStyle(active ? Color.white : Theme.Palette.statusMutedText)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 7)
                     .background(active ? AnyShapeStyle(activeBg) : AnyShapeStyle(Color.clear))
@@ -135,12 +135,12 @@ public struct BoardView: View {
                     .onTapGesture { view = v }
                     .overlay(alignment: .trailing) {
                         if idx < BoardOwnerView.allCases.count - 1 {
-                            Rectangle().fill(Color(hex: "#E1DCD1")).frame(width: 0.5)
+                            Rectangle().fill(Theme.Palette.divider).frame(width: 0.5)
                         }
                     }
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "#E1DCD1"), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Palette.divider, lineWidth: 0.5))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -158,11 +158,11 @@ public struct BoardView: View {
         let active = area == target
         Text(label)
             .font(.system(size: 12, weight: active ? .semibold : .medium))
-            .foregroundStyle(active ? Color(hex: "#46433B") : Theme.Palette.textSecondary)
+            .foregroundStyle(active ? Theme.Palette.onSurface : Theme.Palette.textSecondary)
             .padding(.horizontal, 11)
             .padding(.vertical, 5)
-            .background(active ? Color(hex: "#EAE5DB") : Color.clear, in: Capsule())
-            .overlay(Capsule().stroke(active ? Color(hex: "#DAD3C6") : Color.clear, lineWidth: 0.5))
+            .background(active ? Theme.Palette.chipActive : Color.clear, in: Capsule())
+            .overlay(Capsule().stroke(active ? Theme.Palette.chipActiveBorder : Color.clear, lineWidth: 0.5))
             .contentShape(Capsule())
             .onTapGesture { area = target }
     }
@@ -191,6 +191,9 @@ public struct BoardView: View {
 
     private func column(_ stage: TaskStage) -> some View {
         let style = ColumnStyle(stage.kind)
+        // The concrete Area backing the current scope, so an agent-lane quick-add can
+        // inherit it for a real hand-off. Nil in the All / personal lenses.
+        let hostArea: Area? = { if case .area(let name) = area { return areas.first { $0.name == name } }; return nil }()
         let all = PersonalBoard.filterBySearch(
             PersonalBoard.tasks(allTasks, in: stage, view: view, area: area), query: searchText)
         let isDone = stage == .done
@@ -211,12 +214,12 @@ public struct BoardView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(stage.label.uppercased())
-                        .font(.system(size: 11, weight: .bold))
+                        .font(Theme.Fonts.caption.weight(.bold))
                         .tracking(0.04 * 11)
                         .foregroundStyle(style.head)
                     Text("\(totalCount)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "#C0BCB1"))
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(Theme.Palette.textFaint)
                 }
                 if let sub = stage.subLabel {
                     Text(sub)
@@ -231,8 +234,8 @@ public struct BoardView: View {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     if visible.isEmpty && older == 0 {
                         Text("Drop here")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(Color(hex: "#C8C3B7"))
+                            .font(Theme.Fonts.label)
+                            .foregroundStyle(Theme.Palette.strikethrough)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 6)
                     }
@@ -243,12 +246,12 @@ public struct BoardView: View {
                     }
                     if older > 0 {
                         Text("+\(older) older completed")
-                            .font(.system(size: 11.5))
+                            .font(Theme.Fonts.label)
                             .foregroundStyle(Theme.Palette.textTertiary)
                             .padding(.horizontal, 4)
                             .padding(.top, 2)
                     }
-                    QuickColumnAdd(stage: stage)
+                    QuickColumnAdd(stage: stage, boardArea: area, hostArea: hostArea)
                 }
             }
         }
@@ -267,9 +270,7 @@ public struct BoardView: View {
             guard task.stage != stage else { return true }
             // BAK-90: dropping into an agent lane is a hand-off — require a client area
             // first, or the bridge export silently won't route it. Reject + surface a hint.
-            let isAgentLane = stage == .forAgent || stage == .needsApproval
-                || stage == .queued || stage == .needsReview
-            if isAgentLane && !PersonalBoard.canHandOffToAgent(task) {
+            if PersonalBoard.isAgentLane(stage) && !PersonalBoard.canHandOffToAgent(task) {
                 agent.delegate(task)   // no-ops the hand-off and sets the hint banner
                 return false
             }
@@ -318,10 +319,10 @@ public struct BoardView: View {
         return Button { expandedEmpty.insert(stage) } label: {
             VStack(spacing: 10) {
                 Text("0")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(hex: "#C0BCB1"))
+                    .font(Theme.Fonts.caption)
+                    .foregroundStyle(Theme.Palette.textFaint)
                 Text(stage.label.uppercased())
-                    .font(.system(size: 11, weight: .bold))
+                    .font(Theme.Fonts.caption.weight(.bold))
                     .tracking(0.04 * 11)
                     .foregroundStyle(style.head)
                     .fixedSize()
@@ -376,11 +377,20 @@ private struct ColumnStyle {
     }
 }
 
-/// Per-column "+ Add" affordance: inserts a new `.me` task at this stage. `stage` is
-/// the source of truth; the legacy `status` field is left at its default.
+/// Per-column "+ Add" affordance. `stage` is the source of truth. Creating into a
+/// non-agent column makes a plain `.me` task at that stage; creating into an agent lane
+/// is a hand-off — it inherits the board's scoped client area (owner agent) so it will
+/// actually export, or, when the board isn't scoped to one area, lands in Planned with a
+/// hint rather than stranding area-less in the lane (BAK-90 follow-up).
 struct QuickColumnAdd: View {
     @Environment(\.modelContext) private var context
+    @Environment(AgentService.self) private var agent
     let stage: TaskStage
+    /// The board's current area scope, so agent-lane creates can inherit it.
+    let boardArea: BoardArea
+    /// The concrete Area to attach when handing off (resolved by the parent from the
+    /// scoped area). Nil when the board isn't scoped to a single area.
+    let hostArea: Area?
     @State private var text = ""
     @FocusState private var focused: Bool
 
@@ -389,13 +399,13 @@ struct QuickColumnAdd: View {
             Button(action: add) {
                 Image(systemName: "plus")
                     .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: "#C0BCB1"))
+                    .foregroundStyle(Theme.Palette.textFaint)
             }
             .buttonStyle(.plain)
             TextField("Add…", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
-                .foregroundStyle(Color(hex: "#C0BCB1"))
+                .foregroundStyle(Theme.Palette.textFaint)
                 .focused($focused)
                 .onSubmit(add)
         }
@@ -407,11 +417,29 @@ struct QuickColumnAdd: View {
     private func add() {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { focused = true; return }
-        let task = MustardTask(title: trimmed)
-        task.stage = stage
+        let placement = PersonalBoard.newTaskPlacement(inColumn: stage, boardArea: boardArea)
+        let task = MustardTask(title: trimmed, owner: placement.owner)
+        task.stage = placement.stage
+        if placement.attachArea, let host = hostArea {
+            task.list = listForHandOff(in: host)
+            agent.clearHint()
+        }
         context.insert(task)
+        if placement.blockedHandOff {
+            agent.setHint("New agent tasks need a client area — pick an area tab first, "
+                + "or hand it off from the card. Saved to Planned for now.")
+        }
         text = ""
         focused = true
+    }
+
+    /// Reuse an existing list under the area, else create one — so a handed-off quick-add
+    /// task carries an area the bridge export can route by (mirrors MeetingTaskSync).
+    private func listForHandOff(in area: Area) -> TaskList {
+        if let existing = (area.lists ?? []).first { return existing }
+        let list = TaskList(name: area.name, area: area)
+        context.insert(list)
+        return list
     }
 }
 

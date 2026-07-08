@@ -20,6 +20,10 @@ public final class GoogleCalendarService {
     private let now: () -> Date
     private let windowDays: Int
     private let calendarId = "primary"
+    /// In-flight token refresh, shared across concurrent `fetch()`/`refreshIfNeeded()`
+    /// callers so only one network refresh happens at a time — the loser awaits the
+    /// winner's result instead of racing it and clobbering the freshly-saved token.
+    private var refreshTask: Task<Void, Error>?
 
     public init(authSession: GoogleAuthSession, tokenClient: GoogleTokenClient,
                 eventsClient: GoogleEventsClient, store: TokenStore, context: ModelContext,
@@ -62,13 +66,24 @@ public final class GoogleCalendarService {
     }
 
     public func refreshIfNeeded() async throws {
+        // A refresh is already in flight (started by a concurrent caller) — await its
+        // result instead of issuing a second refresh with a now-possibly-stale token.
+        if let inFlight = refreshTask {
+            try await inFlight.value
+            return
+        }
         guard let token = try store.loadToken(),
               let creds = try store.loadCredentials() else { throw GoogleAuthError.invalidGrant }
         guard let refresh = token.refreshToken else { return }
-        if token.expiresAt.timeIntervalSince(now()) <= 60 {
+        guard token.expiresAt.timeIntervalSince(now()) <= 60 else { return }
+
+        let task = Task { [tokenClient, store] in
             let fresh = try await tokenClient.refresh(refreshToken: refresh, credentials: creds)
             try store.saveToken(fresh)
         }
+        refreshTask = task
+        defer { refreshTask = nil }
+        try await task.value
     }
 
     public func fetch() async {

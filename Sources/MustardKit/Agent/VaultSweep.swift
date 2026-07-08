@@ -44,16 +44,26 @@ public enum VaultSweep {
         public let draft: String
     }
 
+    /// Distinguishes "claude ran and genuinely proposed nothing" (`.proposals([])`,
+    /// e.g. a well-formed empty JSON array) from "claude's output wasn't the expected
+    /// JSON array shape at all" (`.unparseable`, e.g. prose, truncated/invalid JSON).
+    /// Callers should surface the latter — a silently empty sweep looks identical to a
+    /// broken one otherwise.
+    public enum ParseOutcome: Equatable {
+        case proposals([Proposal])
+        case unparseable
+    }
+
     /// Extracts the first JSON array from model output (code-fence tolerant).
-    public static func parse(_ text: String) -> [Proposal] {
+    public static func parseOutcome(_ text: String) -> ParseOutcome {
         guard let start = text.firstIndex(of: "["),
-              let end = text.lastIndex(of: "]"), start < end else { return [] }
+              let end = text.lastIndex(of: "]"), start < end else { return .unparseable }
         let json = String(text[start...end])
         guard let data = json.data(using: .utf8),
               let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
+            return .unparseable
         }
-        return raw.prefix(5).compactMap { item in
+        let proposals = raw.prefix(5).compactMap { item -> Proposal? in
             guard let title = item["title"] as? String, !title.isEmpty else { return nil }
             let confidence = (item["confidence"] as? NSNumber)?.doubleValue ?? 0.5
             return Proposal(
@@ -65,6 +75,15 @@ public enum VaultSweep {
                 draft: item["draft"] as? String ?? ""
             )
         }
+        return .proposals(proposals)
+    }
+
+    /// Convenience wrapper for callers that don't need to distinguish "empty" from
+    /// "unparseable" — both surface as `[]`. Prefer `parseOutcome` for anything
+    /// user-facing (see `AgentService.sweep`).
+    public static func parse(_ text: String) -> [Proposal] {
+        if case .proposals(let proposals) = parseOutcome(text) { return proposals }
+        return []
     }
 
     /// Grounded, action-aware execution prompt. Unlike a generic "do this task",

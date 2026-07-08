@@ -7,8 +7,9 @@ public struct RecGroup: Identifiable {
     public let members: [Recommendation]
     /// True when one source produced several recs → render the shared header + fan-out.
     public var isMultiSource: Bool { members.count > 1 }
-    /// Provenance comes from any member (they share the source).
-    public var header: Recommendation { members[0] }
+    /// Provenance comes from any member (they share the source). `grouped(_:)` never
+    /// produces an empty `members`, but the fallback keeps this total without `!`.
+    public var header: Recommendation { members.first ?? Recommendation(title: "") }
 }
 
 public enum SourceGrouping {
@@ -19,7 +20,12 @@ public enum SourceGrouping {
         var order: [String] = []
         var buckets: [String: [Recommendation]] = [:]
         for (i, rec) in recs.enumerated() {
-            let key = (rec.sourceItemID?.isEmpty == false) ? rec.sourceItemID! : "solo-\(i)"
+            let key: String
+            if let sourceItemID = rec.sourceItemID, !sourceItemID.isEmpty {
+                key = sourceItemID
+            } else {
+                key = "solo-\(i)"
+            }
             if buckets[key] == nil { order.append(key) }
             buckets[key, default: []].append(rec)
         }

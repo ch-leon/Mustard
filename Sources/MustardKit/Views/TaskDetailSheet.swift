@@ -67,9 +67,7 @@ public struct TaskDetailSheet: View {
                                 get: { task.stage },
                                 set: { newStage in
                                     // Moving into an agent lane is a hand-off — gate it.
-                                    // Same four stages the board drop guard treats as agent.
-                                    let agentLanes: [TaskStage] = [.forAgent, .needsApproval, .queued, .needsReview]
-                                    if agentLanes.contains(newStage), !gateHandOff() { return }
+                                    if PersonalBoard.isAgentLane(newStage), !gateHandOff() { return }
                                     task.stage = newStage
                                 }
                             )) {
@@ -95,7 +93,7 @@ public struct TaskDetailSheet: View {
                         }
                         if let gateHint {
                             HStack(spacing: 6) {
-                                Image(systemName: "lock").font(.system(size: 11))
+                                Image(systemName: "lock").font(Theme.Fonts.caption)
                                 Text(gateHint).font(Theme.Fonts.meta)
                                 Spacer(minLength: 0)
                             }
@@ -167,7 +165,7 @@ public struct TaskDetailSheet: View {
                         PropertyRow(label: "Tags") {
                             TagChipInput(tags: $task.tags)
                         }
-                        PropertyRow(label: "Blocked by") {
+                        PropertyRow(label: "Blocked reason") {
                             TextField("reason (optional)", text: $task.blockedReason)
                                 .textFieldStyle(.plain).font(Theme.Fonts.meta)
                         }
@@ -310,7 +308,7 @@ public struct TaskDetailSheet: View {
                         if let u = URL(string: link.url) { openURL(u) }
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "link").font(.system(size: 11))
+                            Image(systemName: "link").font(Theme.Fonts.caption)
                             Text(link.label).font(Theme.Fonts.meta)
                             Text(link.url).font(Theme.Fonts.meta)
                                 .foregroundStyle(Theme.Palette.textTertiary)
@@ -369,9 +367,9 @@ public struct TaskDetailSheet: View {
                 }
                 if task.isGated {
                     HStack(spacing: 6) {
-                        Image(systemName: "lock").font(.system(size: 11))
+                        Image(systemName: "lock").font(Theme.Fonts.caption)
                         Text("Gated action — always reviewed by you, whatever the trust level.")
-                            .font(.system(size: 11))
+                            .font(Theme.Fonts.caption)
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(Theme.Palette.agentText)

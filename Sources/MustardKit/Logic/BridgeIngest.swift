@@ -26,7 +26,8 @@ public enum BridgeIngest {
             task.stage = .needsReview
         case (_, "declined"):
             task.owner = .me; task.stage = .planned
-            let why = (r.summary ?? "").isEmpty ? "." : ": \(r.summary!)"
+            let summary = r.summary ?? ""
+            let why = summary.isEmpty ? "." : ": \(summary)"
             task.notes += (task.notes.isEmpty ? "" : "\n\n") + "🤖 Agent passed on this\(why)"
         case (_, "failed"):
             break   // stay at source stage; caller surfaces r.error

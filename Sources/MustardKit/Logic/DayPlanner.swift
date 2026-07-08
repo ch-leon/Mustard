@@ -84,7 +84,12 @@ public enum DayPlanner {
                 )
             }
         let all = taskItems + eventItems
-        let timed = all.filter { $0.time != nil }.sorted { $0.time! < $1.time! }
+        let timed = all
+            .filter { $0.time != nil }
+            .sorted { lhs, rhs in
+                guard let l = lhs.time, let r = rhs.time else { return false }
+                return l < r
+            }
         let untimed = all.filter { $0.time == nil }
         return timed + untimed
     }

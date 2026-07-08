@@ -51,6 +51,36 @@ final class VaultSweepParserTests: XCTestCase {
         let over = VaultSweep.parse(#"[{"title":"x","confidence":1.8}]"#)[0]
         XCTAssertEqual(over.confidence, 1.0, accuracy: 0.001)
     }
+
+    // MARK: - parseOutcome distinguishes "no recommendations" from "unparseable"
+
+    func test_parseOutcome_proseWithNoBracketsIsUnparseable() {
+        XCTAssertEqual(VaultSweep.parseOutcome("I could not find anything."), .unparseable)
+        XCTAssertEqual(VaultSweep.parseOutcome(""), .unparseable)
+    }
+
+    func test_parseOutcome_truncatedJSONIsUnparseable() {
+        XCTAssertEqual(VaultSweep.parseOutcome("[not json"), .unparseable)
+    }
+
+    func test_parseOutcome_emptyArrayIsProposalsNotUnparseable() {
+        XCTAssertEqual(VaultSweep.parseOutcome("[]"), .proposals([]))
+    }
+
+    func test_parseOutcome_happyPathWrapsProposals() {
+        let text = #"[{"title": "Revive SDK note", "body": "Stale since May."}]"#
+        guard case .proposals(let proposals) = VaultSweep.parseOutcome(text) else {
+            return XCTFail("expected .proposals for well-formed input")
+        }
+        XCTAssertEqual(proposals.map(\.title), ["Revive SDK note"])
+    }
+
+    func test_parse_isConsistentWithParseOutcome() {
+        // `parse` stays the thin convenience wrapper existing call sites use.
+        XCTAssertEqual(VaultSweep.parse(#"[{"title":"x"}]"#).map(\.title),
+                        ["x"])
+        XCTAssertEqual(VaultSweep.parse("garbage, no brackets"), [])
+    }
 }
 
 final class VaultSweepPromptTests: XCTestCase {
@@ -179,6 +209,27 @@ final class AgentServiceTests: XCTestCase {
 
         XCTAssertNotNil(service.lastError)
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+    }
+
+    // Malformed/unparseable model output must not look like a silent no-op — it gets
+    // a distinct, user-visible message from a genuinely empty (but well-formed) sweep.
+    func test_sweep_unparseableOutput_setsCouldNotParseError() async throws {
+        let ctx = try makeContext()
+        let stub: ClaudeRun = { _, _ in ClaudeResult(ok: true, text: "I looked but found nothing worth flagging.") }
+        let service = AgentService(context: ctx, claude: stub)
+        await service.sweep(vaultPath: "/tmp/vault")
+
+        XCTAssertEqual(service.lastError, "Sweep returned output Mustard couldn't parse")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+    }
+
+    func test_sweep_emptyArrayOutput_setsNoRecommendationsError() async throws {
+        let ctx = try makeContext()
+        let stub: ClaudeRun = { _, _ in ClaudeResult(ok: true, text: "[]") }
+        let service = AgentService(context: ctx, claude: stub)
+        await service.sweep(vaultPath: "/tmp/vault")
+
+        XCTAssertEqual(service.lastError, "Sweep returned no parseable recommendations")
     }
 
     func test_archiveStaleMeetingTasks_completesOld_retagsSource_leavesRecent() throws {
@@ -575,5 +626,52 @@ final class AgentServiceTests: XCTestCase {
         let stored = try ctx.fetch(FetchDescriptor<Recommendation>())
         XCTAssertEqual(stored.count, 1)
         XCTAssertEqual(stored.first?.source, "jira", "a Gmail-delivered Jira notification should be stored as source=jira")
+    }
+
+    // Malformed rec files used to be dropped with zero trace. Surface the count so
+    // Leon can tell "nothing new" apart from "N files were silently unreadable."
+    func test_ingestInbox_malformedRecFiles_surfacesSkipCountInLastError() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "{ not valid json".write(toFile: recs + "/bad.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+        XCTAssertEqual(service.lastError, "1 file skipped (malformed)")
+    }
+
+    func test_ingestInbox_multipleMalformedRecFiles_pluralizesSkipMessage() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "{ not valid json".write(toFile: recs + "/bad1.json", atomically: true, encoding: .utf8)
+        try "also not valid".write(toFile: recs + "/bad2.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertEqual(service.lastError, "2 files skipped (malformed)")
+    }
+
+    func test_ingestInbox_allValid_doesNotSetLastError() async throws {
+        let ctx = try makeContext()
+        let dir = NSTemporaryDirectory() + "mustard-wf-\(UUID().uuidString)"
+        let recs = dir + "/_recs"
+        try FileManager.default.createDirectory(atPath: recs, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let json = #"{"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"e1","sourceContext":"","title":"x","body":"b","actionType":"fyi","confidence":0.5,"reasoning":"r","draft":"d"}"#
+        try json.write(toFile: recs + "/a.json", atomically: true, encoding: .utf8)
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "[]") })
+
+        await service.ingestInbox(workingDirectory: dir)
+
+        XCTAssertNil(service.lastError)
     }
 }

@@ -53,7 +53,7 @@ public struct AgentConsoleView: View {
                 if let error = agent.lastError {
                     Text(error)
                         .font(Theme.Fonts.meta)
-                        .foregroundStyle(Color(hex: "#D85A30"))
+                        .foregroundStyle(Theme.Palette.error)
                         .padding(.vertical, 8)
                 }
 
@@ -230,10 +230,10 @@ public struct AgentConsoleView: View {
           }
           // Always-visible trust blurb + gated-action footer note (BAK-112).
           Text(trust.blurb)
-              .font(.system(size: 11.5))
+              .font(Theme.Fonts.label)
               .foregroundStyle(Theme.Palette.textSecondary)
           Text("🔒 Email, Slack and tickets are always reviewed by you — at every trust level.")
-              .font(.system(size: 11))
+              .font(Theme.Fonts.caption)
               .foregroundStyle(Theme.Palette.textTertiary)
         }
         .padding(.vertical, 10)
@@ -296,7 +296,7 @@ struct RecommendationRow: View {
             }
             HStack(spacing: 6) {
                 Text(String(format: "%.2f", rec.confidence))
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(confidenceColor)
+                    .font(Theme.Fonts.caption.weight(.medium)).foregroundStyle(confidenceColor)
                 HStack(spacing: 2) {
                     ForEach(0..<5, id: \.self) { i in
                         RoundedRectangle(cornerRadius: 1)
@@ -332,7 +332,7 @@ struct ProvenancePill: View {
                     .foregroundStyle(Theme.Palette.textTertiary)
             } else {
                 Label(badge.label, systemImage: badge.symbol)
-                    .labelStyle(.titleAndIcon).font(.system(size: 11, weight: .medium))
+                    .labelStyle(.titleAndIcon).font(Theme.Fonts.caption.weight(.medium))
                     .foregroundStyle(Color(hex: badge.fgHex))
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Color(hex: badge.bgHex), in: Capsule())
@@ -343,7 +343,7 @@ struct ProvenancePill: View {
             }
             Spacer()
             if let s = rec.sourceURL, let url = URL(string: s) {
-                Link("Open ↗", destination: url).font(.system(size: 11))
+                Link("Open ↗", destination: url).font(Theme.Fonts.caption)
                     .foregroundStyle(Theme.Palette.textTertiary)
             }
         }
@@ -388,8 +388,8 @@ struct FlowChips: View {
                 let isOn = action == selected
                 Button { onSelect(action) } label: {
                     Text(action.label)
-                        .font(.system(size: 11))
-                        .foregroundStyle(isOn ? Color(hex: "#534AB7") : Theme.Palette.textSecondary)
+                        .font(Theme.Fonts.caption)
+                        .foregroundStyle(isOn ? Theme.Palette.agentTextDeep : Theme.Palette.textSecondary)
                         .padding(.horizontal, 9).padding(.vertical, 3)
                         .background(
                             RoundedRectangle(cornerRadius: 6)

@@ -77,6 +77,20 @@ final class SourcePipelineTests: XCTestCase {
         XCTAssertEqual(st?.lastError, "401")
     }
 
+    func test_sweepDueSources_unparseableOutput_setsError_doesNotAdvance() async throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "not json at all") })
+        let settings = SourceSettings(
+            sources: [SourceConfig(id: .vault, enabled: true, intervalHours: 4, workingDirectory: "/v")],
+            state: [SourceState(id: .vault, lastSweptAt: nil)]
+        )
+        let updated = await service.sweepDueSources(settings, now: now)
+        let st = updated.state.first { $0.id == .vault }
+        XCTAssertNil(st?.lastSweptAt, "unparseable output must not advance scheduling state")
+        XCTAssertEqual(st?.lastError, "Sweep returned output Mustard couldn't parse")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Recommendation>()).count, 0)
+    }
+
     func test_sweepDueSources_disabled_skips() async throws {
         let ctx = try makeContext()
         var called = false

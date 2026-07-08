@@ -66,7 +66,7 @@ public struct MustardBoardCard: View {
                 if task.isProposed { proposedPill }
                 if task.isGated {
                     Image(systemName: "lock")
-                        .font(.system(size: 11))
+                        .font(Theme.Fonts.caption)
                         .foregroundStyle(Theme.Palette.textSecondary)
                         .help("Gated action — always reviewed by you")
                 }
@@ -188,7 +188,7 @@ public struct MustardBoardCard: View {
                         .fontWeight(overdue ? .semibold : .regular)
                 }
             }
-            .font(.system(size: 11.5))
+            .font(Theme.Fonts.label)
             .foregroundStyle(Theme.Palette.textSecondary)
             .padding(.top, 8)
         }
@@ -202,7 +202,7 @@ public struct MustardBoardCard: View {
             FlowMeta(spacing: 6) {
                 ForEach(tags, id: \.self) { tag in
                     Text("#\(tag)")
-                        .font(.system(size: 11))
+                        .font(Theme.Fonts.caption)
                         .foregroundStyle(Theme.Palette.textSecondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 1)
@@ -276,7 +276,7 @@ public struct MustardBoardCard: View {
         if isBlocked {
             let reason = task.blockedReason.trimmingCharacters(in: .whitespaces)
             Text("⚠ \(reason.isEmpty ? "Blocked" : reason)")
-                .font(.system(size: 11.5))
+                .font(Theme.Fonts.label)
                 .lineSpacing(11.5 * 0.35)
                 .foregroundStyle(Theme.Palette.warnText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -291,7 +291,7 @@ public struct MustardBoardCard: View {
             HStack(spacing: 6) {
                 Button(action: approveGate) {
                     Text(primaryGateLabel)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Theme.Fonts.caption.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)
@@ -300,7 +300,7 @@ public struct MustardBoardCard: View {
                 .buttonStyle(.plain)
                 Button(action: rejectGate) {
                     Text(secondaryGateLabel)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Theme.Fonts.caption.weight(.medium))
                         .foregroundStyle(Theme.Palette.confidenceLow)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)

@@ -83,11 +83,52 @@ public enum PersonalBoard {
         }
     }
 
+    /// The stages that mean "the agent owns this" — the hand-off pipeline lanes. Single
+    /// source of truth: the board drop guard, the detail-sheet stage picker, and the
+    /// quick-add composer all classify against this, so a task can never enter a lane
+    /// through one path that another path would have gated.
+    public static let agentLaneStages: Set<TaskStage> = [.forAgent, .needsApproval, .queued, .needsReview]
+
+    /// Whether `stage` is one of the agent hand-off lanes.
+    public static func isAgentLane(_ stage: TaskStage) -> Bool { agentLaneStages.contains(stage) }
+
     /// Whether a task may be handed to the agent (For Agent / Queued). Requires a
     /// client area: the bridge export filters by area, so an area-less hand-off would
     /// silently never route (BAK-90). The single gate the views + `delegate` check.
     public static func canHandOffToAgent(_ task: MustardTask) -> Bool {
         task.list?.area != nil
+    }
+
+    /// Where a *brand-new* quick-add task should land when typed into a column, given the
+    /// board's current area scope. A new task has no area yet, so it can never satisfy
+    /// `canHandOffToAgent` on its own — creating it directly in an agent lane would strand
+    /// it (area-less → the bridge export silently drops it → "waiting for agent" forever).
+    /// So: non-agent columns keep the column's stage (owner me); an agent lane inherits the
+    /// board's scoped client area for a real hand-off (owner agent); an agent lane with no
+    /// single client area to inherit (All / personal) is safely downgraded to Planned and
+    /// flagged so the caller can hint the user to pick an area first.
+    public struct NewTaskPlacement: Equatable {
+        public let stage: TaskStage
+        public let owner: TaskOwner
+        /// Caller must attach a list belonging to the board's scoped area (real hand-off).
+        public let attachArea: Bool
+        /// An agent-lane request was downgraded to Planned; caller should surface a hint.
+        public let blockedHandOff: Bool
+        public init(stage: TaskStage, owner: TaskOwner, attachArea: Bool, blockedHandOff: Bool) {
+            self.stage = stage; self.owner = owner
+            self.attachArea = attachArea; self.blockedHandOff = blockedHandOff
+        }
+    }
+
+    public static func newTaskPlacement(inColumn column: TaskStage, boardArea: BoardArea) -> NewTaskPlacement {
+        guard isAgentLane(column) else {
+            return NewTaskPlacement(stage: column, owner: .me, attachArea: false, blockedHandOff: false)
+        }
+        if case .area = boardArea {
+            return NewTaskPlacement(stage: column, owner: .agent, attachArea: true, blockedHandOff: false)
+        }
+        // Agent lane but no single client area to inherit → don't strand it.
+        return NewTaskPlacement(stage: .planned, owner: .me, attachArea: false, blockedHandOff: true)
     }
 
     /// Card owner toggle: to agent → forAgent; to me → planned; done keeps its stage.
