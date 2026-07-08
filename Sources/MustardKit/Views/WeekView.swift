@@ -65,7 +65,7 @@ public struct WeekView: View {
         .background(Theme.Palette.bg)
         .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
         .overlay(alignment: .bottom) { toastView }
-        .animation(.easeInOut(duration: 0.2), value: toast)
+        .animation(Theme.Motion.easeOut(), value: toast)
         .task(id: toast?.id) {
             guard toast != nil else { return }
             try? await Task.sleep(for: .seconds(6))

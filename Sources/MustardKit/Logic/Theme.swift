@@ -132,6 +132,29 @@ public enum Theme {
         }
     }
 
+    // MARK: Motion — shared easing/spring tokens (desktop + iOS)
+
+    /// Default CSS-style easings are too weak to feel intentional; these curves
+    /// (per Emil Kowalski's animation-eng skill) give entrances/exits a punch.
+    /// Use `easeOut` for anything entering/exiting, `easeInOut` for on-screen
+    /// morphing, and `drag`/`settle` springs for gesture-driven or interruptible
+    /// motion (springs preserve velocity when interrupted; keyframe curves don't).
+    public enum Motion {
+        public static func easeOut(_ duration: Double = 0.2) -> Animation {
+            .timingCurve(0.23, 1, 0.32, 1, duration: duration)
+        }
+
+        public static func easeInOut(_ duration: Double = 0.2) -> Animation {
+            .timingCurve(0.77, 0, 0.175, 1, duration: duration)
+        }
+
+        /// Gesture tracking a finger (drag snap-back, cancel).
+        public static let drag = Animation.spring(response: 0.32, dampingFraction: 0.7)
+
+        /// Layout restacking after an item leaves (deck cards, list reflow).
+        public static let settle = Animation.spring(response: 0.34, dampingFraction: 0.82)
+    }
+
     public enum Fonts {
         public static let body = Font.system(size: 15)
         public static let title = Font.system(size: 15, weight: .medium)

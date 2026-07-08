@@ -54,7 +54,7 @@ struct MobileTriageView: View {
             .navigationTitle("Triage")
             .sheet(item: $selected) { MobileRecommendationSheet(rec: $0) }
             .overlay(alignment: .bottom) { undoToast }
-            .animation(.easeInOut(duration: 0.2), value: undo?.id)
+            .animation(Theme.Motion.easeOut(), value: undo?.id)
             .task(id: undo?.id) {
                 guard undo != nil else { return }
                 try? await Task.sleep(for: .seconds(4))
@@ -104,7 +104,7 @@ struct MobileTriageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Smoothly restack the cards behind when the top one leaves.
-        .animation(.spring(response: 0.34, dampingFraction: 0.82), value: pending.count)
+        .animation(Theme.Motion.settle, value: pending.count)
     }
 
     private func topCard(_ rec: Recommendation) -> some View {
@@ -160,7 +160,7 @@ struct MobileTriageView: View {
 
     private func onDragEnd(_ t: CGSize, _ rec: Recommendation) {
         guard let dir = direction(t) else {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { drag = .zero }
+            withAnimation(Theme.Motion.drag) { drag = .zero }
             return
         }
         fling(rec, dir, TriageDeck.outcome(for: dir))
@@ -179,7 +179,7 @@ struct MobileTriageView: View {
         case .left: CGSize(width: -900, height: drag.height)
         case .down: CGSize(width: drag.width, height: 1100)
         }
-        withAnimation(.easeOut(duration: 0.28)) {
+        withAnimation(Theme.Motion.easeOut(0.28)) {
             drag = off
         } completion: {
             Task {

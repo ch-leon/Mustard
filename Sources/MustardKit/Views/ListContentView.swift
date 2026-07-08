@@ -77,7 +77,7 @@ struct ListContentView: View {
     @ViewBuilder private var completedSection: some View {
         if !completed.isEmpty {
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) { showCompleted.toggle() }
+                withAnimation(Theme.Motion.easeInOut(0.15)) { showCompleted.toggle() }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: showCompleted ? "chevron.down" : "chevron.right")
