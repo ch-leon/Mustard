@@ -46,7 +46,7 @@ struct MobileWeekView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { weekNav } }
             .sheet(item: $selected) { MobileTaskSheet(task: $0) }
             .overlay(alignment: .bottom) { toast }
-            .animation(.easeInOut(duration: 0.2), value: scheduledToast)
+            .animation(Theme.Motion.easeOut(), value: scheduledToast)
             .task(id: scheduledToast) {
                 guard scheduledToast != nil else { return }
                 try? await Task.sleep(for: .seconds(2))

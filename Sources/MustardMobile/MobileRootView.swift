@@ -50,7 +50,7 @@ struct MobileRootView: View {
         .overlay(alignment: .top) {
             if comingSoon { comingSoonToast }
         }
-        .animation(.easeInOut(duration: 0.2), value: comingSoon)
+        .animation(Theme.Motion.easeOut(), value: comingSoon)
         // Auto-dismiss lives on the always-present TabView so switching tabs mid-toast
         // still clears it.
         .task(id: comingSoon) {
