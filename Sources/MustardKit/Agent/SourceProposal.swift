@@ -32,13 +32,17 @@ public struct SourceProposal: Equatable, Sendable, Codable {
     public let confidence: Double
     public let reasoning: String
     public let draft: String
+    /// Gmail labels on the source thread (e.g. "Jira Updates", "Shortcut Notifications").
+    /// Ground truth for `SourceClassifier`. Empty for vault sweeps and legacy recs.
+    public let labels: [String]
 
     public init(
         source: SourceID, project: String = "", sourceItemID: String, sourceEventID: String,
         sourceContext: String = "", sourceURL: String? = nil, occurredAt: Date? = nil,
         title: String, body: String = "", actionType: String = "vault_note",
         originalSource: String? = nil,
-        confidence: Double = 0.5, reasoning: String = "", draft: String = ""
+        confidence: Double = 0.5, reasoning: String = "", draft: String = "",
+        labels: [String] = []
     ) {
         self.source = source
         self.project = project
@@ -54,6 +58,35 @@ public struct SourceProposal: Equatable, Sendable, Codable {
         self.confidence = confidence
         self.reasoning = reasoning
         self.draft = draft
+        self.labels = labels
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case source, project, sourceItemID, sourceEventID, sourceContext
+        case sourceURL, originalSource, occurredAt, title, body
+        case actionType, confidence, reasoning, draft, labels
+    }
+
+    // Custom decode so `labels` (added later) defaults to `[]` when a rec JSON omits
+    // it — legacy `_recs/*.json` files stay decodable. Other fields keep their prior
+    // required/optional semantics. `encode(to:)` remains synthesized.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        source = try c.decode(SourceID.self, forKey: .source)
+        project = try c.decode(String.self, forKey: .project)
+        sourceItemID = try c.decode(String.self, forKey: .sourceItemID)
+        sourceEventID = try c.decode(String.self, forKey: .sourceEventID)
+        sourceContext = try c.decode(String.self, forKey: .sourceContext)
+        sourceURL = try c.decodeIfPresent(String.self, forKey: .sourceURL)
+        originalSource = try c.decodeIfPresent(String.self, forKey: .originalSource)
+        occurredAt = try c.decodeIfPresent(Date.self, forKey: .occurredAt)
+        title = try c.decode(String.self, forKey: .title)
+        body = try c.decode(String.self, forKey: .body)
+        actionType = try c.decode(String.self, forKey: .actionType)
+        confidence = try c.decode(Double.self, forKey: .confidence)
+        reasoning = try c.decode(String.self, forKey: .reasoning)
+        draft = try c.decode(String.self, forKey: .draft)
+        labels = try c.decodeIfPresent([String].self, forKey: .labels) ?? []
     }
 }
 
@@ -78,7 +111,8 @@ public extension SourceProposal {
             source: source, project: project, sourceItemID: sourceItemID,
             sourceEventID: sourceEventID, sourceContext: sourceContext, sourceURL: sourceURL,
             occurredAt: occurredAt, title: title, body: body, actionType: actionType,
-            originalSource: originalSource, confidence: confidence, reasoning: reasoning, draft: draft
+            originalSource: originalSource, confidence: confidence, reasoning: reasoning,
+            draft: draft, labels: labels
         )
     }
 

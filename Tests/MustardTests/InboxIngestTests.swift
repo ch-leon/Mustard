@@ -41,4 +41,31 @@ final class InboxIngestTests: XCTestCase {
     func test_readRecs_missingDir_returnsEmpty() {
         XCTAssertTrue(InboxIngest.readRecs(in: "/nope/does/not/exist").isEmpty)
     }
+
+    func test_readRecs_decodesLabels() throws {
+        let dir = tempDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let recs = dir.appendingPathComponent("_recs")
+        try FileManager.default.createDirectory(at: recs, withIntermediateDirectories: true)
+        let withLabels = """
+        {"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"m",
+         "sourceContext":"","sourceURL":null,"occurredAt":null,"labels":["Jira Updates","INBOX"],
+         "title":"x","body":"b","actionType":"fyi","confidence":0.5,"reasoning":"r","draft":""}
+        """
+        try withLabels.write(to: recs.appendingPathComponent("a.json"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(InboxIngest.readRecs(in: dir.path).first?.labels, ["Jira Updates", "INBOX"])
+    }
+
+    func test_readRecs_missingLabels_defaultsEmpty() throws {
+        // Legacy rec JSON with no `labels` key must still decode, with labels = [].
+        let dir = tempDir(); defer { try? FileManager.default.removeItem(at: dir) }
+        let recs = dir.appendingPathComponent("_recs")
+        try FileManager.default.createDirectory(at: recs, withIntermediateDirectories: true)
+        let legacy = """
+        {"source":"gmail","project":"DL","sourceItemID":"t","sourceEventID":"m",
+         "sourceContext":"","sourceURL":null,"occurredAt":null,
+         "title":"x","body":"b","actionType":"fyi","confidence":0.5,"reasoning":"r","draft":""}
+        """
+        try legacy.write(to: recs.appendingPathComponent("a.json"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(InboxIngest.readRecs(in: dir.path).first?.labels, [])
+    }
 }

@@ -44,6 +44,23 @@ final class SourceLinkTests: XCTestCase {
         XCTAssertNil(SourceLink(sourceURL: "Codeheroes work/Meetings/2026-06-01.md", source: "meeting", title: "T"))
     }
 
+    // MARK: shortcut-source URL guard (a Shortcut item must not open Jira)
+    func test_shortcutSource_withJiraHost_rejected() {
+        // Scout sometimes synthesizes a Jira browse URL from a DLA-xxxx key in the
+        // Shortcut story title. That link is wrong — drop it rather than open Jira.
+        XCTAssertNil(SourceLink(sourceURL: "https://jira.example.com/browse/DLA-5598", source: "shortcut", title: "Add detail"))
+        XCTAssertNil(SourceLink(sourceURL: "https://mycorp.atlassian.net/browse/DLA-5598", source: "shortcut", title: "Add detail"))
+    }
+
+    func test_shortcutSource_withShortcutHost_resolves() {
+        XCTAssertNotNil(SourceLink(sourceURL: "https://app.shortcut.com/story/3920", source: "shortcut", title: "Add detail"))
+    }
+
+    func test_jiraSource_withJiraHost_stillResolves() {
+        // Guard is scoped to shortcut source; a genuine Jira rec keeps its Jira URL.
+        XCTAssertNotNil(SourceLink(sourceURL: "https://jira.example.com/browse/DLA-1", source: "jira", title: "T"))
+    }
+
     // MARK: symbol / name mapping
     func test_symbol_perKind() {
         XCTAssertEqual(SourceLink(sourceURL: "https://a.co", source: "shortcut", title: "T")?.symbol, "checklist")

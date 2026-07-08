@@ -69,8 +69,9 @@ GROUND + WRITE (per kept email):
     "sourceItemID": "<gmail thread id>",
     "sourceEventID": "<gmail message id>",
     "sourceContext": "<short provenance, e.g. 'App Store Connect · SalesBuddi · app rejected'>",
-    "sourceURL": "<thread link or null>",
+    "sourceURL": "<link to the underlying item — see SOURCE URL rule — or null>",
     "occurredAt": "<ISO8601 or null>",
+    "labels": ["<every Gmail label on this thread, verbatim, e.g. 'Jira', 'Jira Updates', 'Shortcut Notifications'>"],
     "title": "<short imperative title>",
     "body": "<1-3 sentences: what and why>",
     "actionType": "<one token above>",
@@ -78,6 +79,17 @@ GROUND + WRITE (per kept email):
     "reasoning": "<one line: evidence used>",
     "draft": "<proposed content, e.g. a draft reply — DO NOT SEND IT>"
   }
+
+  LABELS: copy the thread's Gmail labels verbatim into `labels` (empty array if none).
+  The app classifies the true source from these — a `Jira`/`Jira Updates` label ⇒ Jira,
+  `Shortcut Notifications` ⇒ Shortcut, otherwise it stays a real Gmail email. A human
+  reply that merely *mentions* a ticket key (e.g. "re DLA-5598") has no Jira label, so
+  do NOT infer the source yourself — just report the labels.
+
+  SOURCE URL: `sourceURL` must link to the ACTUAL item, matched to its label —
+  a Shortcut-Notifications thread ⇒ the `app.shortcut.com/story/…` link from the email;
+  a Jira thread ⇒ the Jira browse link. NEVER synthesize a Jira `browse/DLA-xxxx` URL
+  from a ticket key you found in a Shortcut story's title. If no reliable link, use null.
 
 RULES: never send/reply/file (drafts only); one project per email; "project" must match the
 folder you write into; summarize (no raw bodies); optionally prune _recs/*.json older than 14
