@@ -48,14 +48,19 @@ public final class AgentService {
             return
         }
         let project = URL(fileURLWithPath: vaultPath).lastPathComponent
-        let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: project) }
-        if proposals.isEmpty {
-            lastError = "Sweep returned no parseable recommendations"
-            return
+        switch VaultSweep.parseOutcome(result.text) {
+        case .unparseable:
+            lastError = "Sweep returned output Mustard couldn't parse"
+        case .proposals(let raw):
+            let proposals = raw.map { SourceProposal(vault: $0, project: project) }
+            if proposals.isEmpty {
+                lastError = "Sweep returned no parseable recommendations"
+                return
+            }
+            ingest(proposals, vaultPath: vaultPath)
+            UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
+            await applyTrust(Self.storedTrust())
         }
-        ingest(proposals, vaultPath: vaultPath)
-        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastSweptAt")
-        await applyTrust(Self.storedTrust())
     }
 
     /// Harvest meeting tasks from the curated notes under `vaultRoot` and reflect
@@ -108,13 +113,22 @@ public final class AgentService {
             ) else { continue }
 
             let result = await claude(VaultSweep.prompt, config.workingDirectory)
-            if result.ok {
-                let proposals = VaultSweep.parse(result.text).map { SourceProposal(vault: $0, project: config.project) }
+            guard result.ok else {
+                updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: state?.lastSweptAt, lastError: result.text))
+                continue
+            }
+            switch VaultSweep.parseOutcome(result.text) {
+            case .unparseable:
+                // Don't advance lastSweptAt — treat unparseable output like a failed
+                // run so the next due cycle retries rather than silently giving up.
+                updated.upsertState(SourceState(
+                    id: config.id, project: config.project, lastSweptAt: state?.lastSweptAt,
+                    lastError: "Sweep returned output Mustard couldn't parse"))
+            case .proposals(let raw):
+                let proposals = raw.map { SourceProposal(vault: $0, project: config.project) }
                 ingest(proposals, vaultPath: config.workingDirectory)
                 updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: now, lastError: nil))
                 didIngest = true
-            } else {
-                updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: state?.lastSweptAt, lastError: result.text))
             }
         }
         if didIngest { await applyTrust(Self.storedTrust()) }
@@ -128,9 +142,13 @@ public final class AgentService {
     /// shared dedupe + insert pipeline. Files are local (the routine writes them directly
     /// — no git). vaultPath = the KB folder, so any later execution runs in-project.
     public func ingestInbox(workingDirectory: String) async {
-        let proposals = InboxIngest.readRecs(in: workingDirectory)
-        guard !proposals.isEmpty else { return }
-        ingest(proposals, vaultPath: workingDirectory)
+        let result = InboxIngest.read(in: workingDirectory)
+        if result.skippedCount > 0 {
+            let noun = result.skippedCount == 1 ? "file" : "files"
+            lastError = "\(result.skippedCount) \(noun) skipped (malformed)"
+        }
+        guard !result.proposals.isEmpty else { return }
+        ingest(result.proposals, vaultPath: workingDirectory)
         await applyTrust(Self.storedTrust())
     }
 
