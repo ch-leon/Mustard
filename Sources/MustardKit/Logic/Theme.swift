@@ -150,13 +150,14 @@ public enum Theme {
         }
     }
 
-    // MARK: Motion — shared easing/spring tokens (desktop + iOS)
+    // MARK: Motion — canonical animation tokens: one feel across the app (desktop + iOS)
 
     /// Default CSS-style easings are too weak to feel intentional; these curves
     /// (per Emil Kowalski's animation-eng skill) give entrances/exits a punch.
     /// Use `easeOut` for anything entering/exiting, `easeInOut` for on-screen
-    /// morphing, and `drag`/`settle` springs for gesture-driven or interruptible
-    /// motion (springs preserve velocity when interrupted; keyframe curves don't).
+    /// morphing, `drag` for gesture-driven/interruptible motion (springs preserve
+    /// velocity when interrupted; keyframe curves don't), and the `settle`/`expand`/
+    /// `pop` state springs for discrete UI state changes.
     public enum Motion {
         public static func easeOut(_ duration: Double = 0.2) -> Animation {
             .timingCurve(0.23, 1, 0.32, 1, duration: duration)
@@ -169,8 +170,12 @@ public enum Theme {
         /// Gesture tracking a finger (drag snap-back, cancel).
         public static let drag = Animation.spring(response: 0.32, dampingFraction: 0.7)
 
-        /// Layout restacking after an item leaves (deck cards, list reflow).
-        public static let settle = Animation.spring(response: 0.34, dampingFraction: 0.82)
+        /// Small state changes settling into place (hover lift, selection, list reflow).
+        public static let settle = Animation.snappy(duration: 0.16)
+        /// Content expanding or collapsing (drawers, disclosure, trays).
+        public static let expand = Animation.snappy(duration: 0.18)
+        /// Menus and popovers arriving (slash menu, ⌘K).
+        public static let pop = Animation.spring(duration: 0.22)
     }
 
     public enum Fonts {
@@ -232,17 +237,6 @@ public enum Theme {
             case .pop: return 12
             }
         }
-    }
-
-    // MARK: Motion — canonical animation tokens (one feel across the app)
-
-    public enum Motion {
-        /// Small state changes settling into place (hover lift, selection).
-        public static let settle = Animation.snappy(duration: 0.16)
-        /// Content expanding or collapsing (drawers, disclosure, trays).
-        public static let expand = Animation.snappy(duration: 0.18)
-        /// Menus and popovers arriving (slash menu, ⌘K).
-        public static let pop = Animation.spring(duration: 0.22)
     }
 
     // MARK: Metrics — radius scale (codifies the hand-used 6/7/10/12)
