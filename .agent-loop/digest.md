@@ -515,3 +515,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/*bak-245-timelinerow/`
 - **Revert:** `git revert e4648e8c8094ebe24818fb71193697be77e08d1a`
+
+## 2026-07-10 — MERGED · BAK-244 Opened-task detail design pass (PR #89)
+- **Risk:** medium (view restyle) · **Auto-merged** (no deep-review)
+- **Decision:** Leon chose live-edit-restyled (not read-first) during brainstorm; approved the mockup.
+- **Checks:** swift build clean · swift test 696 pass/1 skip/0 fail
+- **Fresh-context review:** PASS (live-edit fully preserved — all 14 controls + title binding intact; field helper unused; gating logic untouched)
+- **What landed:** TaskDetailSheet new header (stage badge+owner, editable docH1 title+inline flag, shared TaskChipRow) + calm hairline sections replacing grey cards; agentContext + BAK-136 footer kept; iOS MobileTaskSheet header mirrored.
+- **⚠ Leon eye-check PENDING (desktop + iOS) — iOS not built by swift build.**
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/*bak-244-task-detail/`
+- **Revert:** `git revert ac2b2964a67f1af60989555f45006281de47fd35`
