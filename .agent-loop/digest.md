@@ -495,3 +495,13 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **iOS:** build-ios.sh not run in-session (no toolchain); mobile change mirrors desktop, Leon eye-check pending
 - **Run:** `.agent-loop/runs/20260710-200334-bak-246-inbox-placement/`
 - **Revert:** `git revert ce72ce24546520c80862a1a66f748e0ddae9e6b7`
+
+## 2026-07-10 — MERGED · BAK-247 FOCUS pins duplicating in timeline (PR #87)
+- **Risk:** medium (Logic/Views display filter) · **Auto-merged** (no deep-review)
+- **Checks:** swift build clean · swift test 696 pass/1 skip/0 fail
+- **Fresh-context review:** PASS (mobile "no FOCUS section" claim independently verified)
+- **What landed:** `RitualPlanner.timeline` = tasksForDay minus focus-starred-today; TodayView filters the timeline + empty-state guards FOCUS. Display dedup (confirmed not a data dup). 4 new tests.
+- **Mobile:** unchanged — MobileTodayView has no FOCUS section, so no dup; filtering would regress.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260710-202258-bak-247-planner-dup/`
+- **Revert:** `git revert 470e9859b1f70c5f2c1617724bafa578c22d28ec`
