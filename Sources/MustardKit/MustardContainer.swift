@@ -16,6 +16,9 @@ public enum MustardContainer {
             // A fresh context avoids the main-actor isolation of `mainContext`.
             let migration = ModelContext(container)
             BoardMigration.backfill(migration)
+            // Re-place any scheduled task stranded in the Inbox (BAK-246) — after the
+            // stage backfill so it reads migrated stages, not legacy status.
+            BoardMigration.normalizeScheduledPlacement(migration)
             try? migration.save()
             return container
         } catch {
