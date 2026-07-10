@@ -52,16 +52,11 @@ public struct TaskDetailSheet: View {
             header
             Divider().overlay(Theme.Palette.hairline)
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    field("Title") {
-                        TextField("Title", text: $task.title)
-                            .textFieldStyle(.plain).font(Theme.Fonts.title)
-                            .foregroundStyle(Theme.Palette.textPrimary)
-                    }
-
+                VStack(alignment: .leading, spacing: 16) {
                     agentContext
 
                     VStack(alignment: .leading, spacing: 12) {
+                        sectionHeader("Details")
                         PropertyRow(label: "Stage") {
                             Picker("", selection: Binding(
                                 get: { task.stage },
@@ -194,30 +189,65 @@ public struct TaskDetailSheet: View {
                             .labelsHidden().fixedSize()
                         }
                     }
-                    .padding(14)
-                    .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
 
+                    sectionDivider
                     subtasksSection
+                    sectionDivider
                     linksSection
+                    sectionDivider
                     bodySection
                 }
-                .padding(20)
+                .padding(.horizontal, 20).padding(.vertical, 16)
             }
             Divider().overlay(Theme.Palette.hairline)
             footer
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 460, height: 600)
         .background(Theme.Palette.bg)
     }
 
+    // Designed header (BAK-244): stage badge + owner on top, a large editable title
+    // with the inline priority flag, then the at-a-glance chip strip shared with the
+    // row/card (BAK-245). The sheet stays live-edit — the title is a plain field and
+    // every DETAILS control below mutates the task directly.
     private var header: some View {
-        HStack {
-            Text("Task").font(Theme.Fonts.header).foregroundStyle(Theme.Palette.textPrimary)
-            Spacer()
-            SourceLinkButton(task: task)
-            Button("Done") { dismiss() }.controlSize(.small)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                stageBadge
+                Text(task.owner == .agent ? "✦ Agent" : "You")
+                    .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
+                Spacer()
+                SourceLinkButton(task: task)
+                Button("Done") { dismiss() }.controlSize(.small)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                PriorityFlag(priority: task.priority)
+                TextField("Title", text: $task.title)
+                    .textFieldStyle(.plain)
+                    .font(Theme.Fonts.docH1)
+                    .foregroundStyle(Theme.Palette.textPrimary)
+            }
+            if TaskChipRow.hasChips(task) { TaskChipRow(task: task) }
         }
-        .padding(.horizontal, 20).padding(.vertical, 14)
+        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
+    }
+
+    private var stageBadge: some View {
+        Text(task.stage.label.uppercased())
+            .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+            .foregroundStyle(stageBadgeColor)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(stageBadgeColor.opacity(0.14), in: Capsule())
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10, weight: .semibold)).tracking(0.06)
+            .foregroundStyle(Theme.Palette.textTertiary)
+    }
+
+    private var sectionDivider: some View {
+        Divider().overlay(Theme.Palette.hairline).padding(.vertical, 2)
     }
 
     // Stage-adaptive footer (BAK-136): Delete stays leading (this sheet is also the
@@ -300,9 +330,7 @@ public struct TaskDetailSheet: View {
     // from a create_task rec, or one added by hand. Show, open, remove, add.
     private var linksSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("LINKS")
-                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
+            sectionHeader("Links")
             ForEach(task.links, id: \.url) { link in
                 HStack(spacing: 8) {
                     Button {
@@ -335,8 +363,6 @@ public struct TaskDetailSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
     }
 
     /// Append a manually-entered link (http/https only), de-duplicated, labelled by host.
@@ -358,14 +384,6 @@ public struct TaskDetailSheet: View {
         let draft = task.delegation?.draft ?? ""
         if conf != nil || !why.isEmpty || !draft.isEmpty || task.isGated {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Text(task.stage.label.uppercased())
-                        .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                        .foregroundStyle(stageBadgeColor)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(stageBadgeColor.opacity(0.14), in: Capsule())
-                    Spacer()
-                }
                 if task.isGated {
                     HStack(spacing: 6) {
                         Image(systemName: "lock").font(Theme.Fonts.caption)
@@ -422,9 +440,7 @@ public struct TaskDetailSheet: View {
     private var subtasksSection: some View {
         let progress = task.subtaskProgress
         return VStack(alignment: .leading, spacing: 8) {
-            Text("SUBTASKS (\(progress.done)/\(progress.total))")
-                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
+            sectionHeader("Subtasks (\(progress.done)/\(progress.total))")
             ForEach(task.subtasks ?? []) { sub in
                 HStack(spacing: 8) {
                     Button {
@@ -457,15 +473,12 @@ public struct TaskDetailSheet: View {
             .buttonStyle(.plain).foregroundStyle(Theme.Palette.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Theme.Palette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var bodySection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("BODY").font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                    .foregroundStyle(Theme.Palette.textTertiary)
+                sectionHeader("Body")
                 Spacer()
                 Picker("", selection: $bodyPreview) {
                     Text("edit").tag(false)
@@ -489,12 +502,4 @@ public struct TaskDetailSheet: View {
         }
     }
 
-    private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased())
-                .font(.system(size: 10, weight: .semibold)).tracking(0.06)
-                .foregroundStyle(Theme.Palette.textTertiary)
-            content()
-        }
-    }
 }
