@@ -129,7 +129,7 @@ public struct TaskDetailSheet: View {
                                     .onChange(of: isScheduled) { _, on in
                                         task.scheduledAt = on ? scheduledDate : nil
                                         task.isTimed = on
-                                        if on, task.stage == .inbox { task.stage = .planned }
+                                        PersonalBoard.normalizePlacement(task)
                                     }
                                 if isScheduled {
                                     // Picking a specific time anchors the task to the week's time axis.
@@ -138,6 +138,7 @@ public struct TaskDetailSheet: View {
                                         .onChange(of: scheduledDate) { _, d in
                                             task.scheduledAt = d
                                             task.isTimed = true
+                                            PersonalBoard.normalizePlacement(task)
                                         }
                                 }
                             }

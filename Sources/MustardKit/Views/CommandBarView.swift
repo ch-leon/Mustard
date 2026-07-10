@@ -81,7 +81,7 @@ struct CommandBarView: View {
             if screen == .today {
                 task.scheduledAt = Calendar.current.date(
                     bySettingHour: 9, minute: 0, second: 0, of: .now)
-                task.stage = .planned
+                PersonalBoard.normalizePlacement(task)
             }
             context.insert(task)
         case .planDay:

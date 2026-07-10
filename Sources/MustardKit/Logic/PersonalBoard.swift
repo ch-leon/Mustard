@@ -131,6 +131,20 @@ public enum PersonalBoard {
         return NewTaskPlacement(stage: .planned, owner: .me, attachArea: false, blockedHandOff: true)
     }
 
+    /// Enforce the scheduled-placement invariant (BAK-246): a task carrying a
+    /// `scheduledAt` must never sit in `.inbox` (Inbox = untriaged only). A scheduled
+    /// task still in the inbox moves to `.scheduled` when anchored to a specific time
+    /// (`isTimed`) and `.planned` (planned for the day) otherwise. Tasks already past
+    /// the inbox — agent lanes, in-progress, blocked, done — keep their stage, and
+    /// unscheduled tasks are left untouched. Pure (mutates only the passed task's
+    /// stage) and idempotent, so it is safe to call at every site that writes
+    /// `scheduledAt`: this is the single source of truth those sites used to open-code
+    /// (inconsistently, ignoring `isTimed`) or skip entirely.
+    public static func normalizePlacement(_ task: MustardTask) {
+        guard task.scheduledAt != nil, task.stage == .inbox else { return }
+        task.stage = task.isTimed ? .scheduled : .planned
+    }
+
     /// Card owner toggle: to agent → forAgent; to me → planned; done keeps its stage.
     public static func reassign(_ task: MustardTask, to owner: TaskOwner) {
         guard task.owner != owner else { return }

@@ -39,6 +39,9 @@ public enum PreviewData {
         focus.list = dev
         let sync = MustardTask(title: "Thales SDK sync", scheduledAt: today(11, 30))
         sync.list = dev
+        // Timed agenda items obey the placement invariant (BAK-246): a scheduled task
+        // is never in the Inbox, so the board preview doesn't render the very symptom.
+        for t in [standup, focus, sync] { t.isTimed = true; PersonalBoard.normalizePlacement(t) }
         let loose = MustardTask(title: "Reply to Kamil re: BLE issue") // stays unfiled
         for task in [standup, focus, sync, loose] { ctx.insert(task) }
 

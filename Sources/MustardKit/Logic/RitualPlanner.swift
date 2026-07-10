@@ -22,6 +22,7 @@ public enum RitualPlanner {
     public static func pushToTomorrow(_ task: MustardTask, calendar: Calendar = .current) {
         guard let when = task.scheduledAt else { return }
         task.scheduledAt = calendar.date(byAdding: .day, value: 1, to: when)
+        PersonalBoard.normalizePlacement(task)
     }
 
     /// Step 1 mutation — back to the unscheduled inbox. Leaves the carry-forward
@@ -52,6 +53,7 @@ public enum RitualPlanner {
     public static func planToday(_ task: MustardTask, day: Date, calendar: Calendar = .current) {
         task.scheduledAt = calendar.startOfDay(for: day)
         task.isTimed = false
+        PersonalBoard.normalizePlacement(task)
     }
 
     /// Step 3 capacity line — WeekPlanner reuse; nil label when nothing planned.
