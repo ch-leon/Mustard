@@ -28,7 +28,12 @@ struct MobileTaskSheet: View {
                         Spacer()
                     }
 
-                    Text(task.title).font(.title2.bold())
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        PriorityFlag(priority: task.priority)
+                        Text(task.title).font(.title2.bold())
+                    }
+                    // At-a-glance chips shared with the desktop sheet + rows (BAK-244/245).
+                    if TaskChipRow.hasChips(task) { TaskChipRow(task: task) }
                     if !task.notes.isEmpty {
                         Text(task.notes).font(.subheadline).foregroundStyle(.secondary)
                     }
