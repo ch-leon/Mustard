@@ -67,6 +67,16 @@ public enum RitualPlanner {
         return "\(WeekPlanner.capacityLabel(minutes: minutes)) planned"
     }
 
+    /// Today's chronological timeline (BAK-247): the day's scheduled tasks minus any
+    /// pinned in the FOCUS section (starred as focus for `day`). A focus-starred task
+    /// shows exactly once — as a pin in FOCUS — instead of being duplicated in the
+    /// timeline below it. Shared so any surface with a FOCUS section dedups identically.
+    public static func timeline(_ tasks: [MustardTask], day: Date, calendar: Calendar = .current) -> [MustardTask] {
+        let focusUIDs = Set(focused(tasks, day: day, calendar: calendar).map(\.uid))
+        return DayPlanner.tasksForDay(tasks, day: day, calendar: calendar)
+            .filter { !focusUIDs.contains($0.uid) }
+    }
+
     /// Step 4 — today's open planned tasks (star candidates).
     public static func focusCandidates(_ tasks: [MustardTask], day: Date, calendar: Calendar = .current) -> [MustardTask] {
         DayPlanner.tasksForDay(tasks, day: day, calendar: calendar).filter { $0.stage.isOpen }

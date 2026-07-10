@@ -37,7 +37,9 @@ public struct TodayView: View {
     private var progress: (done: Int, total: Int) { DayPlanner.dayProgress(allTasks, day: today) }
     private var nudgeCount: Int { AgentInbox.waitingCount(recommendations: recommendations, tasks: allTasks) }
 
-    private var scheduled: [MustardTask] { DayPlanner.tasksForDay(allTasks, day: today) }
+    /// The chronological timeline, minus tasks already pinned in FOCUS (BAK-247) so a
+    /// starred task isn't shown twice. FOCUS is the single home for pinned tasks.
+    private var scheduled: [MustardTask] { RitualPlanner.timeline(allTasks, day: today) }
     private var unscheduled: [MustardTask] { DayPlanner.unscheduled(allTasks) }
 
     public var body: some View {
@@ -54,9 +56,10 @@ public struct TodayView: View {
                         Divider().overlay(Theme.Palette.hairline)
                     }
                 }
-                if scheduled.isEmpty {
+                if scheduled.isEmpty && focusTasks.isEmpty {
                     // Warm empty state (Craft pass Phase 1) — points at the capture
-                    // field directly below it.
+                    // field directly below it. Guards on FOCUS too so a day whose only
+                    // tasks are pinned above doesn't read as "nothing scheduled" (BAK-247).
                     VStack(spacing: 8) {
                         Image(systemName: "sun.max")
                             .font(.system(size: 26))
@@ -187,9 +190,9 @@ public struct TodayView: View {
         return parts.isEmpty ? "Set up today in under a minute" : parts.joined(separator: " · ")
     }
 
-    /// FOCUS pins — today's starred tasks, above the chronological timeline.
-    /// They still appear in the timeline below (deliberate duplication: the
-    /// timeline stays the chronological truth). One-line filter later if disliked.
+    /// FOCUS pins — today's starred tasks, above the chronological timeline. These
+    /// are FILTERED OUT of the timeline below (`RitualPlanner.timeline`, BAK-247) so a
+    /// pinned task shows exactly once, here, rather than duplicated in the list.
     @ViewBuilder private var focusSection: some View {
         let focus = focusTasks
         if !focus.isEmpty {
