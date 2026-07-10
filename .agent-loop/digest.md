@@ -505,3 +505,13 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260710-202258-bak-247-planner-dup/`
 - **Revert:** `git revert 470e9859b1f70c5f2c1617724bafa578c22d28ec`
+
+## 2026-07-10 — MERGED · BAK-245 TimelineRow condensed detail-card styling (PR #88)
+- **Risk:** medium (view restyle) · **Auto-merged** (no deep-review)
+- **Checks:** swift build clean · swift test 696 pass/1 skip/0 fail
+- **Fresh-context review:** PASS (token/vocab reuse verified; Week/WeekBlock + iOS-mirror claims verified; 4 non-blocking nits all fixed)
+- **What landed:** shared public chip vocabulary (TaskChips.swift: TaskRowDensity/PriorityFlag/MetaChip/TaskChipRow); TimelineRow → checkbox+bold title+inline flag+chip strip, gutter dropped; board card adopts shared PriorityFlag; iOS Today row mirrored; ListBadge removed.
+- **⚠ Leon eye-check PENDING (desktop + iOS) — iOS not built by swift build (needs build-ios.sh/xcodegen).**
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/*bak-245-timelinerow/`
+- **Revert:** `git revert e4648e8c8094ebe24818fb71193697be77e08d1a`
