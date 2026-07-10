@@ -60,7 +60,7 @@ public struct MustardBoardCard: View {
     @ViewBuilder private var topRow: some View {
         if !isDone {
             HStack(spacing: 6) {
-                priorityFlag
+                PriorityFlag(priority: task.priority)   // shared with TimelineRow (BAK-245)
                 if hovering { ownerToggle }   // hover-revealed (handoff); agent shown via the left accent
                 Spacer(minLength: 0)
                 if task.isProposed { proposedPill }
@@ -74,29 +74,6 @@ public struct MustardBoardCard: View {
             .frame(minHeight: 18)
             .padding(.bottom, 7)
         }
-    }
-
-    // MARK: Priority flag (HIGH / URGENT)
-
-    @ViewBuilder private var priorityFlag: some View {
-        switch task.priority {
-        case .high:
-            flagPill("HIGH", fg: Theme.Palette.priorityHighText, bg: Theme.Palette.priorityHighBg)
-        case .urgent:
-            flagPill("URGENT", fg: Theme.Palette.priorityUrgentText, bg: Theme.Palette.priorityUrgentBg)
-        case .normal, .low:
-            EmptyView()
-        }
-    }
-
-    private func flagPill(_ text: String, fg: Color, bg: Color) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .bold))
-            .tracking(0.4)
-            .foregroundStyle(fg)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(bg, in: RoundedRectangle(cornerRadius: 4))
     }
 
     // MARK: ✦ Proposed pill (agent-surfaced inbox task)
@@ -332,7 +309,8 @@ public struct MustardBoardCard: View {
 
 /// Wrapping horizontal layout for the meta row (area/source/due may overflow the
 /// narrow column). Falls back gracefully on older SDKs via SwiftUI's `Layout`.
-private struct FlowMeta: Layout {
+/// Shared with `TaskChipRow` (BAK-245) so row chips wrap the same way card meta does.
+struct FlowMeta: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
