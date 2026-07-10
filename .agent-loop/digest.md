@@ -476,3 +476,12 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Remaining:** manual live connect test (Task 10, Leon) — paste Desktop client id+secret in Settings → Connect
 - **Follow-ups:** BAK-71 (Theme error token, test stub dedup, window edge)
 - **Revert:** `git revert e7675bd7da0536f1dcc263ebe19eb8e87c6c8b65`
+
+## 2026-07-10 — MERGED · hotfix: duplicate Theme.Motion enum (PR #85)
+- **Risk:** low–medium (design tokens; Sources/) · **Auto-merged** (no deep-review needed)
+- **Checks:** swift build clean · swift test 686 pass/1 skip/0 fail
+- **Why:** main did not compile — PR #83 left a 2nd `Theme.Motion` enum beside PR #78's (CI runner was down, so no build gate caught it). Blocked all ticket work.
+- **What landed:** merged both enums into one canonical Motion (easeOut/easeInOut/drag/settle/expand/pop); `settle` = snappy(0.16) from #83's set. No call-site changes.
+- **Outward actions:** none
+- **Prerequisite for:** BAK-246/247/245/244 (Linear kickoff pickup)
+- **Revert:** `git revert d38c95054ab62f0fddf2e09eacb5c311ad0e8e57`
