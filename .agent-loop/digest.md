@@ -485,3 +485,13 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Prerequisite for:** BAK-246/247/245/244 (Linear kickoff pickup)
 - **Revert:** `git revert d38c95054ab62f0fddf2e09eacb5c311ad0e8e57`
+
+## 2026-07-10 — MERGED · BAK-246 Scheduled tasks stuck in Inbox (PR #86)
+- **Risk:** medium (Logic/Views + idempotent store migration) · **Auto-merged** (no deep-review)
+- **Checks:** swift build clean · swift test 692 pass/1 skip/0 fail
+- **Fresh-context review:** PASS (standards/spec/risk/tests; all scheduledAt write sites traced)
+- **What landed:** `PersonalBoard.normalizePlacement` invariant helper (scheduled ⇒ never .inbox; timed→.scheduled else .planned), called at every scheduledAt write site (desktop+iOS), + `BoardMigration.normalizeScheduledPlacement` one-time launch repair. 6 new tests.
+- **Outward actions:** none
+- **iOS:** build-ios.sh not run in-session (no toolchain); mobile change mirrors desktop, Leon eye-check pending
+- **Run:** `.agent-loop/runs/20260710-200334-bak-246-inbox-placement/`
+- **Revert:** `git revert ce72ce24546520c80862a1a66f748e0ddae9e6b7`
