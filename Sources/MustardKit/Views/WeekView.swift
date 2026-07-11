@@ -63,7 +63,7 @@ public struct WeekView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
-        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
+        .taskDetailDrawer(item: $selectedTask)
         .overlay(alignment: .bottom) { toastView }
         .animation(Theme.Motion.easeOut(), value: toast)
         .task(id: toast?.id) {

@@ -117,7 +117,7 @@ public struct RootView: View {
         // (TextEditor, DatePicker, pickers) don't render dark under macOS dark mode.
         // The notch is a separate panel with its own explicit dark colors — unaffected.
         .preferredColorScheme(.light)
-        .sheet(item: $selectedTaskFromNotch) { TaskDetailSheet(task: $0) }
+        .taskDetailDrawer(item: $selectedTaskFromNotch)
         .onChange(of: notchNav.pendingTask, initial: true) { _, task in
             guard let task else { return }
             NSApp.activate(ignoringOtherApps: true)

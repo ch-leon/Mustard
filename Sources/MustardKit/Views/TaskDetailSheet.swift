@@ -9,6 +9,9 @@ public struct TaskDetailSheet: View {
     @Environment(\.openURL) private var openURL
     @Environment(AgentService.self) private var agent
     @Bindable var task: MustardTask
+    /// Set when hosted in the docked drawer (not a sheet): the drawer owns dismissal,
+    /// so close actions call this instead of the sheet-only `@Environment(\.dismiss)`.
+    private let onClose: (() -> Void)?
     @Query private var areas: [Area]
     @Query private var lists: [TaskList]
     @Query private var allTasks: [MustardTask]
@@ -35,13 +38,17 @@ public struct TaskDetailSheet: View {
     /// which aren't agent-execute outcomes). Offered in the Action picker.
     private static let agentActions: [RecommendationAction] = [.draftEmail, .draftSlack, .ticket, .vaultNote]
 
-    public init(task: MustardTask) {
+    public init(task: MustardTask, onClose: (() -> Void)? = nil) {
         self.task = task
+        self.onClose = onClose
         _isScheduled = State(initialValue: task.scheduledAt != nil)
         _scheduledDate = State(initialValue: task.scheduledAt ?? Self.defaultSlot())
         _hasDue = State(initialValue: task.dueAt != nil)
         _dueDate = State(initialValue: task.dueAt ?? Self.defaultSlot())
     }
+
+    /// Dismiss whether hosted in the docked drawer (onClose) or a sheet fallback.
+    private func close() { if let onClose { onClose() } else { dismiss() } }
 
     private static func defaultSlot() -> Date {
         Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: .now) ?? .now
@@ -202,7 +209,8 @@ public struct TaskDetailSheet: View {
             Divider().overlay(Theme.Palette.hairline)
             footer
         }
-        .frame(width: 460, height: 600)
+        .frame(width: 460)
+        .frame(maxHeight: .infinity)
         .background(Theme.Palette.bg)
     }
 
@@ -218,7 +226,7 @@ public struct TaskDetailSheet: View {
                     .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.textSecondary)
                 Spacer()
                 SourceLinkButton(task: task)
-                Button("Done") { dismiss() }.controlSize(.small)
+                Button("Done") { close() }.controlSize(.small)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 PriorityFlag(priority: task.priority)
@@ -256,7 +264,7 @@ public struct TaskDetailSheet: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Button(role: .destructive) {
-                context.delete(task); dismiss()
+                context.delete(task); close()
             } label: { Label("Delete task", systemImage: "trash") }
             .controlSize(.small)
             Spacer()
@@ -269,13 +277,13 @@ public struct TaskDetailSheet: View {
         switch task.stage {
         case .needsApproval:
             Button("I'll do it") { takeOver() }.controlSize(.small)
-            Button("Deny", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
+            Button("Deny", role: .destructive) { context.delete(task); close() }.controlSize(.small)
             Button(task.isGated ? "Approve & run" : "Approve") { approveGate() }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
         case .needsReview:
             Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
-            Button("Discard", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
-            Button("Accept output") { TaskCompletion.complete(task, in: context); dismiss() }
+            Button("Discard", role: .destructive) { context.delete(task); close() }.controlSize(.small)
+            Button("Accept output") { TaskCompletion.complete(task, in: context); close() }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
         case .queued:
             Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }.controlSize(.small)
@@ -287,7 +295,7 @@ public struct TaskDetailSheet: View {
         case .inbox where task.isProposed:
             Button("I'll do it") { takeOver() }.controlSize(.small)
             Button("Schedule") { scheduleTomorrow() }.controlSize(.small)
-            Button("Dismiss", role: .destructive) { context.delete(task); dismiss() }.controlSize(.small)
+            Button("Dismiss", role: .destructive) { context.delete(task); close() }.controlSize(.small)
             Button("Approve") { PersonalBoard.move(task, to: .needsApproval) }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
         case .done:
@@ -299,7 +307,7 @@ public struct TaskDetailSheet: View {
                     .tint(Theme.Palette.agent).controlSize(.small)
                     .help("Hand this task to the agent — it proposes how to do it, then runs per your trust level.")
             }
-            Button("Mark done") { TaskCompletion.complete(task, in: context); dismiss() }
+            Button("Mark done") { TaskCompletion.complete(task, in: context); close() }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
         }
     }
