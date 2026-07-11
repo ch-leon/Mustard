@@ -101,7 +101,7 @@ public struct TodayView: View {
             consumeRitualRequest()
         }
         .onChange(of: ritualOpenRequested) { consumeRitualRequest() }
-        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
+        .taskDetailDrawer(item: $selectedTask)
         .sheet(isPresented: $showRitual) {
             MorningRitualView(
                 day: today,

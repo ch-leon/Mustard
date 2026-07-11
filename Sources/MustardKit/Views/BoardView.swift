@@ -38,7 +38,7 @@ public struct BoardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.Palette.bg)
-        .sheet(item: $selectedTask) { TaskDetailSheet(task: $0) }
+        .taskDetailDrawer(item: $selectedTask)
     }
 
     // MARK: Hand-off hint (BAK-90) — area required before agent hand-off
