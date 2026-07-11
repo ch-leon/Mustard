@@ -526,3 +526,15 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/*bak-244-task-detail/`
 - **Revert:** `git revert ac2b2964a67f1af60989555f45006281de47fd35`
+
+## 2026-07-11 — MERGED · Task detail right-side drawer (PR #90)
+- **Risk:** medium (view presentation) · **Auto-merged** (no deep-review)
+- **Origin:** Leon request during BAK-244 eye-check; docked style eye-confirmed in the running app.
+- **Checks:** swift build clean · swift test 696 pass/1 skip/0 fail
+- **Fresh-context review:** PASS (all close paths via close(); all 5 sheet sites converted; no surface missed)
+- **What landed:** reusable `.taskDetailDrawer(item:)` docks TaskDetailSheet on the trailing edge (reflow, full height, expand-motion slide, .id per task); TaskDetailSheet gained onClose + fills height; Today/Week/Board/Lists/notch swapped from .sheet.
+- **Desktop only;** iOS MobileTaskSheet keeps its bottom sheet.
+- **Note:** in-screen drawers now route SourceLinkButton to the source inspector (intended).
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/*task-detail-drawer/`
+- **Revert:** `git revert cd049eece8bd869e710b2b3502963a277dd23e50`
