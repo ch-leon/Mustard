@@ -20,19 +20,30 @@ struct SlashMenuView: View {
 
     var body: some View {
         let items = SlashMenu.items(query: query)
-        ScrollView {
-            VStack(alignment: .leading, spacing: 1) {
-                ForEach(SlashCommand.Group.allCases, id: \.self) { group in
-                    let rows = Array(items.enumerated()).filter { $0.element.group == group }
-                    if !rows.isEmpty {
-                        sectionHeader(group)
-                        ForEach(rows, id: \.element.id) { index, command in
-                            row(command, isSelected: index == min(selectedIndex, items.count - 1))
+        let clampedSelection = min(selectedIndex, items.count - 1)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(SlashCommand.Group.allCases, id: \.self) { group in
+                        let rows = Array(items.enumerated()).filter { $0.element.group == group }
+                        if !rows.isEmpty {
+                            sectionHeader(group)
+                            ForEach(rows, id: \.element.id) { index, command in
+                                row(command, isSelected: index == clampedSelection)
+                                    .id(command.id)
+                            }
                         }
                     }
                 }
+                .padding(6)
             }
-            .padding(6)
+            // The list overflows menuMaxHeight (16 rows + 4 group headers), and
+            // ↑/↓ selection is coordinator-owned — without this the highlight
+            // walks off-screen with no visual trace (BAK-251 review finding).
+            .onChange(of: clampedSelection) { _, index in
+                guard items.indices.contains(index) else { return }
+                proxy.scrollTo(items[index].id, anchor: nil)
+            }
         }
         .frame(width: Self.menuWidth, alignment: .leading)
         .frame(maxHeight: Self.menuMaxHeight)
