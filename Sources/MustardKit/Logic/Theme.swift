@@ -42,6 +42,9 @@ public enum Theme {
         public static let textFaint = Color(hex: "#C0BCB1")    // column counts, quick-add chrome — near but distinct from textTertiary
         public static let textMuted = Color(hex: "#A6A296")    // completed title
         public static let strikethrough = Color(hex: "#C8C3B7")
+        /// `==highlight==` span background — Craft-style soft mark (Phase 4 /
+        /// BAK-253, format toolbar).
+        public static let highlightBg = Color(hex: "#FBF1C7")
         public static let onSurface = Color(hex: "#46433B")
         public static let onSurfaceSoft = Color(hex: "#5C584E")
 
@@ -263,6 +266,8 @@ extension Theme {
         public static let textPrimary = NSColor(Palette.textPrimary)
         public static let textTertiary = NSColor(Palette.textTertiary)
         public static let accent = NSColor(Palette.accent)
+        public static let strikethrough = NSColor(Palette.strikethrough)
+        public static let highlightBg = NSColor(Palette.highlightBg)
     }
 
     /// NSFont equivalents of the editorial scale plus the editor-only variants

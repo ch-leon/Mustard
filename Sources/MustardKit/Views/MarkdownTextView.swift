@@ -369,7 +369,7 @@ struct MarkdownTextView: NSViewRepresentable {
         private static func priority(_ kind: NoteDecoration.Kind) -> Int {
             switch kind {
             case .frontmatter, .codeBlock, .heading, .listMarker, .subpageCard: return 0
-            case .bold, .italic, .inlineCode, .wikilink: return 1
+            case .bold, .italic, .inlineCode, .wikilink, .strikethrough, .highlight: return 1
             case .marker: return 2
             }
         }
@@ -393,6 +393,11 @@ struct MarkdownTextView: NSViewRepresentable {
             case .inlineCode:
                 storage.addAttributes([.font: Theme.NSFonts.code,
                                        .backgroundColor: Theme.NSPalette.surface], range: range)
+            case .strikethrough:
+                storage.addAttributes([.strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                                       .strikethroughColor: Theme.NSPalette.strikethrough], range: range)
+            case .highlight:
+                storage.addAttribute(.backgroundColor, value: Theme.NSPalette.highlightBg, range: range)
             case .codeBlock:
                 storage.addAttributes([.font: Theme.NSFonts.code,
                                        .backgroundColor: Theme.NSPalette.surface], range: range)
