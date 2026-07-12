@@ -448,6 +448,152 @@ public enum NoteDecoration {
         return target
     }
 
+    // MARK: - Marker visibility (Phase 1 / BAK-250 — Craft-style focus reveal)
+
+    /// One `markerVisibility(_:focusedRange:)` result: the document's hideable
+    /// marker ranges split by whether their containing block is currently
+    /// focused. Pure decision only — this type never hides anything itself;
+    /// `MarkdownTextView` is the presentation layer that turns `hidden` ranges
+    /// into a TextKit "not shown" glyph flag (see that file's doc for why that
+    /// mechanism keeps the underlying text and its attributes untouched).
+    public struct MarkerVisibility: Equatable {
+        public let hidden: [NSRange]
+        public let revealed: [NSRange]
+
+        public init(hidden: [NSRange], revealed: [NSRange]) {
+            self.hidden = hidden
+            self.revealed = revealed
+        }
+    }
+
+    /// Given `source` and the editor's current focus, which of the document's
+    /// hideable marker ranges should render hidden vs revealed. `focusedRange`
+    /// `nil` means the editor has NO focus at all (e.g. the window resigned key)
+    /// — every marker in the document hides. Otherwise `focusedRange` is the
+    /// text view's selection: a zero-length range is a caret, a non-zero range a
+    /// selection.
+    ///
+    /// Reveal is decided at BLOCK granularity — the same unit
+    /// `MarkdownTextView`'s existing caret-scoped decoration pass already uses —
+    /// not per character: every block `focusedRange` touches reveals ALL its
+    /// hideable markers; every other block's hideable markers hide. See
+    /// `focusedBlockIndices` for the exact boundary/selection rules, and
+    /// `hideableSpans` for exactly which syntax is in scope.
+    public static func markerVisibility(_ source: String, focusedRange: NSRange?) -> MarkerVisibility {
+        let all = blocks(source)
+        guard !all.isEmpty else { return MarkerVisibility(hidden: [], revealed: []) }
+        let focused: Set<Int> = focusedRange.map { focusedBlockIndices(all, focusedRange: $0) } ?? []
+
+        var hidden: [NSRange] = []
+        var revealed: [NSRange] = []
+        for (index, block) in all.enumerated() {
+            let ranges = hideableSpans(source, in: block).map(\.range)
+            if focused.contains(index) {
+                revealed += ranges
+            } else {
+                hidden += ranges
+            }
+        }
+        return MarkerVisibility(hidden: hidden, revealed: revealed)
+    }
+
+    /// The blocks currently revealed for `focusedRange` (empty when `nil`) — the
+    /// block-level view of `markerVisibility`'s decision. Exposed separately so a
+    /// caller holding the previous call's result can diff the two `[Block]`
+    /// arrays and re-touch only the blocks whose membership changed, instead of
+    /// re-deriving every marker range on every selection move
+    /// (`MarkdownTextView`'s incremental selection-change path).
+    public static func revealedBlocks(_ source: String, focusedRange: NSRange?) -> [Block] {
+        guard let focusedRange else { return [] }
+        let all = blocks(source)
+        return focusedBlockIndices(all, focusedRange: focusedRange).sorted().map { all[$0] }
+    }
+
+    /// The hideable marker ranges within exactly one block — the per-block slice
+    /// `MarkdownTextView`'s incremental path re-touches when only that one
+    /// block's reveal state changed.
+    public static func hideableMarkerRanges(_ source: String, in block: Block) -> [NSRange] {
+        hideableSpans(source, in: block).map(\.range)
+    }
+
+    /// Block indices `focusedRange` touches. A zero-length range (a caret)
+    /// belongs to the block whose HALF-OPEN range contains it — the same
+    /// `NSLocationInRange` convention `MarkdownTextView`'s `caretBlock` already
+    /// uses — so a caret sitting exactly on a block boundary belongs to the
+    /// block that STARTS there, never both. A caret past every block's
+    /// half-open range (only possible at the very end of the document) falls
+    /// back to the last block, mirroring that same call site's `?? blocks.last`.
+    /// A non-zero selection touches every block it overlaps
+    /// (`NSIntersectionRange(...).length > 0`) — how a selection spanning
+    /// several blocks reveals all of them.
+    private static func focusedBlockIndices(_ blocks: [Block], focusedRange: NSRange) -> Set<Int> {
+        guard !blocks.isEmpty else { return [] }
+        if focusedRange.length == 0 {
+            if let index = blocks.firstIndex(where: { NSLocationInRange(focusedRange.location, $0.range) }) {
+                return [index]
+            }
+            return [blocks.count - 1]
+        }
+        var result = Set<Int>()
+        for (index, block) in blocks.enumerated()
+            where NSIntersectionRange(block.range, focusedRange).length > 0 {
+            result.insert(index)
+        }
+        return result
+    }
+
+    /// Which of one block's EXISTING `.marker`/`.listMarker` spans are in Phase
+    /// 1's hiding scope: a heading's `#…# ` prefix, a blockquote's `> ` prefix,
+    /// and `**`/`*`/`` ` `` emphasis-or-code delimiters (checked in ANY block
+    /// kind — inline formatting reads the same inside a paragraph, heading,
+    /// quote, or list item). Deliberately NOT in scope, so they stay exactly as
+    /// dimmed-and-always-visible as they are today, focus or not:
+    ///   - bullet ("- "/"* ") and ordered ("1. ") prefixes — hiding them would
+    ///     leave a list item with no visual marker at all; no bullet/number
+    ///     glyph exists to take their place yet.
+    ///   - fence delimiters and rule lines — hiding the only visible cue for a
+    ///     code block's or divider's boundary would leave nothing on screen
+    ///     where the line used to be.
+    ///   - wikilink brackets — links are their own considered surface (pills /
+    ///     subpage cards), not this phase's scope.
+    /// Checkbox bracket syntax ("- [ ]"/"- [x]") isn't handled here either: it
+    /// has no distinct span today (plain paragraph text inside a bullet line,
+    /// per `spans(_:in:)`/`isTodoLine`), so there is nothing for this function
+    /// to classify — nothing changes for it in either direction.
+    private static func hideableSpans(_ source: String, in block: Block) -> [Span] {
+        let all = spans(source, in: block)
+        guard !all.isEmpty else { return [] }
+        let kind = blockKind(source, of: block)
+
+        var result: [Span] = []
+        if case .heading = kind, let prefix = all.first(where: { $0.kind == .marker }) {
+            result.append(prefix)
+        }
+        if kind == .quote, let prefix = all.first(where: { $0.kind == .listMarker }) {
+            result.append(prefix)
+        }
+
+        // Emphasis/code delimiters: a `.marker` span immediately touching a
+        // `.bold`/`.italic`/`.inlineCode` content span. By construction (the
+        // shared regex match in `inlineSpans`) a delimiter is always directly
+        // adjacent to its own content span, in every block kind, so this check
+        // doesn't need `kind` at all.
+        func isDelimitedContent(_ k: Kind) -> Bool {
+            switch k {
+            case .bold, .italic, .inlineCode: return true
+            default: return false
+            }
+        }
+        let contentRanges = all.filter { isDelimitedContent($0.kind) }.map(\.range)
+        for span in all where span.kind == .marker {
+            let touchesContent = contentRanges.contains {
+                $0.location == span.range.upperBound || $0.upperBound == span.range.location
+            }
+            if touchesContent { result.append(span) }
+        }
+        return result
+    }
+
     // MARK: - Line scanning + classification
 
     /// One raw line: `range` includes the terminator (\n, \r, or \r\n — kept with

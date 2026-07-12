@@ -275,4 +275,156 @@ final class NoteDecorationTests: XCTestCase {
                              kind: .subpageCard(target: "Card"))])
         assertPartitionLossless(source)
     }
+
+    // MARK: - Marker visibility (Phase 1 / BAK-250 — Craft-style focus reveal)
+
+    /// In scope for hiding: heading `#…# ` prefix, `**`/`*` emphasis delimiters,
+    /// `` ` `` code delimiters, blockquote `> ` prefix. Deliberately OUT of scope
+    /// (stay always dimmed-visible, unaffected by focus): bullet/ordered
+    /// prefixes, fence delimiters, rule lines, wikilink brackets — see
+    /// `NoteDecoration.hideableSpans`'s doc for why.
+
+    func test_markerVisibility_noFocus_hidesEveryHideableMarker() {
+        let source = "# H\n\npara **b** *i* `c`\n\n> quote\n"
+        let ns = source as NSString
+        let v = NoteDecoration.markerVisibility(source, focusedRange: nil)
+        XCTAssertTrue(v.revealed.isEmpty)
+
+        XCTAssertTrue(v.hidden.contains(ns.range(of: "# ")))
+        XCTAssertTrue(v.hidden.contains(ns.range(of: "> ")))
+
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertTrue(v.hidden.contains(NSRange(location: boldFull.location, length: 2)))
+        XCTAssertTrue(v.hidden.contains(NSRange(location: boldFull.upperBound - 2, length: 2)))
+
+        let italicFull = ns.range(of: "*i*")
+        XCTAssertTrue(v.hidden.contains(NSRange(location: italicFull.location, length: 1)))
+        XCTAssertTrue(v.hidden.contains(NSRange(location: italicFull.upperBound - 1, length: 1)))
+
+        let codeFull = ns.range(of: "`c`")
+        XCTAssertTrue(v.hidden.contains(NSRange(location: codeFull.location, length: 1)))
+        XCTAssertTrue(v.hidden.contains(NSRange(location: codeFull.upperBound - 1, length: 1)))
+    }
+
+    func test_markerVisibility_cursorInHeading_revealsOnlyThatHeadingsPrefix() {
+        let source = "# H\n\npara **b**\n"
+        let ns = source as NSString
+        let caret = ns.range(of: "H").location
+        let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: caret, length: 0))
+
+        XCTAssertTrue(v.revealed.contains(ns.range(of: "# ")))
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertFalse(v.revealed.contains(NSRange(location: boldFull.location, length: 2)))
+        XCTAssertTrue(v.hidden.contains(NSRange(location: boldFull.location, length: 2)))
+    }
+
+    func test_markerVisibility_cursorInParagraph_revealsBoldAndCodeMarkersThere_headingStaysHidden() {
+        let source = "# H\n\npara **b** `c`\n"
+        let ns = source as NSString
+        let caret = ns.range(of: "para").location
+        let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: caret, length: 0))
+
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertTrue(v.revealed.contains(NSRange(location: boldFull.location, length: 2)))
+        XCTAssertTrue(v.revealed.contains(NSRange(location: boldFull.upperBound - 2, length: 2)))
+        let codeFull = ns.range(of: "`c`")
+        XCTAssertTrue(v.revealed.contains(NSRange(location: codeFull.location, length: 1)))
+
+        XCTAssertTrue(v.hidden.contains(ns.range(of: "# ")))
+        XCTAssertFalse(v.revealed.contains(ns.range(of: "# ")))
+    }
+
+    func test_markerVisibility_cursorAtBlockBoundary_belongsToTheBlockThatStartsThere() {
+        let source = "# H\n\npara **b**\n"
+        let blocks = NoteDecoration.blocks(source)
+        XCTAssertEqual(blocks.count, 2)
+        let boundary = blocks[0].range.upperBound
+        XCTAssertEqual(boundary, blocks[1].range.location)
+
+        let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: boundary, length: 0))
+        let ns = source as NSString
+        XCTAssertFalse(v.revealed.contains(ns.range(of: "# ")))
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertTrue(v.revealed.contains(NSRange(location: boldFull.location, length: 2)))
+    }
+
+    func test_markerVisibility_caretAtDocumentEnd_fallsBackToLastBlock() {
+        let source = "# H\n\npara **b**"
+        let ns = source as NSString
+        let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: ns.length, length: 0))
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertTrue(v.revealed.contains(NSRange(location: boldFull.upperBound - 2, length: 2)))
+        XCTAssertFalse(v.revealed.contains(ns.range(of: "# ")))
+    }
+
+    func test_markerVisibility_emptySelection_vs_rangeSelectionSpanningBlocks_allTouchedBlocksReveal() {
+        let source = "# H\n\n> q\n\npara **b**\n"
+        let ns = source as NSString
+        let blocks = NoteDecoration.blocks(source)
+        XCTAssertEqual(blocks.count, 3)
+
+        // A zero-length caret only reveals the ONE block it sits in.
+        let caretOnly = NoteDecoration.markerVisibility(
+            source, focusedRange: NSRange(location: ns.range(of: "H").location, length: 0))
+        XCTAssertTrue(caretOnly.revealed.contains(ns.range(of: "# ")))
+        XCTAssertFalse(caretOnly.revealed.contains(ns.range(of: "> ")))
+
+        // A range selection from inside the heading to inside the paragraph spans
+        // all three blocks — every one of them reveals.
+        let start = ns.range(of: "H").location
+        let end = ns.range(of: "para").location + 1
+        let selection = NSRange(location: start, length: end - start)
+        let spanning = NoteDecoration.markerVisibility(source, focusedRange: selection)
+        XCTAssertTrue(spanning.revealed.contains(ns.range(of: "# ")))
+        XCTAssertTrue(spanning.revealed.contains(ns.range(of: "> ")))
+        let boldFull = ns.range(of: "**b**")
+        XCTAssertTrue(spanning.revealed.contains(NSRange(location: boldFull.location, length: 2)))
+        XCTAssertTrue(spanning.hidden.isEmpty)
+    }
+
+    func test_markerVisibility_cursorInFrontmatter_frontmatterHasNoMarkers_restOfDocStaysHidden() {
+        let source = "---\ntitle: X\n---\n\n# H\n"
+        let ns = source as NSString
+        let caret = ns.range(of: "title").location
+        let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: caret, length: 0))
+        XCTAssertTrue(v.hidden.contains(ns.range(of: "# ")))
+        XCTAssertFalse(v.revealed.contains(ns.range(of: "# ")))
+    }
+
+    func test_markerVisibility_bulletOrderedFenceRuleWikilink_neverHiddenOrRevealed_anyFocus() {
+        // Deliberately out of Phase 1's hiding scope (no substitute glyph exists
+        // for these today) — never appear in either list, focused or not.
+        let source = "- bullet\n\n1. one\n\n---\n\n```\ncode\n```\n\n[[Link]]\n"
+        let ns = source as NSString
+
+        let noFocus = NoteDecoration.markerVisibility(source, focusedRange: nil)
+        XCTAssertTrue(noFocus.hidden.isEmpty)
+        XCTAssertTrue(noFocus.revealed.isEmpty)
+
+        for needle in ["bullet", "one", "---", "code", "Link"] {
+            let loc = ns.range(of: needle).location
+            let v = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: loc, length: 0))
+            XCTAssertTrue(v.hidden.isEmpty, "expected nothing hidden with focus on \(needle)")
+            XCTAssertTrue(v.revealed.isEmpty, "expected nothing revealed with focus on \(needle)")
+        }
+    }
+
+    func test_revealedBlocks_nilFocus_isEmpty() {
+        XCTAssertEqual(NoteDecoration.revealedBlocks("# H\npara", focusedRange: nil), [])
+    }
+
+    func test_revealedBlocks_returnsExactlyTheTouchedBlocks() {
+        let source = "# H\n\npara\n"
+        let blocks = NoteDecoration.blocks(source)
+        let caret = (source as NSString).range(of: "para").location
+        let revealed = NoteDecoration.revealedBlocks(source, focusedRange: NSRange(location: caret, length: 0))
+        XCTAssertEqual(revealed, [blocks[1]])
+    }
+
+    func test_hideableMarkerRanges_headingBlock_isJustThePrefix() {
+        let source = "# H\n"
+        let block = NoteDecoration.blocks(source)[0]
+        XCTAssertEqual(NoteDecoration.hideableMarkerRanges(source, in: block),
+                       [NSRange(location: 0, length: 2)])
+    }
 }
