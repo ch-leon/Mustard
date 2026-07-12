@@ -93,6 +93,19 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       `docs/superpowers/plans/2026-07-06-craft-pass-phase0-1.md` +
       `…-craft-editor-phase2.md`. Daily Note (spec Phase 3) pinned/deferred.
 
+## Next — buildable, unblocked 🟢 (queued 2026-07-12)
+
+- [ ] **F23 Craft editor — full markdown hiding + menu system** — five-phase follow-on
+      to F22: shared `BlockKind` model (foundation), fully-hidden markdown syntax
+      (Craft-style focus reveal, not just dimming), expanded insert (`/`) menu
+      (headings 1-4, quote, lists, code, divider, table, image, sub-page), a "turn
+      into" + block-actions context menu, and a floating inline-formatting toolbar
+      (bold/italic/strikethrough/code/highlight/link). Color/Indentation/Alignment/
+      Page-Card block types/embeds/Mermaid/inline-image-preview explicitly deferred
+      (no clean markdown representation). Spec:
+      `docs/specs/2026-07-12-craft-editor-menus-design.md`. Linear epic **BAK-248**
+      (sub-issues BAK-249..253, phases 0-4).
+
 ## Next — needs Leon ⛔
 
 - [ ] **N1 Live Google Calendar** — `GoogleAuthSession` (loopback + ASWebAuth) +
