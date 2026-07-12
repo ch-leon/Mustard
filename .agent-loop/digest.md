@@ -549,3 +549,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260712-150000-bak249-blockkind/`
 - **Revert:** `git revert 5afbeca`
+
+## 2026-07-12 — MERGED · Craft editor Phase 1: fully-hidden markdown (PR #92, BAK-250)
+- **Risk:** medium (Logic/+Views/+Tests) · **Auto-merged** (no deep-review)
+- **Origin:** epic BAK-248 (spec `docs/specs/2026-07-12-craft-editor-menus-design.md`), flagged there as the epic's highest technical risk (NSTextView).
+- **Checks:** swift build clean · ./build-app.sh assembles · swift test 728 pass/1 skip/0 fail (baseline 717 + 11 new)
+- **Fresh-context review:** APPROVE-WITH-FOLLOW-UPS, 0 blocking. Finding 1 (stale-baseline selection guard) fixed inline on the PR; findings 2-3 → BAK-254.
+- **What landed:** pure `NoteDecoration.markerVisibility` focus-aware decision layer + TextKit-1 `setNotShownAttribute` glyph-flag hiding in MarkdownTextView — heading/quote/emphasis/inline-code markers hide when the block is unfocused, reveal on cursor-enter; text storage and `.md` on disk never change. Bullets/fences/rules/wikilink brackets deliberately stay visible (documented); checkbox brackets deferred (BAK-254).
+- **⚠ Leon eye-check PENDING:** hide/reveal feel, caret stability, cmd-tab-away behavior (may leave focused block's markers revealed — BAK-254 note), pills/cards/slash-menu/drag-reorder unaffected.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260712-153000-bak250-hidden-markdown/`
+- **Revert:** `git revert 8be3adc`
