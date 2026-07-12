@@ -94,6 +94,111 @@ public enum NoteDecoration {
         return blocks
     }
 
+    // MARK: - BlockKind classification (Phase 0 / BAK-249)
+
+    /// Classifies one `Block` as the shared `BlockKind` enum (see that type's doc
+    /// for why `.frontmatter` isn't a case). Mirrors `spans(_:in:)`'s per-block
+    /// entry point and the same fence/frontmatter-first ordering.
+    ///
+    /// `nil` means "frontmatter" — the only block that has no `BlockKind`. Every
+    /// other block, including an all-blank block (a leading-blank-run block; see
+    /// `blocks(_:)`'s doc) or a block past `source`'s bounds, classifies to a
+    /// concrete case rather than `nil`, so callers can use `nil` as the
+    /// frontmatter check without a second flag.
+    public static func blockKind(_ source: String, of block: Block) -> BlockKind? {
+        if block.isFrontmatter { return nil }
+        if block.isFence { return .codeBlock }
+
+        let ns = source as NSString
+        guard block.range.upperBound <= ns.length else { return .paragraph }
+        let blockLines = lines(ns, in: block.range)
+        guard let first = blockLines.first else { return .paragraph }
+
+        switch classify(first.content) {
+        case .heading(let level):
+            return .heading(level)
+        case .rule:
+            return .divider
+        case .quote:
+            return .quote
+        case .ordered:
+            return .numberedList
+        case .bullet:
+            return isTodoLine(first.content) ? .todoList : .bulletList
+        case .blank, .fence:
+            // A run of leading blank lines (its own block per `blocks(_:)`) or a
+            // defensive fence-inside-a-normal-block case (can't happen — a fence
+            // opens its own block) — both fall back to the paragraph default.
+            return .paragraph
+        case .text:
+            let contentLines = blockLines.filter { !isBlank($0) }
+            if contentLines.count == 1, let only = contentLines.first {
+                if subpageCardTarget(only.content) != nil { return .subpage }
+                if isImageLine(only.content) { return .image }
+            }
+            if isTableBlock(contentLines) { return .table }
+            return .paragraph
+        }
+    }
+
+    /// "- [ ] "/"- [x] "/"* [X] " (or the bare "[ ]"/"[x]"/"[X]" with nothing
+    /// after) after the bullet's "- "/"* " prefix — the one shape that
+    /// distinguishes a to-do item from a plain bullet. Case-sensitive only on the
+    /// checked mark ("x" or "X"), matching common task-list convention.
+    private static func isTodoLine(_ content: String) -> Bool {
+        let afterIndent = content.drop { $0 == " " }
+        let rest: Substring
+        if afterIndent.hasPrefix("- ") || afterIndent.hasPrefix("* ") {
+            rest = afterIndent.dropFirst(2)
+        } else {
+            return false
+        }
+        for marker in ["[ ]", "[x]", "[X]"] {
+            if rest == marker || rest.hasPrefix(marker + " ") { return true }
+        }
+        return false
+    }
+
+    /// A full line that is exactly `![alt](url)` (whitespace-trimmed) — nothing
+    /// before or after. Trailing text on the same line ("![a](b) hello") is
+    /// deliberately NOT an image block; it stays an ordinary paragraph (Decision:
+    /// spec's "image insert still writes syntax-only, no live preview" — this
+    /// classifier only recognizes the line shape, it doesn't render a thumbnail).
+    private static let imageLineRegex = try! NSRegularExpression(pattern: #"^!\[[^\]]*\]\([^)]*\)$"#)
+    private static func isImageLine(_ content: String) -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespaces)
+        let ns = trimmed as NSString
+        guard ns.length > 0 else { return false }
+        return imageLineRegex.firstMatch(in: trimmed, range: NSRange(location: 0, length: ns.length)) != nil
+    }
+
+    /// A table (new grammar this editor previously had no block type for — see
+    /// spec Decision, `NoteDecoration`'s file doc): every non-blank line in the
+    /// block contains "|", AND at least one line is a separator row (cells of
+    /// only "-"/":" , e.g. `|---|---|` or `| :-- | --: |`). Requiring the
+    /// separator row (not just pipes) is what keeps two arbitrary lines that
+    /// happen to contain "|" from misclassifying as a table.
+    private static func isTableBlock(_ contentLines: [Line]) -> Bool {
+        guard contentLines.count >= 2,
+              contentLines.allSatisfy({ $0.content.contains("|") })
+        else { return false }
+        return contentLines.contains { isTableSeparatorRow($0.content) }
+    }
+
+    private static func isTableSeparatorRow(_ content: String) -> Bool {
+        var cells = content.trimmingCharacters(in: .whitespaces)
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        // A fully-piped row ("|---|---|") has empty leading/trailing cells from
+        // the split — drop them; an un-piped edge ("---|---") keeps its cells.
+        if cells.first == "" { cells.removeFirst() }
+        if cells.last == "" { cells.removeLast() }
+        guard !cells.isEmpty else { return false }
+        return cells.allSatisfy { cell in
+            !cell.isEmpty && cell.contains("-") && cell.allSatisfy { $0 == "-" || $0 == ":" }
+        }
+    }
+
     // MARK: - Spans
 
     public struct Span: Equatable {
