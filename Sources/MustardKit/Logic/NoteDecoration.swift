@@ -216,6 +216,8 @@ public enum NoteDecoration {
         case heading(level: Int)                          // heading TEXT (hashes excluded)
         case marker                                       // syntax chars to de-emphasize
         case bold, italic, inlineCode                     // content between markers
+        case strikethrough                                // `~~content~~` (Phase 4 / BAK-253)
+        case highlight                                     // `==content==` (Phase 4 / BAK-253)
         case codeBlock                                    // fence interior
         case listMarker                                   // "- " / "1. " / "> " prefix
         case wikilink(target: String, alias: String?)     // the VISIBLE label span
@@ -350,12 +352,18 @@ public enum NoteDecoration {
     /// first (opaque — no emphasis and no wikilinks inside, the fence rule one level
     /// down), then wikilinks (the ONE grammar: `WikilinkSyntax.regex`, group ranges
     /// read directly so markers/label split without re-deriving the pattern), then
-    /// `**bold**`, then `*italic*`. Single-line, non-nested; underscore emphasis is
-    /// NOT parsed. Lookarounds on the emphasis patterns keep unmatched runs ("**a",
-    /// "***x***") raw rather than guessed. A claimed-mask enforces first-wins.
+    /// `**bold**`, then `*italic*`, then `~~strikethrough~~`, then `==highlight==`
+    /// (Phase 4 / BAK-253 — added for the format-toolbar's "is already formatted"
+    /// detection; same shape as bold/italic, just a different fixed-width
+    /// delimiter). Single-line, non-nested; underscore emphasis is NOT parsed.
+    /// Lookarounds on every symmetric-delimiter pattern keep unmatched/tripled
+    /// runs ("**a", "***x***", "~~~y~~~") raw rather than guessed. A claimed-mask
+    /// enforces first-wins.
     private static let codeSpanRegex = try! NSRegularExpression(pattern: "`([^`]+)`")
     private static let boldRegex = try! NSRegularExpression(pattern: #"(?<!\*)\*\*([^*]+)\*\*(?!\*)"#)
     private static let italicRegex = try! NSRegularExpression(pattern: #"(?<!\*)\*([^*]+)\*(?!\*)"#)
+    private static let strikethroughRegex = try! NSRegularExpression(pattern: #"(?<!~)~~([^~]+)~~(?!~)"#)
+    private static let highlightRegex = try! NSRegularExpression(pattern: #"(?<!=)==([^=]+)==(?!=)"#)
 
     private static func inlineSpans(in text: String, at base: Int) -> [Span] {
         let ns = text as NSString
@@ -423,6 +431,20 @@ public enum NoteDecoration {
             add(NSRange(location: m.range.location, length: 1), .marker)
             add(m.range(at: 1), .italic)
             add(NSRange(location: m.range.upperBound - 1, length: 1), .marker)
+            claim(m.range)
+        }
+
+        for m in strikethroughRegex.matches(in: text, range: full) where isFree(m.range) {
+            add(NSRange(location: m.range.location, length: 2), .marker)
+            add(m.range(at: 1), .strikethrough)
+            add(NSRange(location: m.range.upperBound - 2, length: 2), .marker)
+            claim(m.range)
+        }
+
+        for m in highlightRegex.matches(in: text, range: full) where isFree(m.range) {
+            add(NSRange(location: m.range.location, length: 2), .marker)
+            add(m.range(at: 1), .highlight)
+            add(NSRange(location: m.range.upperBound - 2, length: 2), .marker)
             claim(m.range)
         }
 
@@ -544,9 +566,13 @@ public enum NoteDecoration {
 
     /// Which of one block's EXISTING `.marker`/`.listMarker` spans are in Phase
     /// 1's hiding scope: a heading's `#…# ` prefix, a blockquote's `> ` prefix,
-    /// and `**`/`*`/`` ` `` emphasis-or-code delimiters (checked in ANY block
-    /// kind — inline formatting reads the same inside a paragraph, heading,
-    /// quote, or list item). Deliberately NOT in scope, so they stay exactly as
+    /// and `**`/`*`/`` ` ``/`~~`/`==` emphasis-or-code-or-strikethrough-or-
+    /// highlight delimiters (checked in ANY block kind — inline formatting
+    /// reads the same inside a paragraph, heading, quote, or list item).
+    /// `~~`/`==` (Phase 4 / BAK-253) integrate here for free: they're just two
+    /// more cases in `isDelimitedContent` below, because `inlineSpans` already
+    /// places their `.marker` spans directly adjacent to their content spans,
+    /// exactly like bold/italic/inlineCode. Deliberately NOT in scope, so they stay exactly as
     /// dimmed-and-always-visible as they are today, focus or not:
     ///   - bullet ("- "/"* ") and ordered ("1. ") prefixes — hiding them would
     ///     leave a list item with no visual marker at all; no bullet/number
@@ -580,7 +606,7 @@ public enum NoteDecoration {
         // doesn't need `kind` at all.
         func isDelimitedContent(_ k: Kind) -> Bool {
             switch k {
-            case .bold, .italic, .inlineCode: return true
+            case .bold, .italic, .inlineCode, .strikethrough, .highlight: return true
             default: return false
             }
         }

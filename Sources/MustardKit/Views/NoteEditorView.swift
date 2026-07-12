@@ -31,6 +31,10 @@ struct NoteEditorView: View {
     /// Slash-menu presentation (2b): written by the text view's coordinator via
     /// the binding, rendered here as a caret-anchored overlay.
     @State private var slashMenu: SlashMenuState?
+    /// Floating format-toolbar presentation (Phase 4 / BAK-253): same pattern
+    /// as `slashMenu` — the coordinator writes it on selection change, this
+    /// view renders the overlay.
+    @State private var formatBar: InlineFormatBarState?
     /// Moveable-block geometry from the layout manager — drives the hover gutter.
     @State private var blockRects: [MarkdownBlockRect] = []
     /// Imperative bridge overlay clicks/drags use to reach the coordinator.
@@ -53,6 +57,7 @@ struct NoteEditorView: View {
                     resolveWikilink: resolveWikilink,
                     onWikilinkTap: onWikilinkTap,
                     slashMenu: $slashMenu,
+                    formatBar: $formatBar,
                     onBlockRectsChange: { blockRects = $0 },
                     proxy: editorProxy
                 )
@@ -70,6 +75,7 @@ struct NoteEditorView: View {
                     )
                 }
                 .overlay(alignment: .topLeading) { slashMenuOverlay }
+                .overlay(alignment: .topLeading) { formatBarOverlay }
                 // Keep the editor's overlays (menu near the bottom edge) above
                 // the later BacklinksPanel sibling, which would otherwise draw
                 // over them.
@@ -87,6 +93,7 @@ struct NoteEditorView: View {
         .onChange(of: ref) { oldRef, _ in
             save(to: oldRef, content: text, ifDifferentFrom: diskText)
             slashMenu = nil   // a half-typed trigger must not survive a note switch
+            formatBar = nil   // a stale selection toolbar must not survive a note switch
         }
         // Autosave when the editor leaves the hierarchy — switching away from the
         // Notes tab or closing the detail pane tears the view down without firing
@@ -177,6 +184,24 @@ struct NoteEditorView: View {
             }
         }
         .animation(Theme.Motion.pop, value: slashMenu != nil)
+    }
+
+    /// The selection-anchored format toolbar (Phase 4 / BAK-253), positioned
+    /// by the coordinator-published anchor (already in this overlay's
+    /// coordinate space) just ABOVE the selection's start — the toolbar reads
+    /// above the text it's about to format rather than covering it, mirroring
+    /// where Craft/most editors place this affordance. Same appear/disappear
+    /// motion and overlay pattern as `slashMenuOverlay`.
+    @ViewBuilder
+    private var formatBarOverlay: some View {
+        ZStack(alignment: .topLeading) {
+            if let bar = formatBar {
+                InlineFormatBarView(onToggle: { editorProxy.toggleInlineFormat($0) })
+                    .offset(x: bar.anchor.minX, y: bar.anchor.minY - 40)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .bottom)))
+            }
+        }
+        .animation(Theme.Motion.pop, value: formatBar != nil)
     }
 
     private var missingState: some View {

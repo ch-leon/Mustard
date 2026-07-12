@@ -111,6 +111,57 @@ final class NoteDecorationTests: XCTestCase {
         XCTAssertTrue(spans.contains(Span(range: NSRange(location: 9, length: 1), kind: .italic)))
         XCTAssertTrue(spans.contains(Span(range: NSRange(location: 13, length: 1), kind: .inlineCode)))
     }
+    // MARK: - Strikethrough / highlight (Phase 4 / BAK-253 — new inline kinds)
+
+    func test_spans_strikethrough_withMarkerRanges() {
+        // "a ~~b~~ c" — content "b" at 5, markers "~~" at 2 and 6.
+        let spans = NoteDecoration.spans("a ~~b~~ c")
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 4, length: 1), kind: .strikethrough)))
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 2, length: 2), kind: .marker)))
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 5, length: 2), kind: .marker)))
+    }
+
+    func test_spans_highlight_withMarkerRanges() {
+        let spans = NoteDecoration.spans("a ==b== c")
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 4, length: 1), kind: .highlight)))
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 2, length: 2), kind: .marker)))
+        XCTAssertTrue(spans.contains(Span(range: NSRange(location: 5, length: 2), kind: .marker)))
+    }
+
+    func test_spans_strikethrough_unmatched_producesNoSpan() {
+        XCTAssertFalse(NoteDecoration.spans("~~not closed").contains { $0.kind == .strikethrough })
+        XCTAssertFalse(NoteDecoration.spans("plain ~ tilde").contains { $0.kind == .strikethrough })
+    }
+
+    func test_spans_highlight_unmatched_producesNoSpan() {
+        XCTAssertFalse(NoteDecoration.spans("==not closed").contains { $0.kind == .highlight })
+        XCTAssertFalse(NoteDecoration.spans("plain = sign").contains { $0.kind == .highlight })
+    }
+
+    func test_spans_strikethroughAndHighlight_dontClaimCodeSpanOrFence() {
+        XCTAssertFalse(NoteDecoration.spans("`~~x~~`").contains { $0.kind == .strikethrough })
+        XCTAssertFalse(NoteDecoration.spans("```\n~~x~~\n==y==\n```\n").contains {
+            $0.kind == .strikethrough || $0.kind == .highlight
+        })
+    }
+
+    func test_markerVisibility_strikethroughAndHighlight_hideAndRevealLikeBoldItalic() {
+        let source = "para ~~s~~ ==h==\n"
+        let ns = source as NSString
+        let hidden = NoteDecoration.markerVisibility(source, focusedRange: nil)
+        let strikeFull = ns.range(of: "~~s~~")
+        XCTAssertTrue(hidden.hidden.contains(NSRange(location: strikeFull.location, length: 2)))
+        XCTAssertTrue(hidden.hidden.contains(NSRange(location: strikeFull.upperBound - 2, length: 2)))
+        let highlightFull = ns.range(of: "==h==")
+        XCTAssertTrue(hidden.hidden.contains(NSRange(location: highlightFull.location, length: 2)))
+        XCTAssertTrue(hidden.hidden.contains(NSRange(location: highlightFull.upperBound - 2, length: 2)))
+
+        let caret = ns.range(of: "para").location
+        let revealed = NoteDecoration.markerVisibility(source, focusedRange: NSRange(location: caret, length: 0))
+        XCTAssertTrue(revealed.revealed.contains(NSRange(location: strikeFull.location, length: 2)))
+        XCTAssertTrue(revealed.revealed.contains(NSRange(location: highlightFull.location, length: 2)))
+    }
+
     func test_spans_wikilink_labelAndMarkers_aliasHidesTarget() {
         // "[[Note|alias]]" → markers: "[[", "Note|", "]]"; label: "alias"
         let spans = NoteDecoration.spans("[[Note|alias]]")
