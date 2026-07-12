@@ -571,3 +571,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260712-160000-bak251-insert-menu/`
 - **Revert:** `git revert <squash-sha>` (see PR #93 merge commit on main)
+
+## 2026-07-12 — MERGED · Craft editor Phase 3: Turn into + block actions (PR #94, BAK-252)
+- **Risk:** medium (Logic/+Views/+Tests) · **Merged after review fix** (fresh-context review initially REQUEST-CHANGES)
+- **Origin:** epic BAK-248 (spec `docs/specs/2026-07-12-craft-editor-menus-design.md`).
+- **Checks:** swift build clean · ./build-app.sh assembles · swift test 798 pass/1 skip/0 fail (747 → 790 impl → 798 post-fix; BlockTransformTests 51)
+- **Fresh-context review:** caught a real blocking bug — turn-into→Paragraph could silently reclassify (`# > note` → quote); fixed with per-line backslash escapes reusing NoteDecoration.classify; audit found+fixed a 2nd instance (table-cell ``` closing a code fence). Divider menu gating + frontmatter-adjacent tests also fixed. 0 remaining blockers.
+- **What landed:** pure `BlockTransform` (turnInto/duplicate/delete/moveUp/moveDown, adversarial round-trip matrix), gutter ⠿ context menu (Turn into submenu + Actions, divider-gated), shared undo-safe `applyWholeDocumentSplice`, `MarkdownBlockRect.kind`.
+- **⚠ Leon eye-check PENDING:** menu feel, one-step undo per action, caret placement, escaped-output readability.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260712-163000-bak252-turn-into/`
+- **Revert:** `git revert 17d52e1`
