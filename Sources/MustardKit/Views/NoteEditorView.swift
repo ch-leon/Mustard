@@ -61,7 +61,12 @@ struct NoteEditorView: View {
                     BlockGutterOverlay(
                         rects: blockRects,
                         onMove: { from, to in editorProxy.moveBlock(from: from, to: to) },
-                        onInsert: { editorProxy.openSlashMenu(atBlock: $0) }
+                        onInsert: { editorProxy.openSlashMenu(atBlock: $0) },
+                        onTurnInto: { index, target in editorProxy.turnIntoBlock(index, target: target) },
+                        onDuplicate: { editorProxy.duplicateBlock($0) },
+                        onDelete: { editorProxy.deleteBlock($0) },
+                        onMoveUp: { editorProxy.moveBlockUp($0) },
+                        onMoveDown: { editorProxy.moveBlockDown($0) }
                     )
                 }
                 .overlay(alignment: .topLeading) { slashMenuOverlay }
