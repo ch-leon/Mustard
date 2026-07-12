@@ -538,3 +538,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/*task-detail-drawer/`
 - **Revert:** `git revert cd049eece8bd869e710b2b3502963a277dd23e50`
+
+## 2026-07-12 — MERGED · Craft editor Phase 0: shared BlockKind model (PR #91, BAK-249)
+- **Risk:** medium (Logic/+Tests/+docs only) · **Auto-merged** (no deep-review)
+- **Origin:** Leon brainstorm 2026-07-12 (four Craft/Tolaria screenshots) → spec `docs/specs/2026-07-12-craft-editor-menus-design.md` + epic BAK-248 (F23); this is sub-issue BAK-249.
+- **Checks:** swift build clean · swift test 717 pass/1 skip/0 fail (baseline 696 + 21 new BlockKindTests)
+- **Fresh-context review:** APPROVE, 0 blocking (additive-only confirmed; round-trip clause legitimately deferred to BAK-251/252; no premature consumers)
+- **What landed:** canonical `BlockKind` enum + additive `NoteDecoration.blockKind(_:of:)` classifier; new table/image/todo-vs-bullet classification (classification only, no rendering change); spec + F23 build-order entry ride along.
+- **⚠ Leon note:** heading levels 5-6 classify unclamped (spec's "1...4" read as the Phase-2 insert-menu range, not a classification cap — rationale in `BlockKind.swift`). Flag if you disagree.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260712-150000-bak249-blockkind/`
+- **Revert:** `git revert 5afbeca`
