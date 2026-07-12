@@ -370,7 +370,18 @@ public enum BlockTransform {
         let contentLines = lines.isEmpty ? [""] : lines
         switch target {
         case .paragraph:
-            return (contentLines.map { $0 + "\n" }.joined(), 0)
+            // Every OTHER target below prepends its own marker to each line
+            // (`"# "`, `"> "`, `"- "`, `"1. "`, ...), which always wins
+            // `NoteDecoration.classify`'s ordering regardless of what the
+            // stripped content itself starts with — genuinely immune. This
+            // target adds NOTHING, so a stripped content line that happens
+            // to start with another kind's marker (e.g. a heading's content
+            // was originally "> note") would silently reclassify as THAT
+            // kind on the next parse instead of landing on `.paragraph` —
+            // the reviewer-found bug. Escape any such line so the file stays
+            // honest markdown instead of silently corrupting the requested
+            // conversion.
+            return (contentLines.map { escapeIfWouldMisclassify($0) + "\n" }.joined(), 0)
         case .heading(let rawLevel):
             let level = min(max(rawLevel, 1), 6)
             let prefix = String(repeating: "#", count: level) + " "
@@ -388,7 +399,21 @@ public enum BlockTransform {
             }
             return (text, ("1. " as NSString).length)
         case .codeBlock:
-            let text = "```\n" + contentLines.joined(separator: "\n") + "\n```\n"
+            // The single wrapping fence is the one place OTHER than
+            // `.paragraph` where an echo is reachable: `extractContentLines`
+            // can hand back a content line that itself starts with "```"
+            // (chiefly via `tablePlainTextRows`' cell-join — a cell literally
+            // containing a fence marker survives into the joined line; a
+            // literal fence line can never survive as PARAGRAPH/heading/etc.
+            // content because `NoteDecoration.blocks` would already have
+            // split it into its own fence block upstream). An un-escaped
+            // occurrence would prematurely close the wrapping fence on
+            // re-parse (`NoteDecoration`'s fence-close check is a bare
+            // "```"-prefix test, not a matching-length CommonMark fence, so
+            // a longer opening fence would NOT fix this — the interior line
+            // has to stop looking like a fence line at all).
+            let escapedInterior = contentLines.map(escapeFenceMarkerLine)
+            let text = "```\n" + escapedInterior.joined(separator: "\n") + "\n```\n"
             return (text, ("```\n" as NSString).length)
         case .divider, .table, .image, .subpage:
             // Unreachable in practice — `turnInto` only calls this after
@@ -397,5 +422,64 @@ public enum BlockTransform {
             // decision here rather than silently falling through.
             return (contentLines.map { $0 + "\n" }.joined(), 0)
         }
+    }
+
+    // MARK: - Rendering: classifier-echo escaping (paragraph / codeBlock targets)
+
+    /// Escapes `line` with a standard markdown backslash IFF
+    /// `NoteDecoration.classify` (the SAME classifier the block partitioner
+    /// uses — never re-derived here) would read it as something other than
+    /// plain text. `.blank` passes through untouched (an empty content line
+    /// stays empty; nothing to escape). One entry per non-text `LineKind`
+    /// case, kept exhaustive so a future case forces a decision here.
+    private static func escapeIfWouldMisclassify(_ line: String) -> String {
+        switch NoteDecoration.classify(line) {
+        case .text, .blank:
+            return line
+        case .ordered:
+            return escapeOrderedListDot(line)
+        case .heading, .rule, .quote, .bullet, .fence:
+            return insertEscapeBeforeMarker(line)
+        }
+    }
+
+    /// Escapes `line` IFF it would classify as a FENCE line (i.e. it would be
+    /// mistaken for the wrapping code-block's own closing delimiter) —
+    /// deliberately narrower than `escapeIfWouldMisclassify`: every other
+    /// shape (a heading- or quote- or bullet-looking line) is perfectly
+    /// legitimate, honest content INSIDE a code block and must NOT be
+    /// escaped (a code block's interior isn't line-classified at all when
+    /// re-parsed; only "would this line end the fence" matters).
+    private static func escapeFenceMarkerLine(_ line: String) -> String {
+        guard case .fence = NoteDecoration.classify(line) else { return line }
+        return insertEscapeBeforeMarker(line)
+    }
+
+    /// Inserts one "\" immediately before the line's first non-whitespace
+    /// character — the standard markdown escape for a leading block marker
+    /// (`#`, `>`, `-`/`*`, or a fence's opening `` ` ``, and the same
+    /// placement for a bare `---`/`***` rule). Leading indentation is
+    /// preserved verbatim before the inserted backslash. A single backslash
+    /// there is sufficient to defeat every one of `NoteDecoration.classify`'s
+    /// checks: they all key off `trimmingCharacters(in: .whitespaces)`'s
+    /// leading characters, and `\` is never trimmed and never a marker
+    /// character itself.
+    private static func insertEscapeBeforeMarker(_ line: String) -> String {
+        let leadingWS = line.prefix { $0 == " " || $0 == "\t" }
+        let rest = line.dropFirst(leadingWS.count)
+        return leadingWS + "\\" + rest
+    }
+
+    /// `"1. item"` → `"1\. item"`: the digits stay unescaped (still reads as
+    /// a number), only the "." that makes it an ordered-list marker is
+    /// escaped — the standard CommonMark ordered-list escape, and the one
+    /// case that doesn't fit `insertEscapeBeforeMarker`'s "escape right at
+    /// the front" shape.
+    private static func escapeOrderedListDot(_ line: String) -> String {
+        let leadingWS = line.prefix { $0 == " " || $0 == "\t" }
+        let afterWS = line.dropFirst(leadingWS.count)
+        let digits = afterWS.prefix { $0.isNumber }
+        let rest = afterWS.dropFirst(digits.count)
+        return leadingWS + digits + "\\" + rest
     }
 }

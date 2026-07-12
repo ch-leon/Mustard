@@ -625,14 +625,20 @@ public enum NoteDecoration {
         return result
     }
 
-    private enum LineKind {
+    /// Widened from `private` to `internal`: `BlockTransform`'s "turn into"
+    /// escape discipline (BAK-252 review fix) needs to know whether a
+    /// candidate PARAGRAPH line would reclassify as some other line kind, and
+    /// must ask THIS classifier rather than re-deriving the marker rules
+    /// itself — the drift this shared classification layer exists to prevent.
+    enum LineKind {
         case blank, fence, rule, quote, bullet, ordered, text
         case heading(Int)
     }
 
     /// Same predicates as `MarkdownBlocks.blockLine`, same order (rule before
-    /// heading; fence before everything non-blank).
-    private static func classify(_ content: String) -> LineKind {
+    /// heading; fence before everything non-blank). See `LineKind`'s doc for
+    /// why this is `internal` rather than `private`.
+    static func classify(_ content: String) -> LineKind {
         let trimmed = content.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { return .blank }
         if trimmed.hasPrefix("```") { return .fence }
