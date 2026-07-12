@@ -95,7 +95,11 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢 (queued 2026-07-12)
 
-- [ ] **F23 Craft editor — full markdown hiding + menu system** — five-phase follow-on
+*(Cleared — F23 shipped same-day, see Done.)*
+
+## Done (2026-07-12) ✅
+
+- [x] **F23 Craft editor — full markdown hiding + menu system** — five-phase follow-on
       to F22: shared `BlockKind` model (foundation), fully-hidden markdown syntax
       (Craft-style focus reveal, not just dimming), expanded insert (`/`) menu
       (headings 1-4, quote, lists, code, divider, table, image, sub-page), a "turn
@@ -104,7 +108,8 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       Page-Card block types/embeds/Mermaid/inline-image-preview explicitly deferred
       (no clean markdown representation). Spec:
       `docs/specs/2026-07-12-craft-editor-menus-design.md`. Linear epic **BAK-248**
-      (sub-issues BAK-249..253, phases 0-4).
+      (sub-issues BAK-249..253, phases 0-4) — **all five phases merged 2026-07-12**
+      (PRs #91-#95, suite 696 → 835); follow-ups in BAK-254; Leon eye-check pending.
 
 ## Next — needs Leon ⛔
 

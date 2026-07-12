@@ -582,3 +582,15 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260712-163000-bak252-turn-into/`
 - **Revert:** `git revert 17d52e1`
+
+## 2026-07-12 — MERGED · Craft editor Phase 4: inline formatting toolbar (PR #95, BAK-253) — EPIC BAK-248 COMPLETE
+- **Risk:** medium (Logic/+Views/+Tests) · **Merged on green** (auto-merge arming disabled repo-side; merged post-CI)
+- **Origin:** epic BAK-248 final phase (spec `docs/specs/2026-07-12-craft-editor-menus-design.md`).
+- **Checks:** swift build clean · ./build-app.sh assembles · swift test 835 pass/1 skip/0 fail (798 + 37)
+- **Fresh-context review:** APPROVE-WITH-FOLLOW-UPS, 0 blocking; findings (== prose false-positive, 2nd O(doc) scan per selection change, unwrap-test completeness) appended to BAK-254.
+- **What landed:** floating selection toolbar (Bold/Italic/Strikethrough/Inline code/Highlight/Link) over pure `InlineFormat.toggle` with a re-parse wrap guard + involution tests; new `.strikethrough`/`.highlight` span kinds with Phase 1 hiding for free; undo-safe splice channel reused.
+- **Epic BAK-248 (F23) now fully merged: PRs #91 #92 #93 #94 #95 · suite 696 → 835 · follow-ups consolidated in BAK-254.**
+- **⚠ Leon eye-check PENDING (whole epic):** hidden-markdown feel + cmd-tab case · grouped slash menu + auto-scroll · turn-into/actions menu + one-step undo · toolbar toggles + link url-slot · escaped-output readability.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260712-170000-bak253-format-toolbar/`
+- **Revert:** `git revert 1456f77`
