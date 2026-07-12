@@ -14,6 +14,17 @@ struct SlashMenuState: Equatable {
     var selectedIndex: Int = 0
 }
 
+/// UI state for the floating inline-format toolbar (Phase 4 / BAK-253),
+/// published by the coordinator exactly like `SlashMenuState`: `anchor` is in
+/// the editor overlay's coordinate space (top-left origin), computed from the
+/// SAME `overlayRect(forCharacterAt:)` geometry helper the slash menu anchors
+/// with. No selection/format state is carried here — a button tap reads the
+/// LIVE selection straight off the text view when it fires (`toggleInlineFormat`),
+/// so this struct only needs to know WHERE to draw.
+struct InlineFormatBarState: Equatable {
+    var anchor: CGRect
+}
+
 /// One moveable block's on-screen geometry (2b Task 9), in the editor overlay's
 /// coordinate space. `index` matches `BlockReorder.move`'s moveable indexing
 /// (frontmatter excluded), so the gutter can hand hit-test results straight through.
@@ -53,6 +64,10 @@ final class MarkdownEditorProxy {
     func deleteBlock(_ index: Int) { coordinator?.deleteBlock(at: index) }
     func moveBlockUp(_ index: Int) { coordinator?.moveBlockUp(at: index) }
     func moveBlockDown(_ index: Int) { coordinator?.moveBlockDown(at: index) }
+
+    // MARK: Inline format toolbar (Phase 4 / BAK-253)
+
+    func toggleInlineFormat(_ format: InlineFormat.Kind) { coordinator?.toggleInlineFormat(format) }
 }
 
 /// Custom attribute grounding the subpage-card drawing (2b Task 10). The card is
@@ -84,6 +99,10 @@ struct MarkdownTextView: NSViewRepresentable {
     /// selection for key handling. Defaults to an inert constant so callers that
     /// don't mount the menu never see it.
     var slashMenu: Binding<SlashMenuState?> = Binding<SlashMenuState?>.constant(nil)
+    /// Floating inline-format toolbar presentation state (Phase 4 / BAK-253),
+    /// owned by NoteEditorView the same way `slashMenu` is — the coordinator
+    /// writes it on every selection change, NoteEditorView renders the overlay.
+    var formatBar: Binding<InlineFormatBarState?> = Binding<InlineFormatBarState?>.constant(nil)
     /// Moveable-block geometry publication for the hover gutter (2b Task 9).
     var onBlockRectsChange: ([MarkdownBlockRect]) -> Void = { _ in }
     var proxy: MarkdownEditorProxy? = nil
@@ -207,6 +226,9 @@ struct MarkdownTextView: NSViewRepresentable {
             // A new document invalidates every cached block range from the OLD
             // string — force a full recompute rather than diffing against them.
             context.coordinator.refreshMarkerVisibility(fullRecompute: true)
+            // A programmatic replace means the OLD selection's toolbar (if any)
+            // is now anchored to a document that no longer exists here.
+            if formatBar.wrappedValue != nil { formatBar.wrappedValue = nil }
         }
 
         // Backup focus grab for the rare case the window wasn't attached yet in
@@ -298,6 +320,10 @@ struct MarkdownTextView: NSViewRepresentable {
             }
             scheduleFullPass()
             refreshSlashMenu()
+            // Any edit collapses the selection (typing replaces it) — hide the
+            // format toolbar the instant that happens, same "hides on typing"
+            // requirement `refreshFormatBar`'s guard already encodes.
+            refreshFormatBar()
         }
 
         /// The partition block containing the caret in the NEW string (recomputing
@@ -508,13 +534,17 @@ struct MarkdownTextView: NSViewRepresentable {
         func textDidBeginEditing(_ notification: Notification) {
             hasFocus = true
             refreshMarkerVisibility(fullRecompute: true)
+            refreshFormatBar()
         }
 
         /// The editor lost focus entirely — every marker hides (spec: "an
-        /// unfocused document reads like rendered rich text").
+        /// unfocused document reads like rendered rich text"), and the format
+        /// toolbar (which only ever shows for THIS view's own selection) hides
+        /// with it.
         func textDidEndEditing(_ notification: Notification) {
             hasFocus = false
             refreshMarkerVisibility(fullRecompute: true)
+            refreshFormatBar()
         }
 
         // MARK: Link clicks
@@ -593,6 +623,7 @@ struct MarkdownTextView: NSViewRepresentable {
             // Pure caret/selection move: text is unchanged, so the cached diff
             // baseline is still valid — take the cheap incremental path.
             refreshMarkerVisibility(fullRecompute: false)
+            refreshFormatBar()
 
             // Close-only path: never opens (allowOpen false).
             guard parent.slashMenu.wrappedValue != nil else { return }
@@ -672,6 +703,53 @@ struct MarkdownTextView: NSViewRepresentable {
                 anchor: overlayRect(forCharacterAt: location) ?? CGRect.zero,
                 selectedIndex: 0
             )
+        }
+
+        // MARK: Inline format toolbar (Phase 4 / BAK-253 — floating selection toolbar)
+
+        /// Recomputes the format-toolbar's presentation state from the current
+        /// selection. Shows only while THIS view has focus, the selection is
+        /// non-empty, and `InlineFormat.isSingleBlockSelection` agrees the
+        /// selection sits inside one (non-frontmatter) block — the same "single
+        /// block" rule `InlineFormat.toggle` itself enforces before formatting,
+        /// read here from the one function that owns it rather than
+        /// re-derived. Hides on selection collapse (caret-only) and on any
+        /// edit (`textDidChange` calls this too) per the spec's "hides on
+        /// selection collapse/typing".
+        private func refreshFormatBar() {
+            guard let textView else { return }
+            let selection = textView.selectedRange()
+            guard hasFocus, !isPerformingEdit, !isProgrammaticUpdate,
+                  InlineFormat.isSingleBlockSelection(textView.string, selection: selection)
+            else {
+                if parent.formatBar.wrappedValue != nil { parent.formatBar.wrappedValue = nil }
+                return
+            }
+            parent.formatBar.wrappedValue = InlineFormatBarState(
+                anchor: overlayRect(forCharacterAt: selection.location) ?? CGRect.zero
+            )
+        }
+
+        /// Applies one inline-format toggle from the floating toolbar. Pure
+        /// decision in `InlineFormat.toggle` (wrap/unwrap/no-op — reads the
+        /// LIVE selection, never a stale copy); this method only resolves the
+        /// current selection and applies the result through the SAME whole-
+        /// document splice channel `BlockTransform`'s four operations already
+        /// use (`applyWholeDocumentSplice`) rather than `performSlashCommand`'s
+        /// narrower `replacementRange:` channel. `InlineFormat.toggle` returns a
+        /// WHOLE rewritten source (same shape as every `BlockTransform`
+        /// function), not a computed sub-range delta — deriving a minimal diff
+        /// range from two full strings would need its own diffing pass for no
+        /// real benefit, whereas the existing whole-document channel already
+        /// gives one undo step AND the full decoration + marker-visibility
+        /// recompute this toggle needs (adding/removing delimiters can flip
+        /// which markers are hideable in the touched block).
+        func toggleInlineFormat(_ format: InlineFormat.Kind) {
+            guard let textView else { return }
+            let selection = textView.selectedRange()
+            guard let result = InlineFormat.toggle(textView.string, selection: selection, format: format)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
         }
 
         // MARK: Block reorder (2b Task 9)
