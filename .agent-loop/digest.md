@@ -560,3 +560,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260712-153000-bak250-hidden-markdown/`
 - **Revert:** `git revert 8be3adc`
+
+## 2026-07-12 — MERGED · Craft editor Phase 2: expanded insert menu (PR #93, BAK-251)
+- **Risk:** medium (Logic/+Views/+Tests) · **Auto-merged** (no deep-review)
+- **Origin:** epic BAK-248 (spec `docs/specs/2026-07-12-craft-editor-menus-design.md`).
+- **Checks:** swift build clean · ./build-app.sh assembles · swift test 747 pass/1 skip/0 fail (baseline 728; SlashMenuTests 14→33)
+- **Fresh-context review:** APPROVE-WITH-FOLLOW-UPS, 0 blocking; reviewer verified the SlashMenuTests rewrite test-by-test (strengthening only, byte-exact original templates). Sole finding (highlight scrolls off-screen) fixed inline.
+- **What landed:** slash menu 5→16 grouped commands (Headings H1-4 / Basic blocks Quote·Bullet·Numbered·Check·Paragraph·Code·Divider / Advanced Table·Link·Sub-page·Ask-agent / Media Image syntax-only); grouped SlashMenuView with height cap + auto-scroll; round-trip guard on all new templates; MarkdownTextView keyboard code untouched. Table renders plain (full layout out of scope).
+- **⚠ Leon eye-check PENDING:** grouped menu look, ↑/↓ + auto-scroll feel, table/image insertion carets.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260712-160000-bak251-insert-menu/`
+- **Revert:** `git revert <squash-sha>` (see PR #93 merge commit on main)
