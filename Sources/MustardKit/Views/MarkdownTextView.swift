@@ -34,6 +34,14 @@ final class MarkdownEditorProxy {
     func pick(_ command: SlashCommand) { coordinator?.performSlashCommand(command) }
     func moveBlock(from: Int, to: Int) { coordinator?.moveBlock(from: from, to: to) }
     func openSlashMenu(atBlock index: Int) { coordinator?.openSlashMenu(atBlock: index) }
+
+    // MARK: Block actions (Phase 3 / BAK-252 — gutter context menu)
+
+    func turnIntoBlock(_ index: Int, target: BlockKind) { coordinator?.turnIntoBlock(at: index, target: target) }
+    func duplicateBlock(_ index: Int) { coordinator?.duplicateBlock(at: index) }
+    func deleteBlock(_ index: Int) { coordinator?.deleteBlock(at: index) }
+    func moveBlockUp(_ index: Int) { coordinator?.moveBlockUp(at: index) }
+    func moveBlockDown(_ index: Int) { coordinator?.moveBlockDown(at: index) }
 }
 
 /// Custom attribute grounding the subpage-card drawing (2b Task 10). The card is
@@ -652,43 +660,121 @@ struct MarkdownTextView: NSViewRepresentable {
 
         // MARK: Block reorder (2b Task 9)
 
-        /// Applies `BlockReorder.move` as ONE undoable edit. The whole-document
-        /// splice goes through `insertText(_:replacementRange:)` — the same
-        /// canonical channel as slash insertions — wrapped in an explicit undo
-        /// group and bracketed by `breakUndoCoalescing` so ⌘Z restores the previous
-        /// order in exactly one step, never merged with surrounding typing. The
-        /// SwiftUI binding updates through the normal `textDidChange` path, so the
-        /// dirty dot and ⌘S semantics hold with zero new save code.
+        /// Applies `BlockReorder.move` as ONE undoable edit through the shared
+        /// whole-document splice channel (`applyWholeDocumentSplice`) — see that
+        /// method's doc for the undo-grouping/decoration/scroll mechanics. Caret
+        /// is clamped to its OLD location (a reorder doesn't ask the caret to
+        /// follow the moved block — unlike the Phase 3 block-actions menu below,
+        /// which computes a specific destination selection per action).
         func moveBlock(from: Int, to: Int) {
             guard let textView else { return }
+            let moved = BlockReorder.move(textView.string, from: from, to: to)
+            let savedSelection = textView.selectedRange()
+            applyWholeDocumentSplice(newSource: moved,
+                                     selection: NSRange(location: savedSelection.location, length: 0))
+        }
+
+        // MARK: Block actions (Phase 3 / BAK-252 — "turn into" + gutter context menu)
+
+        /// Resolves a gutter/menu `index` (moveable-block indexing — the same
+        /// convention `MarkdownBlockRect.index` and `BlockReorder.move`'s
+        /// `from`/`to` already use) to the CURRENT `NoteDecoration.Block` it
+        /// names. `nil` for a stale index (block count changed since the caller
+        /// last read `MarkdownBlockRect`s) rather than acting on the wrong block.
+        private func moveableBlock(at index: Int) -> NoteDecoration.Block? {
+            guard let textView else { return nil }
+            let moveable = NoteDecoration.blocks(textView.string).filter { !$0.isFrontmatter }
+            guard index >= 0, index < moveable.count else { return nil }
+            return moveable[index]
+        }
+
+        /// "Turn into" — the gutter context menu's first section. Pure logic in
+        /// `BlockTransform.turnInto` decides content/selection; this method only
+        /// resolves the index and applies the result through the one undo-safe
+        /// splice channel every 2b/Phase-3 mutation uses.
+        func turnIntoBlock(at index: Int, target: BlockKind) {
+            guard let textView, let block = moveableBlock(at: index),
+                  let result = BlockTransform.turnInto(textView.string, block: block, target: target)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+        }
+
+        /// "Actions" section — Duplicate.
+        func duplicateBlock(at index: Int) {
+            guard let textView, let block = moveableBlock(at: index),
+                  let result = BlockTransform.duplicate(textView.string, block: block)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+        }
+
+        /// "Actions" section — Delete.
+        func deleteBlock(at index: Int) {
+            guard let textView, let block = moveableBlock(at: index),
+                  let result = BlockTransform.delete(textView.string, block: block)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+        }
+
+        /// "Actions" section — Move up. Delegates the actual reorder to
+        /// `BlockTransform.moveUp` (which itself delegates to
+        /// `BlockReorder.move` — no index-math reimplementation anywhere), but
+        /// unlike the gutter's drag path (`moveBlock`, above), the caret follows
+        /// the moved block to its new position (`BlockTransform`'s computed
+        /// selection) rather than staying at its old document offset — the menu
+        /// action reads as "move THIS block", so the caret should stay with it.
+        func moveBlockUp(at index: Int) {
+            guard let textView, let block = moveableBlock(at: index),
+                  let result = BlockTransform.moveUp(textView.string, block: block)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+        }
+
+        /// "Actions" section — Move down (see `moveBlockUp`'s doc).
+        func moveBlockDown(at index: Int) {
+            guard let textView, let block = moveableBlock(at: index),
+                  let result = BlockTransform.moveDown(textView.string, block: block)
+            else { return }
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+        }
+
+        /// The ONE undo-safe whole-document splice channel: every mutation that
+        /// can't stay caret-scoped (`moveBlock`, and every Phase 3 block action
+        /// above) funnels through here. `insertText(_:replacementRange:)` is the
+        /// same canonical channel slash insertions use, wrapped in an explicit
+        /// undo group and bracketed by `breakUndoCoalescing` so ⌘Z reverts in
+        /// exactly one step, never merged with surrounding typing. Always a FULL
+        /// decoration + marker-visibility recompute (never the caret-scoped
+        /// incremental path) — these splices can move, retype, duplicate, or
+        /// remove whole blocks, invalidating ranges the incremental path assumes
+        /// are stable. `selection` is clamped to the new document length (never
+        /// negative) so a caller's computed offset can't crash on a shrinking
+        /// edit (e.g. Delete at EOF). A no-op splice (`newSource == current`,
+        /// e.g. `BlockReorder.move`'s identity/out-of-range case) is skipped
+        /// entirely — no empty undo group, no spurious re-decoration.
+        private func applyWholeDocumentSplice(newSource: String, selection: NSRange) {
+            guard let textView else { return }
             let current = textView.string
-            let moved = BlockReorder.move(current, from: from, to: to)
-            guard moved != current else { return }
+            guard newSource != current else { return }
 
             let fullRange = NSRange(location: 0, length: (current as NSString).length)
-            let savedSelection = textView.selectedRange()
             let clipView = textView.enclosingScrollView?.contentView
             let savedScrollOrigin = clipView?.bounds.origin
 
             isPerformingEdit = true
             textView.breakUndoCoalescing()
             textView.undoManager?.beginUndoGrouping()
-            textView.insertText(moved, replacementRange: fullRange)
+            textView.insertText(newSource, replacementRange: fullRange)
             textView.undoManager?.endUndoGrouping()
             textView.breakUndoCoalescing()
             isPerformingEdit = false
 
-            // A whole-document splice invalidates every block — the caret-scoped
-            // pass that ran inside textDidChange can't cover it, and waiting for
-            // the 150 ms debounce would flash undecorated text.
             applyDecorations(scopedTo: nil)
             refreshMarkerVisibility(fullRecompute: true)
 
-            // Restore caret (clamped) and scroll — a reorder must not teleport
-            // the viewport (plan: "caret and scroll don't jump").
-            let newLength = (moved as NSString).length
-            textView.setSelectedRange(NSRange(location: min(savedSelection.location, newLength),
-                                              length: 0))
+            let newLength = (newSource as NSString).length
+            let clampedLocation = max(0, min(selection.location, newLength))
+            let clampedLength = max(0, min(selection.length, newLength - clampedLocation))
+            textView.setSelectedRange(NSRange(location: clampedLocation, length: clampedLength))
             if let clipView, let savedScrollOrigin {
                 clipView.scroll(to: savedScrollOrigin)
                 textView.enclosingScrollView?.reflectScrolledClipView(clipView)
