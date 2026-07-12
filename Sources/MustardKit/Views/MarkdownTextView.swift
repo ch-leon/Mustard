@@ -559,11 +559,13 @@ struct MarkdownTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            // Stand down mid-splice — the splice's own explicit full recompute
-            // (performSlashCommand / moveBlock) owns marker visibility for that
-            // transaction; a selection-change fired incidentally during it would
-            // otherwise race with a stale (pre-splice) diff baseline.
-            guard !isPerformingEdit else { return }
+            // Stand down mid-splice AND mid-doc-replace — the transaction's own
+            // explicit full recompute (performSlashCommand / moveBlock /
+            // updateNSView's doc-replace) owns marker visibility; a selection-
+            // change fired incidentally during it would otherwise take the
+            // incremental path and diff a stale (pre-transaction) baseline of
+            // Block ranges that no longer index this string.
+            guard !isPerformingEdit, !isProgrammaticUpdate else { return }
             // Pure caret/selection move: text is unchanged, so the cached diff
             // baseline is still valid — take the cheap incremental path.
             refreshMarkerVisibility(fullRecompute: false)
