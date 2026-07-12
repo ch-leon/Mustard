@@ -130,6 +130,7 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.string = text
         context.coordinator.isProgrammaticUpdate = false
         context.coordinator.applyDecorations(scopedTo: nil)
+        context.coordinator.refreshMarkerVisibility(fullRecompute: true)
 
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -184,6 +185,9 @@ struct MarkdownTextView: NSViewRepresentable {
             textView.setSelectedRange(NSRange(location: min(selected.location, length), length: 0))
             context.coordinator.isProgrammaticUpdate = false
             context.coordinator.applyDecorations(scopedTo: nil)
+            // A new document invalidates every cached block range from the OLD
+            // string — force a full recompute rather than diffing against them.
+            context.coordinator.refreshMarkerVisibility(fullRecompute: true)
         }
 
         // Backup focus grab for the rare case the window wasn't attached yet in
@@ -219,6 +223,19 @@ struct MarkdownTextView: NSViewRepresentable {
         private var rectPublishScheduled = false
         private var lastPublishedRects: [MarkdownBlockRect] = []
 
+        /// Phase 1 (BAK-250) focus tracking: true while THIS text view is the
+        /// first responder. Toggled by `textDidBeginEditing`/`textDidEndEditing`
+        /// (posted from `NSTextView.become/resignFirstResponder`) — distinct from
+        /// `isProgrammaticUpdate`/`isPerformingEdit`, which guard OUR OWN writes,
+        /// not the user's focus state. `nil` `focusedRange` (editor has no focus
+        /// at all) hides every marker in the document (`NoteDecoration
+        /// .markerVisibility`'s documented behaviour).
+        private var hasFocus = false
+        /// The blocks whose markers are CURRENTLY revealed (diff baseline for the
+        /// incremental selection-change path — see `refreshMarkerVisibility`).
+        private var revealedMarkerBlocks: [NoteDecoration.Block] = []
+        private var markerVisibilityInitialized = false
+
         /// Large-note fallback (spec "never block typing"): above this many UTF-16
         /// units decoration is skipped entirely — plain editable text. 200k units
         /// ≈ a 200 KB ASCII note, far past anything hand-written; per-keystroke
@@ -246,7 +263,20 @@ struct MarkdownTextView: NSViewRepresentable {
             // full pass below catches edits that change block TOPOLOGY (typing a
             // ``` fence, deleting the blank line that separated two blocks, editing
             // frontmatter fences) which the scoped pass can't see.
-            applyDecorations(scopedTo: caretBlock(in: textView))
+            let block = caretBlock(in: textView)
+            applyDecorations(scopedTo: block)
+            // Fast path (BAK-250): the block under the caret is always focused —
+            // reveal ITS hideable markers immediately so typed syntax ("**", "#
+            // ", "> ") shows without waiting on the debounce. Every other block's
+            // glyphs are untouched by this edit (TextKit preserves/shifts glyph
+            // flags for characters outside the edited range), so their existing
+            // hidden/shown state is still correct — any TOPOLOGY change (new/
+            // merged block) is caught by the debounced full pass below, same
+            // split `applyDecorations` already uses.
+            if let block, let layoutManager = textView.layoutManager {
+                setNotShown(false, ranges: NoteDecoration.hideableMarkerRanges(textView.string, in: block),
+                           source: textView.string, layoutManager: layoutManager)
+            }
             scheduleFullPass()
             refreshSlashMenu()
         }
@@ -267,6 +297,9 @@ struct MarkdownTextView: NSViewRepresentable {
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 guard !Task.isCancelled else { return }
                 self?.applyDecorations(scopedTo: nil)
+                // Topology may have shifted every block's range since the last
+                // full pass — force a fresh recompute rather than diffing.
+                self?.refreshMarkerVisibility(fullRecompute: true)
             }
         }
 
@@ -371,6 +404,95 @@ struct MarkdownTextView: NSViewRepresentable {
             }
         }
 
+        // MARK: Marker visibility (Phase 1 / BAK-250 — Craft-style focus reveal)
+
+        /// Applies `NoteDecoration.markerVisibility`/`.revealedBlocks` as TextKit-1
+        /// `notShownAttribute` GLYPH flags — never a text-storage edit and never a
+        /// font-size/character trick. `setNotShownAttribute` marks a glyph as
+        /// generated-but-not-laid-out-or-painted while leaving the character (and
+        /// every attribute `applyDecorations` set on it) completely untouched, so:
+        ///   - the revealed state's layout metrics never change (revealed markers
+        ///     just keep today's dimmed attributes — nothing new is applied to
+        ///     them at all);
+        ///   - copy/paste and Save still see the FULL markdown string, because
+        ///     `NSTextStorage`'s string and its pasteboard/file representation are
+        ///     glyph-flag-agnostic;
+        ///   - nothing can desync attribute ranges from the string, because the
+        ///     glyph range is re-derived from the character range on every call,
+        ///     never cached across an edit.
+        ///
+        /// `fullRecompute` selects which of the two cost paths to take, mirroring
+        /// `applyDecorations`'s own scoped-vs-full split:
+        ///   - `true` (initial load, doc replace, or the debounced full pass after
+        ///     an edit that may have shifted every block's range): re-derive
+        ///     `markerVisibility` from scratch and set EVERY hideable marker's
+        ///     glyph flag explicitly, ignoring the cached diff baseline (which may
+        ///     hold stale pre-edit ranges that no longer index this string).
+        ///   - `false` (a pure selection/caret move — text unchanged, so cached
+        ///     ranges are still valid): diff `revealedBlocks` against the cached
+        ///     `revealedMarkerBlocks` and re-touch ONLY the blocks whose
+        ///     membership changed — never a whole-document glyph walk on a plain
+        ///     caret move.
+        func refreshMarkerVisibility(fullRecompute: Bool) {
+            guard let textView, let layoutManager = textView.layoutManager else { return }
+            let source = textView.string
+            guard (source as NSString).length <= Self.plainTextFallbackLimit else { return }
+
+            let focusedRange: NSRange? = hasFocus ? textView.selectedRange() : nil
+
+            if fullRecompute || !markerVisibilityInitialized {
+                let visibility = NoteDecoration.markerVisibility(source, focusedRange: focusedRange)
+                setNotShown(true, ranges: visibility.hidden, source: source, layoutManager: layoutManager)
+                setNotShown(false, ranges: visibility.revealed, source: source, layoutManager: layoutManager)
+                revealedMarkerBlocks = NoteDecoration.revealedBlocks(source, focusedRange: focusedRange)
+                markerVisibilityInitialized = true
+                return
+            }
+
+            let nowRevealed = NoteDecoration.revealedBlocks(source, focusedRange: focusedRange)
+            guard nowRevealed != revealedMarkerBlocks else { return }
+
+            for block in revealedMarkerBlocks where !nowRevealed.contains(block) {
+                setNotShown(true, ranges: NoteDecoration.hideableMarkerRanges(source, in: block),
+                           source: source, layoutManager: layoutManager)
+            }
+            for block in nowRevealed where !revealedMarkerBlocks.contains(block) {
+                setNotShown(false, ranges: NoteDecoration.hideableMarkerRanges(source, in: block),
+                           source: source, layoutManager: layoutManager)
+            }
+            revealedMarkerBlocks = nowRevealed
+        }
+
+        /// `notShown = true` hides (no layout, no paint); `false` reveals. Ranges
+        /// past the current storage length are skipped defensively — the same
+        /// stale-range guard `applyDecorations` uses.
+        private func setNotShown(_ notShown: Bool, ranges: [NSRange], source: String,
+                                 layoutManager: NSLayoutManager) {
+            let length = (source as NSString).length
+            for range in ranges {
+                guard range.length > 0, range.upperBound <= length else { continue }
+                let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                guard glyphRange.length > 0 else { continue }
+                for glyphIndex in glyphRange.location..<glyphRange.upperBound {
+                    layoutManager.setNotShownAttribute(notShown, forGlyphAt: glyphIndex)
+                }
+                layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+            }
+        }
+
+        /// First-responder tracking (posted by `NSTextView.become/resignFirstResponder`).
+        func textDidBeginEditing(_ notification: Notification) {
+            hasFocus = true
+            refreshMarkerVisibility(fullRecompute: true)
+        }
+
+        /// The editor lost focus entirely — every marker hides (spec: "an
+        /// unfocused document reads like rendered rich text").
+        func textDidEndEditing(_ notification: Notification) {
+            hasFocus = false
+            refreshMarkerVisibility(fullRecompute: true)
+        }
+
         // MARK: Link clicks
 
         /// Wikilink clicks route to the host's existing navigate / create-from-
@@ -437,6 +559,17 @@ struct MarkdownTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
+            // Stand down mid-splice AND mid-doc-replace — the transaction's own
+            // explicit full recompute (performSlashCommand / moveBlock /
+            // updateNSView's doc-replace) owns marker visibility; a selection-
+            // change fired incidentally during it would otherwise take the
+            // incremental path and diff a stale (pre-transaction) baseline of
+            // Block ranges that no longer index this string.
+            guard !isPerformingEdit, !isProgrammaticUpdate else { return }
+            // Pure caret/selection move: text is unchanged, so the cached diff
+            // baseline is still valid — take the cheap incremental path.
+            refreshMarkerVisibility(fullRecompute: false)
+
             // Close-only path: never opens (allowOpen false).
             guard parent.slashMenu.wrappedValue != nil else { return }
             refreshSlashMenu(allowOpen: false)
@@ -549,6 +682,7 @@ struct MarkdownTextView: NSViewRepresentable {
             // pass that ran inside textDidChange can't cover it, and waiting for
             // the 150 ms debounce would flash undecorated text.
             applyDecorations(scopedTo: nil)
+            refreshMarkerVisibility(fullRecompute: true)
 
             // Restore caret (clamped) and scroll — a reorder must not teleport
             // the viewport (plan: "caret and scroll don't jump").
