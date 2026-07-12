@@ -17,9 +17,20 @@ struct SlashMenuState: Equatable {
 /// One moveable block's on-screen geometry (2b Task 9), in the editor overlay's
 /// coordinate space. `index` matches `BlockReorder.move`'s moveable indexing
 /// (frontmatter excluded), so the gutter can hand hit-test results straight through.
+///
+/// `kind` (Phase 3 / BAK-252 review fix) is the block's `BlockKind` at
+/// publish time — data plumbing only, computed once here via
+/// `NoteDecoration.blockKind` rather than re-derived by the view layer, so
+/// `BlockGutterOverlay` can gate menu rows (e.g. hide "Turn into" for a
+/// `.divider`) without owning any classification logic itself. Non-optional:
+/// every `MarkdownBlockRect` is built from the FRONTMATTER-FILTERED moveable
+/// list (`publishBlockRects`), and `blockKind` only ever returns `nil` for a
+/// frontmatter block, so there's no real case here — `.paragraph` is a
+/// defensive fallback, never an expected value.
 struct MarkdownBlockRect: Equatable {
     let index: Int
     let rect: CGRect
+    let kind: BlockKind
 }
 
 /// Imperative bridge from NoteEditorView's SwiftUI overlays (slash menu rows,
@@ -830,8 +841,10 @@ struct MarkdownTextView: NSViewRepresentable {
                     rect.origin.x += origin.x
                     rect.origin.y += origin.y
                     let inScrollView = scrollView.convert(rect, from: textView)
+                    let kind = NoteDecoration.blockKind(source, of: block) ?? .paragraph
                     rects.append(MarkdownBlockRect(index: index,
-                                                   rect: flipToOverlay(inScrollView, in: scrollView)))
+                                                   rect: flipToOverlay(inScrollView, in: scrollView),
+                                                   kind: kind))
                 }
             }
             if rects != lastPublishedRects {

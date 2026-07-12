@@ -95,7 +95,7 @@ struct BlockGutterOverlay: View {
                 // Rendered here (renders + dispatches only) — the pure
                 // decision of what each row DOES lives in `BlockTransform`.
                 .contextMenu {
-                    blockContextMenu(for: block.index)
+                    blockContextMenu(for: block.index, kind: block.kind)
                 }
         }
         .padding(.top, 2)
@@ -119,14 +119,24 @@ struct BlockGutterOverlay: View {
     /// Delete, Move up, Move down). Move up/down disable at the document
     /// edges — `rects` is already index-contiguous (0..<rects.count), so the
     /// first/last check needs no extra state.
+    ///
+    /// "Turn into" is hidden entirely for a `.divider` block (Phase 3 /
+    /// BAK-252 review fix): `BlockTransform.turnInto` already returns `nil`
+    /// for every divider source (defense in depth — see that file's doc), but
+    /// nothing upstream of this view used to act on that, so right-clicking a
+    /// divider showed all ten targets as silent no-ops. `kind` is plumbed
+    /// straight from `NoteDecoration.blockKind` via `MarkdownBlockRect`, so
+    /// this is pure display gating, no classification logic of its own.
     @ViewBuilder
-    private func blockContextMenu(for index: Int) -> some View {
-        Menu("Turn into") {
-            ForEach(Self.turnIntoItems, id: \.label) { item in
-                Button(item.label) { onTurnInto(index, item.kind) }
+    private func blockContextMenu(for index: Int, kind: BlockKind) -> some View {
+        if kind != .divider {
+            Menu("Turn into") {
+                ForEach(Self.turnIntoItems, id: \.label) { item in
+                    Button(item.label) { onTurnInto(index, item.kind) }
+                }
             }
+            Divider()
         }
-        Divider()
         Button("Duplicate") { onDuplicate(index) }
         Button("Delete") { onDelete(index) }
         Divider()

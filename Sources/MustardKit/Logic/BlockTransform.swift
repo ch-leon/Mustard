@@ -66,8 +66,11 @@ public enum BlockTransform {
     ///   image/link atom.
     /// - `.divider` — **content-free, excluded as a source**: returns `nil`
     ///   rather than manufacture an empty/misleading heading or list item from
-    ///   nothing. The "Turn into" menu should not be offered at all for a
-    ///   divider block (view-layer decision, documented at the call site).
+    ///   nothing. This `nil` is defense in depth, not the only gate: the
+    ///   "Turn into" section is hidden entirely for a divider block at the
+    ///   view layer (`BlockGutterOverlay.blockContextMenu`, keyed off the
+    ///   `BlockKind` plumbed through `MarkdownBlockRect.kind`), so the menu
+    ///   never even offers a target that would land here.
     ///
     /// **Multi-line blocks (paragraph, code block):** every content line is
     /// rendered independently through `target`'s per-line marker EXCEPT
