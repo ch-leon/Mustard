@@ -26,6 +26,20 @@ public struct ClaudeResult: Sendable {
 /// (prompt, workingDirectory) → result. Injected so tests use a stub.
 public typealias ClaudeRun = @Sendable (String, String) async -> ClaudeResult
 
+public struct ClaudeInvocation: Sendable {
+    public let id: UUID
+    public let arguments: [String]
+    public let workingDirectory: String
+
+    public init(id: UUID, arguments: [String], workingDirectory: String) {
+        self.id = id
+        self.arguments = arguments
+        self.workingDirectory = workingDirectory
+    }
+}
+
+public typealias ClaudeInvoke = @Sendable (ClaudeInvocation) async -> ClaudeResult
+
 public enum ClaudeRunner {
 #if os(macOS)
     /// Wall-clock budget for a single `claude -p` invocation before it's killed and
@@ -69,15 +83,73 @@ public enum ClaudeRunner {
         }
     }
 
-    /// Runs `claude -p` headless against the logged-in subscription.
+    /// Tracks the small pre-launch window separately so cancellation cannot be lost
+    /// between an invocation being issued and `Process.run()` returning. Completed
+    /// IDs are removed, making late cancellation a no-op even if an ID is reused.
+    private final class InvocationRegistry: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pending: Set<UUID> = []
+        private var cancelledWhilePending: Set<UUID> = []
+        private var processes: [UUID: Process] = [:]
+
+        func begin(_ id: UUID) {
+            lock.withLock {
+                pending.insert(id)
+                cancelledWhilePending.remove(id)
+            }
+        }
+
+        /// Returns false when cancellation arrived before process registration.
+        func register(_ process: Process, for id: UUID) -> Bool {
+            lock.withLock {
+                pending.remove(id)
+                if cancelledWhilePending.remove(id) != nil { return false }
+                processes[id] = process
+                return true
+            }
+        }
+
+        func finish(_ process: Process, for id: UUID) {
+            lock.withLock {
+                pending.remove(id)
+                cancelledWhilePending.remove(id)
+                if processes[id] === process {
+                    processes.removeValue(forKey: id)
+                }
+            }
+        }
+
+        func cancel(_ id: UUID) {
+            let process = lock.withLock { () -> Process? in
+                if let process = processes[id] { return process }
+                if pending.contains(id) { cancelledWhilePending.insert(id) }
+                return nil
+            }
+            process?.terminate()
+        }
+    }
+
+    private static let invocationRegistry = InvocationRegistry()
+
+    static func isRateLimited(_ text: String) -> Bool {
+        text.range(
+            of: "rate.?limit|usage limit",
+            options: [.regularExpression, .caseInsensitive],
+            range: nil,
+            locale: nil
+        ) != nil
+    }
+
+    /// Runs a specific Claude CLI invocation against the logged-in subscription.
     /// stdin is /dev/null — the CLI waits on an open pipe otherwise.
-    public static let run: ClaudeRun = { prompt, cwd in
-        await withCheckedContinuation { continuation in
+    public static let invoke: ClaudeInvoke = { invocation in
+        invocationRegistry.begin(invocation.id)
+        return await withCheckedContinuation { continuation in
             DispatchQueue.global().async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: binaryPath())
-                process.arguments = ["-p", prompt, "--output-format", "json"]
-                process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+                process.arguments = invocation.arguments
+                process.currentDirectoryURL = URL(fileURLWithPath: invocation.workingDirectory)
                 process.environment = cleanEnvironment()
                 process.standardInput = FileHandle.nullDevice
                 let out = Pipe(), err = Pipe()
@@ -87,9 +159,13 @@ public enum ClaudeRunner {
                 do {
                     try process.run()
                 } catch {
+                    invocationRegistry.finish(process, for: invocation.id)
                     continuation.resume(returning: ClaudeResult(ok: false, text: String(describing: error)))
                     return
                 }
+
+                let registered = invocationRegistry.register(process, for: invocation.id)
+                if !registered { process.terminate() }
 
                 // Drain both pipes concurrently. Reading stdout to EOF before touching
                 // stderr (the old approach) deadlocks if the child fills the ~64KB
@@ -130,6 +206,7 @@ public enum ClaudeRunner {
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: timeoutItem)
 
                 process.waitUntilExit()
+                invocationRegistry.finish(process, for: invocation.id)
                 timeoutItem.cancel()
                 out.fileHandleForReading.readabilityHandler = nil
                 err.fileHandleForReading.readabilityHandler = nil
@@ -151,11 +228,6 @@ public enum ClaudeRunner {
                 let stdout = String(data: stdoutBuffer.withLock { $0 }, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrBuffer.withLock { $0 }, encoding: .utf8) ?? ""
 
-                func limited(_ s: String) -> Bool {
-                    s.range(of: "rate.?limit|usage limit", options: .regularExpression, range: nil, locale: nil) != nil
-                        || s.localizedCaseInsensitiveContains("usage limit")
-                }
-
                 struct CLIOutput: Decodable {
                     let result: String?
                     let is_error: Bool?
@@ -164,7 +236,8 @@ public enum ClaudeRunner {
                    let parsed = try? JSONDecoder().decode(CLIOutput.self, from: data) {
                     if parsed.is_error == true {
                         let text = parsed.result ?? "claude reported an error"
-                        continuation.resume(returning: ClaudeResult(ok: false, text: text, rateLimited: limited(text)))
+                        continuation.resume(returning: ClaudeResult(
+                            ok: false, text: text, rateLimited: isRateLimited(text)))
                     } else {
                         continuation.resume(returning: ClaudeResult(ok: true, text: parsed.result ?? ""))
                     }
@@ -173,10 +246,23 @@ public enum ClaudeRunner {
                         ok: true, text: stdout.trimmingCharacters(in: .whitespacesAndNewlines), unparsed: true))
                 } else {
                     let text = "claude exited \(process.terminationStatus)\n\(stderr)"
-                    continuation.resume(returning: ClaudeResult(ok: false, text: text, rateLimited: limited(stderr)))
+                    continuation.resume(returning: ClaudeResult(
+                        ok: false, text: text, rateLimited: isRateLimited(stderr)))
                 }
             }
         }
+    }
+
+    public static let run: ClaudeRun = { prompt, cwd in
+        await invoke(.init(
+            id: UUID(),
+            arguments: ["-p", prompt, "--output-format", "json"],
+            workingDirectory: cwd
+        ))
+    }
+
+    public static func cancel(_ id: UUID) {
+        invocationRegistry.cancel(id)
     }
 #else
     /// The agent shells out to the `claude` CLI, which runs on the Mac only (ADR-0003).
@@ -184,6 +270,21 @@ public enum ClaudeRunner {
     /// stub keeps `ClaudeRunner.run` available so `AgentService` compiles for iOS.
     public static let run: ClaudeRun = { _, _ in
         ClaudeResult(ok: false, text: "The agent runs on the Mac only.")
+    }
+
+    public static let invoke: ClaudeInvoke = { _ in
+        ClaudeResult(ok: false, text: "The agent runs on the Mac only.")
+    }
+
+    public static func cancel(_: UUID) {}
+
+    static func isRateLimited(_ text: String) -> Bool {
+        text.range(
+            of: "rate.?limit|usage limit",
+            options: [.regularExpression, .caseInsensitive],
+            range: nil,
+            locale: nil
+        ) != nil
     }
 #endif
 }

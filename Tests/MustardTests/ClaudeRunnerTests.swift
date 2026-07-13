@@ -167,4 +167,67 @@ final class ClaudeRunnerTests: XCTestCase {
         XCTAssertGreaterThan(pid, 0)
         XCTAssertNotEqual(kill(pid, 0), 0, "the hung process must be dead once run() returns")
     }
+
+    // MARK: - targeted cancellation
+
+    func test_cancel_terminatesOnlyTheInvocationWithTheMatchingID() async throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "mustard-tests")
+        let firstPIDFile = dir.appending(path: "first-pid-\(UUID().uuidString).txt")
+        let secondPIDFile = dir.appending(path: "second-pid-\(UUID().uuidString).txt")
+        let stub = dir.appending(path: "fake-claude-cancellable-\(UUID().uuidString).sh")
+        try """
+        #!/bin/zsh
+        echo $$ > "$1"
+        while true; do :; done
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+
+        let firstID = UUID()
+        let secondID = UUID()
+        defer {
+            ClaudeRunner.cancel(firstID)
+            ClaudeRunner.cancel(secondID)
+        }
+        let first = Task {
+            await ClaudeRunner.invoke(.init(
+                id: firstID,
+                arguments: [firstPIDFile.path],
+                workingDirectory: "/tmp"
+            ))
+        }
+        let second = Task {
+            await ClaudeRunner.invoke(.init(
+                id: secondID,
+                arguments: [secondPIDFile.path],
+                workingDirectory: "/tmp"
+            ))
+        }
+
+        let firstPID = try await waitForPID(in: firstPIDFile)
+        let secondPID = try await waitForPID(in: secondPIDFile)
+        ClaudeRunner.cancel(firstID)
+
+        let firstResult = await first.value
+        XCTAssertFalse(firstResult.ok)
+        XCTAssertNotEqual(kill(firstPID, 0), 0)
+        XCTAssertEqual(kill(secondPID, 0), 0, "cancelling one invocation must leave the other running")
+
+        ClaudeRunner.cancel(secondID)
+        _ = await second.value
+        XCTAssertNotEqual(kill(secondPID, 0), 0)
+    }
+
+    private func waitForPID(in file: URL) async throws -> pid_t {
+        for _ in 0..<200 {
+            if let text = try? String(contentsOf: file, encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               let pid = pid_t(text), pid > 0 {
+                return pid
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw NSError(domain: "ClaudeRunnerTests", code: 1)
+    }
 }
