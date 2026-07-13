@@ -11,6 +11,15 @@ import Observation
 @MainActor
 @Observable
 public final class AgentService {
+    private struct DelegationRunSnapshot {
+        let state: AgentRunState
+        let requiresConnectedWorker: Bool
+        let completedAt: Date?
+        let lastOutcomeRaw: String?
+        let lastError: String?
+        let lastActivityAt: Date
+    }
+
     public private(set) var isSweeping = false
     public private(set) var isExecuting = false
     public private(set) var lastError: String?
@@ -26,15 +35,18 @@ public final class AgentService {
     private let claude: ClaudeRun
     private let bridge: BridgeIO
     private let executionGate: AgentExecutionGate
+    private let persist: () throws -> Void
     private let busyHint = "The agent is finishing another task. This work will stay queued and retry shortly."
 
     public init(context: ModelContext, claude: @escaping ClaudeRun = ClaudeRunner.run,
                 bridge: BridgeIO = FileBridgeIO(),
-                executionGate: AgentExecutionGate? = nil) {
+                executionGate: AgentExecutionGate? = nil,
+                persist: (() throws -> Void)? = nil) {
         self.context = context
         self.claude = claude
         self.bridge = bridge
         self.executionGate = executionGate ?? AgentExecutionGate()
+        self.persist = persist ?? { try context.save() }
     }
 
     /// Manual vault sweep: ask claude for recommendations, ingest them through the
@@ -372,6 +384,10 @@ public final class AgentService {
     /// one durable queued run and its initial human transcript; re-delegating reuses
     /// that same run so provider session and message history remain intact.
     public func delegate(_ task: MustardTask) {
+        // Agent-owned calls (including repeated clicks while active) are deliberately
+        // inert. Human re-delegation is only legal from an explicit human lane.
+        let humanStages: Set<TaskStage> = [.inbox, .planned, .scheduled, .inProgress, .blocked]
+        guard task.owner == .me, humanStages.contains(task.stage) else { return }
         // BAK-90: require a client area first — the bridge export filters by area, so an
         // area-less hand-off would silently never route. Block it and surface a hint.
         guard PersonalBoard.canHandOffToAgent(task) else {
@@ -379,31 +395,69 @@ public final class AgentService {
                 + "file it under Digital Licence / Sales Buddi / Sandvik / Code Heroes first."
             return
         }
+        let previousOwner = task.owner
+        let previousStage = task.stage
+        let previousRun = task.agentRun
+        let previousRunState = previousRun.map {
+            DelegationRunSnapshot(
+                state: $0.state,
+                requiresConnectedWorker: $0.requiresConnectedWorker,
+                completedAt: $0.completedAt,
+                lastOutcomeRaw: $0.lastOutcomeRaw,
+                lastError: $0.lastError,
+                lastActivityAt: $0.lastActivityAt
+            )
+        }
+
         lastHint = nil
         task.owner = .agent
         task.stage = .forAgent
 
         let run: AgentRun
-        if let existing = task.agentRun {
+        if let existing = previousRun {
             run = existing
         } else {
             run = AgentRun(task: task)
             task.agentRun = run
             context.insert(run)
-            let body = task.notes.isEmpty
-                ? task.title
-                : "\(task.title)\n\n\(task.notes)"
-            let message = AgentMessage(
-                run: run,
-                sequence: 0,
-                role: .human,
-                kind: .delegation,
-                content: body
-            )
-            context.insert(message)
         }
+
+        let message = AgentMessage(
+            run: run,
+            sequence: (run.messages?.map(\.sequence).max() ?? -1) + 1,
+            role: .human,
+            kind: .delegation,
+            content: delegationBody(for: task)
+        )
+        context.insert(message)
         run.state = .queued
         run.requiresConnectedWorker = false
+        run.completedAt = nil
+        run.lastOutcomeRaw = nil
+        run.lastError = nil
+        run.lastActivityAt = message.createdAt
+
+        do {
+            try persist()
+        } catch {
+            task.owner = previousOwner
+            task.stage = previousStage
+            task.agentRun = previousRun
+            run.messages?.removeAll { $0 === message }
+            context.delete(message)
+            if let previousRun, let snapshot = previousRunState {
+                previousRun.state = snapshot.state
+                previousRun.requiresConnectedWorker = snapshot.requiresConnectedWorker
+                previousRun.completedAt = snapshot.completedAt
+                previousRun.lastOutcomeRaw = snapshot.lastOutcomeRaw
+                previousRun.lastError = snapshot.lastError
+                previousRun.lastActivityAt = snapshot.lastActivityAt
+            } else {
+                context.delete(run)
+            }
+            lastError = "Could not save the agent hand-off: \(error.localizedDescription)"
+            lastHint = "The hand-off wasn’t saved. Your task is still with you."
+        }
     }
 
     /// Clear the transient hand-off hint (e.g. after a successful drop into an agent lane).
@@ -462,5 +516,9 @@ public final class AgentService {
         defer { executionGate.release(token) }
         if lastHint == busyHint { lastHint = nil }
         return await claude(prompt, workingDirectory)
+    }
+
+    private func delegationBody(for task: MustardTask) -> String {
+        task.notes.isEmpty ? task.title : "\(task.title)\n\n\(task.notes)"
     }
 }

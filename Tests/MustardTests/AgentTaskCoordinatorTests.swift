@@ -265,6 +265,42 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(task.agentRun?.resumeCount, 1)
     }
 
+    func test_redelegationResumeUsesFreshEditedDelegationMessage() async throws {
+        let runtime = ScriptedAgentRuntime(
+            responses: [.completed("Updated release prepared")],
+            knownSessionIDs: ["existing-session"]
+        )
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Old request", stage: .planned)
+        task.owner = .me
+        let run = AgentRun(task: task)
+        run.providerSessionID = "existing-session"
+        run.state = .completed
+        task.agentRun = run
+        let oldMessage = AgentMessage(
+            run: run,
+            sequence: 0,
+            role: .human,
+            kind: .delegation,
+            content: "Old request"
+        )
+        context.insert(run)
+        context.insert(oldMessage)
+        try context.save()
+        task.title = "Updated release request"
+        task.notes = "Use the edited migration checklist."
+        let service = AgentService(context: context, persist: { try context.save() })
+
+        service.delegate(task)
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        let resumes = await runtime.resumeRequests
+        XCTAssertEqual(resumes.count, 1)
+        XCTAssertTrue(resumes[0].prompt.contains(
+            "Updated release request\n\nUse the edited migration checklist."
+        ))
+    }
+
     func test_requestChangesRequeuesAndResumeUsesLatestReviewFeedback() async throws {
         let runtime = ScriptedAgentRuntime(responses: [
             .completed("Draft one"),
