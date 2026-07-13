@@ -13,16 +13,21 @@ public struct AgentConsoleView: View {
     @AppStorage("trustLevel") private var trustRaw = TrustLevel.manual.rawValue
     @AppStorage("autoOpenSourceOnSelect") private var autoOpenSource = true
     @Environment(SourcePanelController.self) private var sourcePanel
+    @Environment(AgentTaskCoordinator.self) private var taskAgent
     @State private var selected: Recommendation?
+    @State private var selectedTask: MustardTask?
 
     private var trust: TrustLevel { TrustLevel(rawValue: trustRaw) ?? .manual }
     @Query(sort: \Recommendation.createdAt, order: .reverse) private var recommendations: [Recommendation]
+    @Query private var allTasks: [MustardTask]
 
     public init() {}
 
     private var pending: [Recommendation] {
         RecommendationQueue.pending(recommendations, now: .now)
     }
+
+    private var attention: AgentInbox.AgentAttention { AgentInbox.attention(allTasks) }
 
     public var body: some View {
         HSplitView {
@@ -32,6 +37,12 @@ public struct AgentConsoleView: View {
                 .frame(minWidth: 320, idealWidth: 420)
         }
         .background(Theme.Palette.bg)
+        .sheet(item: $selectedTask) { task in
+            // Reuse the task detail flow (which hosts the agent conversation) rather than
+            // duplicating the conversation UI in the console.
+            TaskDetailSheet(task: task, onClose: { selectedTask = nil })
+                .frame(minWidth: 480, minHeight: 560)
+        }
         .onAppear {
             if selected == nil {
                 selected = RecommendationSelection.nextSelection(current: nil, pending: pending)
@@ -55,6 +66,17 @@ public struct AgentConsoleView: View {
                         .font(Theme.Fonts.meta)
                         .foregroundStyle(Theme.Palette.error)
                         .padding(.vertical, 8)
+                }
+
+                if taskAgent.authenticationRequired { authBanner }
+
+                if !attention.questions.isEmpty {
+                    sectionLabel("NEEDS YOU", count: attention.questions.count)
+                    ForEach(attention.questions) { attentionRow($0) }
+                }
+                if !attention.reviews.isEmpty {
+                    sectionLabel("NEEDS REVIEW", count: attention.reviews.count)
+                    ForEach(attention.reviews) { attentionRow($0) }
                 }
 
                 sectionLabel("RECOMMENDATIONS", count: pending.count)
@@ -259,6 +281,50 @@ public struct AgentConsoleView: View {
             .font(Theme.Fonts.meta)
             .foregroundStyle(Theme.Palette.textTertiary)
             .padding(.vertical, 12)
+    }
+
+    /// One banner for a runtime that needs sign-in — not repeated per task row.
+    private var authBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Agent sign-in needed", systemImage: "lock")
+                .font(Theme.Fonts.body.weight(.semibold))
+                .foregroundStyle(Theme.Palette.warnText)
+            Text("The Claude CLI isn't logged in. Run `claude /login` (or `claude setup-token`) in a terminal, then retry.")
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Retry") { Task { await taskAgent.retryAuthentication() } }
+                .controlSize(.small)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.top, 12)
+    }
+
+    /// A compact attention row (Needs You / Needs Review) that opens the task's
+    /// conversation in the detail sheet.
+    private func attentionRow(_ task: MustardTask) -> some View {
+        Button { selectedTask = task } label: {
+            HStack(spacing: 8) {
+                if let area = task.list?.area {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(hex: area.colorHex)).frame(width: 7, height: 7)
+                }
+                Text(task.title).font(Theme.Fonts.body).foregroundStyle(Theme.Palette.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(task.stage == .needsInput ? "Answer" : "Review")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(task.stage == .needsInput ? Theme.Palette.warnText : Theme.Palette.reviewText)
+            }
+            .padding(.horizontal, 11).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.Palette.hairline, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 8)
     }
 }
 

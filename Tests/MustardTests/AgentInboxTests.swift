@@ -52,4 +52,26 @@ final class AgentInboxTests: XCTestCase {
     func test_dockText_both() {
         XCTAssertEqual(AgentInbox.dockText(recs: 1, items: 3), "1 recommendation and 3 items waiting on you")
     }
+
+    // MARK: attention grouping (Task 11)
+
+    func test_attention_groupsQuestionsAndReviewsOldestFirst_excludingOtherStages() {
+        let q1 = MustardTask(title: "q1"); q1.stage = .needsInput; q1.createdAt = Date(timeIntervalSince1970: 200)
+        let q2 = MustardTask(title: "q2"); q2.stage = .needsInput; q2.createdAt = Date(timeIntervalSince1970: 100)
+        let r1 = MustardTask(title: "r1"); r1.stage = .needsReview; r1.createdAt = Date(timeIntervalSince1970: 300)
+        let wip = MustardTask(title: "wip"); wip.stage = .inProgress
+        let queued = MustardTask(title: "queued"); queued.stage = .queued
+
+        let attention = AgentInbox.attention([q1, r1, wip, q2, queued])
+
+        XCTAssertEqual(attention.questions.map(\.title), ["q2", "q1"])
+        XCTAssertEqual(attention.reviews.map(\.title), ["r1"])
+    }
+
+    func test_attention_emptyWhenNothingWaiting() {
+        let planned = MustardTask(title: "p"); planned.stage = .planned
+        let attention = AgentInbox.attention([planned])
+        XCTAssertTrue(attention.questions.isEmpty)
+        XCTAssertTrue(attention.reviews.isEmpty)
+    }
 }

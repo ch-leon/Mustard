@@ -21,6 +21,20 @@ public enum AgentInbox {
         tasks.filter { $0.stage == .needsInput || $0.stage == .needsReview }.count
     }
 
+    /// The two attention groups for the unified Agent Console queue: questions (Needs You)
+    /// and outputs (Needs Review), each oldest-first so the longest-waiting item leads.
+    public struct AgentAttention {
+        public let questions: [MustardTask]
+        public let reviews: [MustardTask]
+    }
+
+    public static func attention(_ tasks: [MustardTask]) -> AgentAttention {
+        AgentAttention(
+            questions: tasks.filter { $0.stage == .needsInput }.sorted { $0.createdAt < $1.createdAt },
+            reviews: tasks.filter { $0.stage == .needsReview }.sorted { $0.createdAt < $1.createdAt }
+        )
+    }
+
     /// Co-pilot dock text (BAK-106): "{N} recommendation(s) and {M} item(s) waiting
     /// on you", or "All clear — nothing waiting on you" when both are zero.
     public static func dockText(recs: Int, items: Int) -> String {

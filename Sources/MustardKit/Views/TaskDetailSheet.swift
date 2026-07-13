@@ -62,6 +62,9 @@ public struct TaskDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     agentContext
+                    // The durable agent conversation + reply/review controls (Task 11).
+                    // All its commands route through AgentTaskCoordinator.
+                    if task.agentRun != nil { AgentConversationView(task: task) }
 
                     VStack(alignment: .leading, spacing: 12) {
                         sectionHeader("Details")
@@ -289,10 +292,18 @@ public struct TaskDetailSheet: View {
             Button(task.isGated ? "Approve & run" : "Approve") { approveGate() }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
         case .needsReview:
-            Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
             Button("Discard", role: .destructive) { context.delete(task); close() }.controlSize(.small)
-            Button("Accept output") { TaskCompletion.complete(task, in: context); close() }
-                .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+            if task.agentRun == nil {
+                // Legacy tasks without a conversation keep the shared state-machine controls;
+                // run-backed tasks get accept / request-changes / take-back in the
+                // conversation view, which routes through the coordinator.
+                Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
+                Button("Accept output") { TaskCompletion.complete(task, in: context); close() }
+                    .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+            }
+        case .needsInput:
+            // Answering happens in the conversation view above; the footer offers take-back.
+            Button("Take back") { takeOver() }.controlSize(.small)
         case .queued:
             Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }.controlSize(.small)
             Button("Move to review") { PersonalBoard.move(task, to: .needsReview) }
