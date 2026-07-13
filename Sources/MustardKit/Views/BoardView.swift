@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// The owner-segmented task board (BAK-79). A single board whose visible columns
-/// change with the owner lens (Everyone / Mine / Agent). Pipeline + two human gates
-/// (Needs Approval, Needs Review). Recreated from the design handoff; all hex/sizes
+/// change with the owner lens (Everyone / Mine / Agent). Pipeline + three attention
+/// columns (Needs Approval, Needs You, Needs Review). Recreated from the design handoff; all hex/sizes
 /// that Theme lacks (column kind tints) come straight from the handoff.
 ///
 /// Scope note: only the board content right of the existing app sidebar lives here.
@@ -78,7 +78,7 @@ public struct BoardView: View {
                             .overlay(Capsule().stroke(reviewFocus ? Color.clear : Theme.Palette.agentTintBorder, lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
-                    .help(reviewFocus ? "Show the full board." : "Focus the board on just the two gate columns.")
+                    .help(reviewFocus ? "Show the full board." : "Focus the board on just the three attention columns.")
                 }
                 Spacer(minLength: 0)
                 HStack(spacing: 6) {
@@ -101,7 +101,7 @@ public struct BoardView: View {
 
             HStack(spacing: 6) {
                 Text("●").foregroundStyle(Theme.Palette.agent)
-                Text(reviewFocus ? "Review queue — everything waiting on you, both gates." : view.caption)
+                Text(reviewFocus ? "Review queue — everything waiting on you across all three attention columns." : view.caption)
             }
             .font(.system(size: 12.5))
             .foregroundStyle(Theme.Palette.statusMutedText)

@@ -242,6 +242,11 @@ public struct MustardBoardCard: View {
             return ("Waiting for agent to pick up", Theme.Palette.statusMutedText, Theme.Palette.statusMutedBg)
         case .needsApproval:
             return ("Your move · approve to run", Theme.Palette.agentText, Theme.Palette.agentTintLight)
+        case .inProgress where isAgent:
+            return ("Agent working…", Theme.Palette.agentText, Theme.Palette.agentTintLight)
+        case .needsInput:
+            // Amber only on the Needs You pill — the card keeps its agent-purple accent.
+            return ("Your answer needed", Theme.Palette.warnText, Theme.Palette.warnTintSoft)
         case .queued:
             // A queued task with no action type can't be routed to the agent (BAK-89);
             // surface it in amber so it's visibly not-runnable until set in the detail sheet.
