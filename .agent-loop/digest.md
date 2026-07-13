@@ -594,3 +594,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260712-170000-bak253-format-toolbar/`
 - **Revert:** `git revert 1456f77`
+
+## 2026-07-13 — MERGED · Craft editor eye-check fixes: working marker-hiding + block glyphs (PR #96)
+- **Risk:** medium (Logic/+Views/+Tests) · **Merged on green** (post-CI)
+- **Origin:** Leon's eye-check of the BAK-248 epic — markers weren't hiding in the running app, and checkboxes/bullets/dividers showed raw markdown.
+- **Checks:** swift build clean · ./build-app.sh assembles · swift test 866 pass/1 skip/0 fail (baseline 840) · Leon eye-confirmed
+- **Fresh-context review:** APPROVE, 0 blocking; below-last-line checkbox false-toggle fixed inline (fragment-rect guard + modifier-click exclusion).
+- **What landed:** (1) marker hiding rewritten setNotShownAttribute → shouldGenerateGlyphs `.null` glyph property (real reflow + regeneration-safe; the old API never actually hid in-app); focus via FocusReportingTextView; "always hidden" policy (Leon). (2) block glyphs — clickable checkbox toggling [ ]↔[x], bullet dot, divider rule — drawn over transparent raw markdown via .mustardBlockGlyph + CardLayoutManager (text==source, no NSTextAttachment). Pure NoteDecoration.blockGlyph + CheckboxToggle, 26 tests.
+- **Follow-ups (BAK-254):** per-keystroke full-doc marker rescan (bounded); blockquote still renders as plain text (no quote-bar yet); `* [X]` indented test gap.
+- **Outward actions:** none
+- **Run:** `.agent-loop/runs/20260713-bak254-craft-glyphs/`
+- **Revert:** `git revert 26976fd`
