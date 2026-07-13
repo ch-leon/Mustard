@@ -4,7 +4,7 @@ import Foundation
 /// sidebar badge, the co-pilot dock, and Today's "Agent has N things for you" nudge
 /// (BAK-104). Pure + tested; respects snooze/ignore via `RecommendationQueue.pending`.
 public enum AgentInbox {
-    /// Pending (un-snoozed, non-ignored) recommendations + tasks at the review gate.
+    /// Pending (un-snoozed, non-ignored) recommendations + tasks needing input or review.
     public static func waitingCount(
         recommendations: [Recommendation], tasks: [MustardTask], now: Date = .now
     ) -> Int {
@@ -16,9 +16,9 @@ public enum AgentInbox {
         RecommendationQueue.pending(recommendations, now: now).count
     }
 
-    /// Agent outputs awaiting your review (board Needs Review column, ADR-0010).
+    /// Agent tasks awaiting your answer or output review (Needs You + Needs Review).
     public static func outputCount(_ tasks: [MustardTask]) -> Int {
-        tasks.filter { $0.stage == .needsReview }.count
+        tasks.filter { $0.stage == .needsInput || $0.stage == .needsReview }.count
     }
 
     /// Co-pilot dock text (BAK-106): "{N} recommendation(s) and {M} output(s) waiting

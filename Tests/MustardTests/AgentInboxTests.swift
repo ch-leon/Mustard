@@ -5,14 +5,21 @@ import XCTest
 final class AgentInboxTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_750_000_000)
 
-    func test_waitingCount_pendingRecsPlusNeedsReviewTasks() {
+    func test_waitingCount_pendingRecsPlusHumanAttentionTasks() {
         let r1 = Recommendation(title: "a") // default: pending, vault_note (not ignored)
         let r2 = Recommendation(title: "b")
+        let question = MustardTask(title: "answer me"); question.stage = .needsInput
         let review = MustardTask(title: "review me"); review.stage = .needsReview
         let other = MustardTask(title: "planned"); other.stage = .planned
 
-        let n = AgentInbox.waitingCount(recommendations: [r1, r2], tasks: [review, other], now: now)
-        XCTAssertEqual(n, 3) // 2 pending recs + 1 needsReview task
+        XCTAssertEqual(
+            AgentInbox.waitingCount(recommendations: [], tasks: [question, review], now: now),
+            2
+        )
+        let n = AgentInbox.waitingCount(
+            recommendations: [r1, r2], tasks: [question, review, other], now: now
+        )
+        XCTAssertEqual(n, 4) // 2 pending recs + 2 tasks needing human attention
     }
 
     func test_waitingCount_excludesSnoozedRecs() {

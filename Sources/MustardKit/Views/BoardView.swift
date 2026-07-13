@@ -280,10 +280,10 @@ public struct BoardView: View {
                 PersonalBoard.move(task, to: stage)
                 // Keep owner coherent with the lane dropped into; Inbox/Done are shared.
                 switch stage {
-                case .forAgent, .needsApproval, .queued, .needsReview:
+                case .forAgent, .needsApproval, .queued, .inProgress, .needsInput, .needsReview:
                     task.owner = .agent
                     agent.clearHint()   // successful hand-off clears any prior hint
-                case .planned, .scheduled, .inProgress, .blocked: task.owner = .me
+                case .planned, .scheduled, .blocked: task.owner = .me
                 case .inbox, .done: break
                 }
             }
