@@ -618,6 +618,12 @@ struct MarkdownTextView: NSViewRepresentable {
             guard layoutManager.numberOfGlyphs > 0 else { return false }
             let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
             guard glyphIndex < layoutManager.numberOfGlyphs else { return false }
+            // `glyphIndex(for:)` snaps to the NEAREST glyph, so a click in the
+            // blank area below the last line resolves to that line's last glyph.
+            // Reject clicks outside the actual line box so clicking below a
+            // final checkbox line can't silently toggle it.
+            let fragment = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+            guard NSPointInRect(containerPoint, fragment) else { return false }
             let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
 
             let blocks = NoteDecoration.blocks(source)
@@ -1074,7 +1080,11 @@ final class FocusReportingTextView: NSTextView {
     /// Everything else (multi-click, non-checkbox clicks) falls through to normal
     /// text-view behaviour.
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 1, let layoutManager, let textContainer,
+        // Plain single clicks only — a modifier click (shift/cmd/etc.) must still
+        // extend/place a selection that can start on a checkbox's column.
+        let plainClick = event.modifierFlags
+            .intersection([.shift, .command, .control, .option]).isEmpty
+        if event.clickCount == 1, plainClick, let layoutManager, let textContainer,
            focusCoordinator?.handleCheckboxClick(
                at: convert(event.locationInWindow, from: nil),
                layoutManager: layoutManager,
