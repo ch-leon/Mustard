@@ -277,20 +277,25 @@ public struct BoardView: View {
             }
             // Your own lanes — pulling an agent task into one of these is a take-back.
             let personalLanes: Set<TaskStage> = [.planned, .scheduled, .blocked]
+            let hasLiveRun = task.owner == .agent && task.agentRun?.state == .running
             if stage == .done {
                 // Cancel a live agent turn through the coordinator before marking its task
                 // done, or the running claude process is orphaned and holds the serial slot
                 // until it finishes (Task 7 quality review).
-                if task.owner == .agent, task.agentRun?.state == .running {
-                    taskAgent.takeBack(task)
-                }
+                if hasLiveRun { taskAgent.takeBack(task) }
                 TaskCompletion.complete(task, in: context)
-            } else if task.owner == .agent, personalLanes.contains(stage) {
+            } else if task.owner == .agent, personalLanes.contains(stage) || (hasLiveRun && stage == .inbox) {
                 // Take-back: route through the coordinator so any live run is cancelled and
-                // the slot released, then honour the exact lane it was dropped into.
+                // the slot released, then honour the exact lane it was dropped into. Inbox is
+                // a shared lane, but a *running* task dragged there is still a take-back —
+                // otherwise its turn would be orphaned exactly like the Done case above.
                 taskAgent.takeBack(task)
                 if stage != .planned { PersonalBoard.move(task, to: stage) }
+                task.owner = .me   // guarantee owner coherence even if takeBack no-ops
             } else {
+                // NOTE (Task 10 board-hardening follow-up): dragging a *running* agent task
+                // between agent lanes here still does not cancel its turn — the requeue
+                // semantics there are a product question, not a mechanical take-back.
                 PersonalBoard.move(task, to: stage)
                 // Keep owner coherent with the lane dropped into; Inbox/Done are shared.
                 switch stage {
