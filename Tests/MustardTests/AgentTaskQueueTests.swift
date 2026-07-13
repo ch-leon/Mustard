@@ -73,6 +73,19 @@ final class AgentTaskQueueTests: XCTestCase {
         XCTAssertTrue(AgentTaskQueue.nextRunnable([connectedWorker, ordinary]) === ordinary)
     }
 
+    func test_nextRunnableSkipsBackingOffRunUntilAttemptTimeThenReturnsIt() {
+        let backingOff = makeTask(uid: "backing-off", stage: .queued, priority: .urgent, createdAt: date(100))
+        let run = AgentRun(task: backingOff)
+        run.nextAttemptAt = date(500)
+        backingOff.agentRun = run
+        let ready = makeTask(uid: "ready", stage: .queued, priority: .normal, createdAt: date(200))
+
+        // Before its attempt time the higher-priority backing-off task is skipped.
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([backingOff, ready], now: date(400)) === ready)
+        // At/after the attempt time it is runnable again and wins on priority.
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([backingOff, ready], now: date(500)) === backingOff)
+    }
+
     func test_nextRunnableDeterministicallyBreaksExactTiesByUID() {
         let z = makeTask(uid: "task-z", createdAt: date(100))
         let a = makeTask(uid: "task-a", createdAt: date(100))

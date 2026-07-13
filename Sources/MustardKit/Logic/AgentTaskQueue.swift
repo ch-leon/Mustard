@@ -11,15 +11,23 @@ public struct AgentTaskRoute: Equatable, Sendable {
 }
 
 public enum AgentTaskQueue {
-    public static func nextRunnable(_ tasks: [MustardTask]) -> MustardTask? {
+    public static func nextRunnable(_ tasks: [MustardTask], now: Date = .now) -> MustardTask? {
         tasks
             .filter {
                 $0.owner == .agent
                     && ($0.stage == .forAgent || $0.stage == .queued)
                     && !$0.isBlocked
                     && $0.agentRun?.requiresConnectedWorker != true
+                    // Honour a scheduled backoff — a run waiting for its next attempt time
+                    // is not yet runnable (AgentRetryPolicy).
+                    && !isBackingOff($0, now: now)
             }
             .min(by: precedes)
+    }
+
+    private static func isBackingOff(_ task: MustardTask, now: Date) -> Bool {
+        guard let nextAttemptAt = task.agentRun?.nextAttemptAt else { return false }
+        return nextAttemptAt > now
     }
 
     /// Sources are considered in settings order; the first eligible source whose

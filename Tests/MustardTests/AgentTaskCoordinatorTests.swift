@@ -848,6 +848,118 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(unrelated.notes, "dirty")
     }
 
+    func test_safeLocalFailureRequeuesWithBackoffAndIsSkippedUntilItsAttemptTime() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.failure(.process("temporary"))])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Local retry", stage: .forAgent)
+        task.actionType = .vaultNote
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertEqual(task.agentRun?.autoRetryCount, 1)
+        XCTAssertEqual(task.agentRun?.nextAttemptAt, secondTurn.addingTimeInterval(60))
+        XCTAssertEqual(task.agentRun?.orderedMessages.last?.kind, .error)
+
+        // A second tick at the same instant must not pick the backing-off task up again.
+        await coordinator.runNext(settings: settings, now: secondTurn)
+        let startCount = await runtime.startRequests.count
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(task.stage, .queued)
+    }
+
+    func test_externalActionTimeoutGoesToNeedsReviewAsCompletionUncertain() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.failure(.timedOut("slow"))])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Create ticket", stage: .forAgent)
+        task.actionType = .ticket
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertNil(task.agentRun?.nextAttemptAt)
+        XCTAssertEqual(task.agentRun?.autoRetryCount, 0)
+        XCTAssertTrue(task.agentRun?.orderedMessages.last?.content.contains("Completion uncertain") ?? false)
+    }
+
+    func test_backingOffTaskYieldsToAnotherRoutableTask() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .failure(.process("temporary")),
+            .completed("Other done"),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let first = insertRoutedTask(in: context, title: "Backs off", stage: .forAgent, created: 1)
+        first.actionType = .vaultNote
+        let second = insertRoutedTask(in: context, title: "Routable", stage: .forAgent, created: 2)
+        second.actionType = .vaultNote
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        XCTAssertEqual(first.stage, .queued)          // scheduled for a later attempt
+        await coordinator.runNext(settings: settings, now: secondTurn)
+
+        XCTAssertEqual(second.stage, .needsReview)    // not starved by the backing-off task
+        XCTAssertEqual(first.stage, .queued)
+    }
+
+    func test_automaticRetriesExhaustedFailsToReview() async throws {
+        let sessionID = "77777777-7777-7777-7777-777777777777"
+        let runtime = ScriptedAgentRuntime(
+            responses: [.failure(.process("still broken"))],
+            knownSessionIDs: [sessionID]
+        )
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Exhausted", stage: .queued)
+        task.actionType = .vaultNote
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.providerSessionID = sessionID
+        run.autoRetryCount = 3
+        task.agentRun = run
+        context.insert(run)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertNil(task.agentRun?.nextAttemptAt)
+        XCTAssertTrue(task.agentRun?.orderedMessages.last?.content.contains("retries exhausted") ?? false)
+    }
+
+    func test_reconcileExternalCreationGoesToUncertainReview() throws {
+        let runtime = ScriptedAgentRuntime()
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Ticket in flight", stage: .inProgress)
+        task.actionType = .ticket
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.state = .running
+        task.agentRun = run
+        context.insert(run)
+        try context.save()
+
+        XCTAssertTrue(coordinator.reconcileInterruptedRuns(now: secondTurn))
+
+        XCTAssertEqual(task.stage, .needsReview)
+        XCTAssertEqual(run.state, .interrupted)
+        XCTAssertTrue(run.orderedMessages.last?.content.contains("Completion uncertain") ?? false)
+    }
+
+    func test_requestChangesResetsRetryBudgetForFreshTurn() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.completed("First draft")])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Review then revise", stage: .forAgent)
+        task.actionType = .vaultNote
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        task.agentRun?.autoRetryCount = 2
+        task.agentRun?.nextAttemptAt = thirdTurn
+
+        coordinator.requestChanges(task, feedback: "Add a caveat", now: secondTurn)
+
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(task.agentRun?.autoRetryCount, 0)
+        XCTAssertNil(task.agentRun?.nextAttemptAt)
+    }
+
     func test_messagesUseMonotonicSequenceAndPinnedTimestamps() async throws {
         let runtime = ScriptedAgentRuntime(responses: [.question("Choose one")])
         let (coordinator, context) = try fixture(runtime: runtime)

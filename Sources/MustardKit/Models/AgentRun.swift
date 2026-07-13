@@ -33,6 +33,12 @@ public final class AgentRun {
     public var lastOutcomeRaw: String?
     public var lastError: String?
     public var requiresConnectedWorker: Bool = false
+    /// When a safe failure is scheduled for a bounded retry, the earliest time the queue
+    /// may pick this run up again. `nil` means immediately runnable.
+    public var nextAttemptAt: Date?
+    /// Consecutive automatic retries spent on the current work; reset when a human drives
+    /// a fresh turn (reply / request changes). Bounds the backoff via `AgentRetryPolicy`.
+    public var autoRetryCount: Int = 0
     public var task: MustardTask?
     @Relationship(deleteRule: .cascade, inverse: \AgentMessage.run)
     public var messages: [AgentMessage]? = []

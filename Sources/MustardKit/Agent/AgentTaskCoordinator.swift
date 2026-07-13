@@ -28,6 +28,8 @@ public final class AgentTaskCoordinator {
         let lastOutcomeRaw: String?
         let lastError: String?
         let requiresConnectedWorker: Bool
+        let nextAttemptAt: Date?
+        let autoRetryCount: Int
     }
 
     public private(set) var isRunning = false
@@ -89,7 +91,7 @@ public final class AgentTaskCoordinator {
             return
         }
 
-        guard let (task, route) = nextRoutableTask(in: tasks, settings: settings) else {
+        guard let (task, route) = nextRoutableTask(in: tasks, settings: settings, now: now) else {
             return
         }
 
@@ -130,6 +132,7 @@ public final class AgentTaskCoordinator {
         task.stage = .inProgress
         run.state = .running
         run.requiresConnectedWorker = false
+        run.nextAttemptAt = nil   // picking it up now clears any scheduled backoff
         run.startedAt = run.startedAt ?? now
         run.completedAt = nil
         run.lastError = nil
@@ -319,18 +322,29 @@ public final class AgentTaskCoordinator {
             let task = run.task
             let taskBefore = task.map(taskSnapshot)
             run.state = .interrupted
-            run.completedAt = nil
             run.lastError = "The app stopped while this agent turn was running."
-            if let task,
-               task.owner == .agent,
-               task.stage == .inProgress {
-                task.stage = .queued
+
+            // A gated (ticket/draft) turn may have created an external artifact before the
+            // app stopped; whether it did is unknown, so route it to review rather than
+            // silently re-running it. Local work returns straight to the queue.
+            let content: String
+            if let task, task.owner == .agent, task.stage == .inProgress,
+               task.actionType?.isGated == true {
+                task.stage = .needsReview
+                run.completedAt = now
+                content = "Recovered an interrupted run. Completion uncertain — check whether the external artifact exists before requesting a retry."
+            } else {
+                if let task, task.owner == .agent, task.stage == .inProgress {
+                    task.stage = .queued
+                }
+                run.completedAt = nil
+                content = "Recovered an interrupted run and returned it to the queue."
             }
             let message = append(
                 to: run,
                 role: .system,
                 kind: .recovery,
-                content: "Recovered an interrupted run and returned it to the queue.",
+                content: content,
                 now: now
             )
             touched.append((run, runBefore, task, taskBefore, message))
@@ -438,15 +452,12 @@ public final class AgentTaskCoordinator {
 
         switch failure {
         case .authenticationRequired(let detail):
-            let message = detail.isEmpty ? "Agent authentication is required." : detail
-            authenticationRequired = true
-            lastError = message
-            task.stage = .queued
-            run.state = .queued
-            run.completedAt = nil
-            run.lastError = message
-            append(to: run, role: .system, kind: .error, content: message, now: now)
-            _ = save("Could not save the authentication pause")
+            pauseForAuthentication(
+                message: detail.isEmpty ? "Agent authentication is required." : detail,
+                task: task,
+                run: run,
+                now: now
+            )
 
         case .cancelled(let detail):
             let message = detail.isEmpty
@@ -469,46 +480,106 @@ public final class AgentTaskCoordinator {
             )
 
         case .rateLimited(let detail):
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: failureDescription("Rate limited", detail),
-                now: now,
-                kind: .error
-            )
+            applyRecoverableFailure(failure, description: failureDescription("Rate limited", detail), task: task, run: run, now: now)
         case .timedOut(let detail):
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: failureDescription("Timed out", detail),
-                now: now,
-                kind: .error
-            )
+            applyRecoverableFailure(failure, description: failureDescription("Timed out", detail), task: task, run: run, now: now)
         case .sessionMissing(let detail):
             // The sole recovery attempt has already been consumed before this path.
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: failureDescription("Replacement session missing", detail),
-                now: now,
-                kind: .error
-            )
+            applyRecoverableFailure(failure, description: failureDescription("Replacement session missing", detail), task: task, run: run, now: now)
         case .malformedOutput(let detail):
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: failureDescription("Malformed agent output", detail),
-                now: now,
-                kind: .error
-            )
+            applyRecoverableFailure(failure, description: failureDescription("Malformed agent output", detail), task: task, run: run, now: now)
         case .process(let detail):
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: failureDescription("Agent process failed", detail),
-                now: now,
-                kind: .error
+            applyRecoverableFailure(failure, description: failureDescription("Agent process failed", detail), task: task, run: run, now: now)
+        }
+    }
+
+    private func pauseForAuthentication(
+        message: String,
+        task: MustardTask,
+        run: AgentRun,
+        now: Date
+    ) {
+        authenticationRequired = true
+        lastError = message
+        task.stage = .queued
+        run.state = .queued
+        run.completedAt = nil
+        run.lastError = message
+        append(to: run, role: .system, kind: .error, content: message, now: now)
+        _ = save("Could not save the authentication pause")
+    }
+
+    /// Apply the pure `AgentRetryPolicy` to a failed turn: pause on auth, requeue with a
+    /// bounded backoff for safe local work, send outward-artifact ambiguity to review as
+    /// completion-uncertain, or surface a terminal failure once retries are exhausted.
+    /// Only acts on the still-current running turn; narrow save, no broad rollback.
+    private func applyRecoverableFailure(
+        _ failure: AgentRuntimeFailure,
+        description: String,
+        task: MustardTask,
+        run: AgentRun,
+        now: Date
+    ) {
+        guard task.owner == .agent,
+              task.stage == .inProgress,
+              run.state == .running
+        else { return }
+
+        switch AgentRetryPolicy.action(for: failure, action: task.actionType, retryCount: run.autoRetryCount) {
+        case .pauseRuntime:
+            pauseForAuthentication(message: description, task: task, run: run, now: now)
+
+        case .retryAfter(let seconds):
+            run.autoRetryCount += 1
+            run.nextAttemptAt = now.addingTimeInterval(seconds)
+            task.stage = .queued
+            run.state = .failed
+            run.completedAt = now
+            run.lastOutcomeRaw = nil
+            run.lastError = description
+            lastError = description
+            append(
+                to: run,
+                role: .system,
+                kind: .error,
+                content: "\(description). Retrying automatically (attempt \(run.autoRetryCount)).",
+                now: now
             )
+            _ = save("Could not save the retry schedule")
+
+        case .completionUncertain:
+            task.stage = .needsReview
+            run.state = .failed
+            run.completedAt = now
+            run.nextAttemptAt = nil
+            run.lastOutcomeRaw = nil
+            run.lastError = description
+            lastError = description
+            append(
+                to: run,
+                role: .agent,
+                kind: .error,
+                content: "Completion uncertain — check whether the external artifact exists before requesting a retry. (\(description))",
+                now: now
+            )
+            _ = save("Could not save the completion-uncertain review")
+
+        case .fail:
+            task.stage = .needsReview
+            run.state = .failed
+            run.completedAt = now
+            run.nextAttemptAt = nil
+            run.lastOutcomeRaw = nil
+            run.lastError = description
+            lastError = description
+            append(
+                to: run,
+                role: .system,
+                kind: .error,
+                content: "\(description). Automatic retries exhausted — review needed.",
+                now: now
+            )
+            _ = save("Could not save the failed agent turn")
         }
     }
 
@@ -636,9 +707,10 @@ public final class AgentTaskCoordinator {
                 && task.stage == .needsInput
                 && run.state == .needsInput
         case .reviewFeedback:
+            // Any Needs Review task can be sent back for changes — including a
+            // completion-uncertain one whose run ended `.failed` rather than `.completed`.
             isLegal = task.owner == .agent
                 && task.stage == .needsReview
-                && run.state == .completed
         default:
             isLegal = false
         }
@@ -653,6 +725,9 @@ public final class AgentTaskCoordinator {
         run.requiresConnectedWorker = false
         run.completedAt = nil
         run.lastError = nil
+        // A human-driven turn is a fresh attempt: clear any backoff and retry budget.
+        run.nextAttemptAt = nil
+        run.autoRetryCount = 0
         lastError = nil
         guard save("Could not save the agent reply") else {
             let persistenceError = lastError
@@ -674,11 +749,12 @@ public final class AgentTaskCoordinator {
 
     private func nextRoutableTask(
         in tasks: [MustardTask],
-        settings: SourceSettings
+        settings: SourceSettings,
+        now: Date
     ) -> (MustardTask, AgentTaskRoute)? {
         var remaining = tasks
         var unroutableTitles: [String] = []
-        while let candidate = AgentTaskQueue.nextRunnable(remaining) {
+        while let candidate = AgentTaskQueue.nextRunnable(remaining, now: now) {
             if let route = AgentTaskQueue.route(candidate, settings: settings) {
                 return (candidate, route)
             }
@@ -719,7 +795,9 @@ public final class AgentTaskCoordinator {
             completedAt: run.completedAt,
             lastOutcomeRaw: run.lastOutcomeRaw,
             lastError: run.lastError,
-            requiresConnectedWorker: run.requiresConnectedWorker
+            requiresConnectedWorker: run.requiresConnectedWorker,
+            nextAttemptAt: run.nextAttemptAt,
+            autoRetryCount: run.autoRetryCount
         )
     }
 
@@ -746,6 +824,8 @@ public final class AgentTaskCoordinator {
         run.lastOutcomeRaw = snapshot.lastOutcomeRaw
         run.lastError = snapshot.lastError
         run.requiresConnectedWorker = snapshot.requiresConnectedWorker
+        run.nextAttemptAt = snapshot.nextAttemptAt
+        run.autoRetryCount = snapshot.autoRetryCount
     }
 
     private func remove(_ message: AgentMessage, from run: AgentRun) {
