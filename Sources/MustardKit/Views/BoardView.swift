@@ -10,6 +10,7 @@ import SwiftData
 public struct BoardView: View {
     @Environment(\.modelContext) private var context
     @Environment(AgentService.self) private var agent
+    @Environment(AgentTaskCoordinator.self) private var taskAgent
     @Query private var allTasks: [MustardTask]
     @Query(sort: \Area.name) private var areas: [Area]
 
@@ -274,8 +275,21 @@ public struct BoardView: View {
                 agent.delegate(task)   // no-ops the hand-off and sets the hint banner
                 return false
             }
+            // Your own lanes — pulling an agent task into one of these is a take-back.
+            let personalLanes: Set<TaskStage> = [.planned, .scheduled, .blocked]
             if stage == .done {
+                // Cancel a live agent turn through the coordinator before marking its task
+                // done, or the running claude process is orphaned and holds the serial slot
+                // until it finishes (Task 7 quality review).
+                if task.owner == .agent, task.agentRun?.state == .running {
+                    taskAgent.takeBack(task)
+                }
                 TaskCompletion.complete(task, in: context)
+            } else if task.owner == .agent, personalLanes.contains(stage) {
+                // Take-back: route through the coordinator so any live run is cancelled and
+                // the slot released, then honour the exact lane it was dropped into.
+                taskAgent.takeBack(task)
+                if stage != .planned { PersonalBoard.move(task, to: stage) }
             } else {
                 PersonalBoard.move(task, to: stage)
                 // Keep owner coherent with the lane dropped into; Inbox/Done are shared.

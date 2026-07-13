@@ -339,6 +339,9 @@ public struct TaskDetailSheet: View {
 
     /// Schedule a proposed task for tomorrow 9am as your own planned/scheduled work.
     private func scheduleTomorrow() {
+        // Scheduling a proposed agent task is a take-back: cancel any run and release the
+        // slot through the coordinator before it becomes your own scheduled work.
+        if task.owner == .agent { taskAgent.takeBack(task) }
         task.owner = .me
         let cal = Calendar.current
         if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {
