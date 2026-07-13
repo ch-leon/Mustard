@@ -247,7 +247,7 @@ public final class AgentTaskCoordinator {
 
     public func takeBack(_ task: MustardTask, now: Date = .now) {
         let legalStages: Set<TaskStage> = [
-            .forAgent, .queued, .inProgress, .needsInput, .needsReview,
+            .inbox, .forAgent, .needsApproval, .queued, .inProgress, .needsInput, .needsReview,
         ]
         guard task.owner == .agent, legalStages.contains(task.stage) else { return }
         guard persistLocalCancellation(

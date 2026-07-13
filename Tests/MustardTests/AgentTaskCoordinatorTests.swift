@@ -560,6 +560,21 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertFalse(task.agentRun?.orderedMessages.contains { $0.content == "Late success" } ?? true)
     }
 
+    func test_takeBackSupportsAgentOwnedProposedAndApprovalStages() throws {
+        let runtime = ScriptedAgentRuntime()
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let proposed = insertRoutedTask(in: context, title: "Proposed", stage: .inbox)
+        let approval = insertRoutedTask(in: context, title: "Approval", stage: .needsApproval)
+
+        coordinator.takeBack(proposed, now: firstTurn)
+        coordinator.takeBack(approval, now: firstTurn)
+
+        XCTAssertEqual(proposed.owner, .me)
+        XCTAssertEqual(proposed.stage, .planned)
+        XCTAssertEqual(approval.owner, .me)
+        XCTAssertEqual(approval.stage, .planned)
+    }
+
     func test_cancelActiveImmediatelyCancelsLocalStateAndLateResponseCannotOverwriteIt() async throws {
         let runtime = ScriptedAgentRuntime(
             responses: [.cancelled("Late provider acknowledgement")],

@@ -8,6 +8,7 @@ public struct TaskDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(AgentService.self) private var agent
+    @Environment(AgentTaskCoordinator.self) private var taskAgent
     @Bindable var task: MustardTask
     /// Set when hosted in the docked drawer (not a sheet): the drawer owns dismissal,
     /// so close actions call this instead of the sheet-only `@Environment(\.dismiss)`.
@@ -86,6 +87,13 @@ public struct TaskDetailSheet: View {
                                 get: { task.owner },
                                 set: { newOwner in
                                     if newOwner == .agent, !gateHandOff() { return }
+                                    // Switching an agent task back to you is a take-back:
+                                    // route it through the coordinator so the run is cancelled
+                                    // and the slot released rather than mutating owner directly.
+                                    if newOwner == .me, task.owner == .agent {
+                                        taskAgent.takeBack(task)
+                                        return
+                                    }
                                     task.owner = newOwner
                                 }
                             )) {
@@ -312,10 +320,16 @@ public struct TaskDetailSheet: View {
         }
     }
 
-    /// Take a task back to yourself as planned work.
+    /// Take a task back to yourself as planned work. Agent-owned work routes through the
+    /// coordinator so any active run is cancelled and the local slot is released; genuinely
+    /// local tasks fall back to a direct reassignment.
     private func takeOver() {
-        task.owner = .me
-        if task.stage.isOpen { task.stage = .planned }
+        if task.owner == .agent {
+            taskAgent.takeBack(task)
+        } else {
+            task.owner = .me
+            if task.stage.isOpen { task.stage = .planned }
+        }
     }
 
     /// Approve a gate using the shared state machine (needsApproval → queued/needsReview).

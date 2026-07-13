@@ -7,6 +7,7 @@ import SwiftData
 /// `Theme` (the canonical token set — BAK-98); sizes are from the handoff.
 public struct MustardBoardCard: View {
     @Environment(AgentService.self) private var agent
+    @Environment(AgentTaskCoordinator.self) private var taskAgent
     @Environment(\.modelContext) private var context
     @State private var hovering = false
     let task: MustardTask
@@ -90,7 +91,13 @@ public struct MustardBoardCard: View {
     private var ownerToggle: some View {
         HStack(spacing: 0) {
             ownerTab(label: "You", active: !isAgent) {
-                PersonalBoard.reassign(task, to: .me)
+                // Agent-owned work is taken back through the coordinator so the run is
+                // cancelled and the local slot released; genuinely local tasks just reassign.
+                if task.owner == .agent {
+                    taskAgent.takeBack(task)
+                } else {
+                    PersonalBoard.reassign(task, to: .me)
+                }
             }
             ownerTab(label: "✦", active: isAgent) {
                 agent.delegate(task)
@@ -116,7 +123,9 @@ public struct MustardBoardCard: View {
                        : Color.clear
             )
             .contentShape(Rectangle())
-            .onTapGesture(perform: action)
+            // Tapping the already-active tab is inert (defense in depth): re-delegation
+            // and take-back are only meaningful when switching away from the current owner.
+            .onTapGesture { if !active { action() } }
     }
 
     // MARK: Title
@@ -354,5 +363,6 @@ struct FlowMeta: Layout {
     }
     .background(Theme.Palette.surface.opacity(0.4))
     .environment(AgentService(context: ctx))
+    .environment(AgentTaskCoordinator(context: ctx))
 }
 #endif

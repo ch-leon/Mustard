@@ -449,5 +449,6 @@ struct QuickColumnAdd: View {
         .frame(width: 1100, height: 700)
         .modelContainer(PreviewData.container)
         .environment(AgentService(context: PreviewData.container.mainContext))
+        .environment(AgentTaskCoordinator(context: PreviewData.container.mainContext))
 }
 #endif
