@@ -70,6 +70,47 @@ public enum PreviewData {
                                   forwardLinks: ["guides/Setup.md"], contentSnapshot: "# Home\ngo [[Setup]]"))
         ctx.insert(NoteIndexEntry(project: "DL-Knowledge-Base", relativePath: "guides/Setup.md", title: "Setup",
                                   contentSnapshot: "# Setup"))
+
+        // Agent task-session samples (Task 12): one Needs You question and one Needs
+        // Review output, each carrying a durable AgentRun conversation so Board, Agent
+        // Console, and Task Detail render without any live CLI work.
+        let prep = MustardTask(title: "Prep DLA 5.2 release", owner: .agent)
+        prep.stage = .needsInput
+        prep.list = dev
+        prep.actionType = .ticket
+        let prepRun = AgentRun(task: prep, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        prepRun.state = .needsInput
+        prepRun.providerSessionID = "preview-prep-session"
+        prep.agentRun = prepRun
+        ctx.insert(prep); ctx.insert(prepRun)
+        for m in [
+            AgentMessage(run: prepRun, sequence: 0, role: .human, kind: .delegation, content: "Prep the DLA 5.2 release."),
+            AgentMessage(run: prepRun, sequence: 1, role: .system, kind: .progress, content: "Agent started work."),
+            AgentMessage(run: prepRun, sequence: 2, role: .agent, kind: .question,
+                         content: "Which version number should the release notes target — 5.2.0 or 5.2.1?"),
+        ] { ctx.insert(m) }
+
+        let review = MustardTask(title: "Create Shortcut story for BLE regression", owner: .agent)
+        review.stage = .needsReview
+        review.list = dev
+        review.actionType = .ticket
+        let storyLink = TaskLink(label: "Shortcut sc-4821", url: "https://app.shortcut.com/codeheroes/story/4821")
+        review.links = [storyLink]
+        let reviewRun = AgentRun(task: review, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        reviewRun.state = .completed
+        reviewRun.providerSessionID = "preview-review-session"
+        reviewRun.completedAt = .now
+        review.agentRun = reviewRun
+        ctx.insert(review); ctx.insert(reviewRun)
+        for m in [
+            AgentMessage(run: reviewRun, sequence: 0, role: .human, kind: .delegation,
+                         content: "Create a Shortcut story for the BLE handshake regression."),
+            AgentMessage(run: reviewRun, sequence: 1, role: .system, kind: .progress, content: "Agent started work."),
+            AgentMessage(run: reviewRun, sequence: 2, role: .agent, kind: .result,
+                         content: "Created Shortcut story sc-4821 with repro steps and the linked tracker item.",
+                         links: [storyLink]),
+        ] { ctx.insert(m) }
+
         return container
     }()
 }

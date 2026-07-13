@@ -1,7 +1,7 @@
 # Agent task sessions — design spec
 
 - **Date:** 2026-07-13
-- **Status:** Approved in conversation; awaiting written-spec review
+- **Status:** Core implemented; learning follow-on planned (awaiting Leon's hands-on test before merge)
 - **Builds on:** ADR-0010, the shared task board, the agent file bridge, and the
   `drain-agent-queue` connected worker
 - **Supersedes for the default path:** the manually invoked worker as the normal

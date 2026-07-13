@@ -111,6 +111,25 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       (sub-issues BAK-249..253, phases 0-4) — **all five phases merged 2026-07-12**
       (PRs #91-#95, suite 696 → 835); follow-ups in BAK-254; Leon eye-check pending.
 
+## Done (2026-07-13) ✅
+
+- [x] **F24 Resumable agent task sessions (core MVP)** — Mustard automatically picks up
+      delegated tasks, pauses for human answers without blocking the queue, resumes the
+      same Claude session, and sends every result to a unified **Needs Review** flow.
+      Durable `AgentRun`/`AgentMessage` conversation; provider-neutral `AgentRuntime` with
+      the resumable `ClaudeTaskRuntime`; one serial `AgentTaskCoordinator`; pure
+      `AgentTaskQueue`/`AgentTaskTransition`/`AgentRetryPolicy`; **Needs You** stage;
+      structured worker contract (drafts-only, no send); the file bridge is now reserved
+      for explicit `requiresConnectedWorker` fallback only. Task conversation + review UI
+      in Task Detail and the Agent Console attention queue. Specs:
+      `docs/specs/2026-07-13-agent-task-sessions-design.md`,
+      `docs/superpowers/plans/2026-07-13-agent-task-sessions-core.md`. Branch
+      `codex/agent-task-sessions-implementation` (suite → 984); **awaiting Leon's hands-on
+      test before merge**. Remaining fast-follows: the learning loop
+      (`.../2026-07-13-agent-learning-loop.md`), a Codex runtime adapter, parallel
+      execution, live token streaming, automatic connected-session launch, and the
+      pre-existing iOS shared-view-atom build break (unrelated; tracked separately).
+
 ## Next — needs Leon ⛔
 
 - [ ] **N1 Live Google Calendar** — `GoogleAuthSession` (loopback + ASWebAuth) +
