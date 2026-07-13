@@ -638,6 +638,71 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(task.agentRun?.lastOutcomeRaw, AgentTurnOutcome.cancelled.rawValue)
     }
 
+    func test_runtimeCancelledFailureSaveFailureCompensatesDurablyAndPreservesUnrelatedEdit() async throws {
+        let runtime = ScriptedAgentRuntime(
+            responses: [.failure(.cancelled("Provider stopped"))],
+            suspendNextInvocation: true
+        )
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var saveCount = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                saveCount += 1
+                if saveCount == 2 { throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Runtime cancellation failure", stage: .forAgent)
+        let unrelated = MustardTask(title: "Unrelated")
+        unrelated.notes = "saved"
+        context.insert(unrelated)
+
+        let active = Task { await coordinator.runNext(settings: settings, now: firstTurn) }
+        await waitForInvocation(runtime)
+        unrelated.notes = "dirty during runtime"
+        await runtime.releaseInvocation()
+        await active.value
+
+        let run = try XCTUnwrap(task.agentRun)
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(run.state, .failed)
+        XCTAssertNil(run.lastOutcomeRaw)
+        XCTAssertEqual(run.completedAt, secondTurn)
+        XCTAssertEqual(run.orderedMessages.map(\.kind), [.progress, .error])
+        XCTAssertTrue(run.lastError?.contains("Could not save the agent turn result") == true)
+        XCTAssertEqual(run.orderedMessages.last?.content, run.lastError)
+        XCTAssertEqual(unrelated.notes, "dirty during runtime")
+        XCTAssertEqual(saveCount, 3)
+
+        let fresh = ModelContext(container)
+        let durableTask = try XCTUnwrap(
+            fresh.fetch(FetchDescriptor<MustardTask>()).first { $0.uid == task.uid }
+        )
+        XCTAssertEqual(durableTask.owner, .agent)
+        XCTAssertEqual(durableTask.stage, .queued)
+        XCTAssertEqual(durableTask.agentRun?.state, .failed)
+        XCTAssertNil(durableTask.agentRun?.lastOutcomeRaw)
+        XCTAssertEqual(durableTask.agentRun?.completedAt, secondTurn)
+        XCTAssertEqual(durableTask.agentRun?.orderedMessages.map(\.kind), [.progress, .error])
+        XCTAssertEqual(
+            durableTask.agentRun?.orderedMessages.last?.content,
+            durableTask.agentRun?.lastError
+        )
+        XCTAssertTrue(
+            durableTask.agentRun?.lastError?.contains("Could not save the agent turn result") == true
+        )
+        let durableUnrelated = try XCTUnwrap(
+            fresh.fetch(FetchDescriptor<MustardTask>()).first { $0.uid == unrelated.uid }
+        )
+        XCTAssertEqual(durableUnrelated.notes, "dirty during runtime")
+    }
+
     func test_acceptUsesSharedCompletionLogicIncludingRecurrence() throws {
         let runtime = ScriptedAgentRuntime()
         let (coordinator, context) = try fixture(runtime: runtime)

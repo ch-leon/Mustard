@@ -418,12 +418,23 @@ public final class AgentTaskCoordinator {
             _ = save("Could not save the authentication pause")
 
         case .cancelled(let detail):
-            applyCancellation(
-                task: task,
+            let message = detail.isEmpty
+                ? "The agent runtime cancelled the turn."
+                : detail
+            apply(
+                AgentTurnResult(
+                    outcome: .cancelled,
+                    message: message,
+                    questions: [],
+                    summary: message,
+                    artifacts: [],
+                    retryDisposition: .none,
+                    errorCategory: nil,
+                    connectedCapability: nil
+                ),
+                to: task,
                 run: run,
-                detail: detail.isEmpty ? "The agent runtime cancelled the turn." : detail,
-                now: now,
-                role: .agent
+                now: now
             )
 
         case .rateLimited(let detail):
@@ -838,25 +849,6 @@ public final class AgentTaskCoordinator {
         lastError = detail
         append(to: run, role: .system, kind: kind, content: detail, now: now)
         _ = save("Could not save the failed agent turn")
-    }
-
-    private func applyCancellation(
-        task: MustardTask,
-        run: AgentRun,
-        detail: String,
-        now: Date,
-        role: AgentMessageRole
-    ) {
-        let decision = AgentTaskTransition.decision(for: .cancelled)
-        task.stage = decision.taskStage
-        if let owner = decision.taskOwner { task.owner = owner }
-        run.state = decision.runState
-        run.requiresConnectedWorker = false
-        run.completedAt = now
-        run.lastOutcomeRaw = AgentTurnOutcome.cancelled.rawValue
-        run.lastError = nil
-        append(to: run, role: role, kind: .recovery, content: detail, now: now)
-        _ = save("Could not save the cancelled agent turn")
     }
 
     private func isCurrent(
