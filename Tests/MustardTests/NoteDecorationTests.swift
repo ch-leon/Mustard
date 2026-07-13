@@ -478,4 +478,167 @@ final class NoteDecorationTests: XCTestCase {
         XCTAssertEqual(NoteDecoration.hideableMarkerRanges(source, in: block),
                        [NSRange(location: 0, length: 2)])
     }
+
+    // MARK: - Empty heading/quote classification (regression: trailing-space trim)
+
+    /// Bug repro: `classify()` used to check the heading/quote prefix against a
+    /// BOTH-SIDES-trimmed string, which eats the one trailing space that marks
+    /// "marker with no title/text yet" (e.g. right after the slash menu inserts
+    /// "#### " and the user hasn't typed a title). That collapsed an empty
+    /// heading to plain `.text`, so it never got heading styling OR (once
+    /// focus moves away) Phase-1 marker hiding — it just sat there as literal
+    /// "####" forever. Bullet/ordered already dodged this because they check
+    /// against a leading-only trim; heading/quote must too.
+    func test_blockKind_emptyHeadingWithTrailingSpaceNoTitle_stillClassifiesAsHeading() {
+        for level in 1...6 {
+            let source = String(repeating: "#", count: level) + " "
+            let block = NoteDecoration.blocks(source)[0]
+            XCTAssertEqual(NoteDecoration.blockKind(source, of: block), .heading(level),
+                           "level \(level) empty heading misclassified")
+        }
+    }
+
+    func test_blockKind_emptyQuoteWithTrailingSpaceNoText_stillClassifiesAsQuote() {
+        let source = "> "
+        let block = NoteDecoration.blocks(source)[0]
+        XCTAssertEqual(NoteDecoration.blockKind(source, of: block), .quote)
+    }
+
+    /// The exact repro from the screenshot: a real H1 with a title, an empty H4
+    /// just inserted (no title yet), then a checklist item.
+    func test_blockKind_mixedDocumentWithEmptyHeading_classifiesAllThreeBlocksCorrectly() {
+        let source = "# 12th July\n#### \n- [ ] "
+        let blocks = NoteDecoration.blocks(source)
+        XCTAssertEqual(blocks.map { NoteDecoration.blockKind(source, of: $0) },
+                       [.heading(1), .heading(4), .todoList])
+    }
+
+    /// Once it correctly classifies as a heading, its marker becomes hideable —
+    /// the whole point of fixing the classification (Phase 1 can only hide what
+    /// it recognizes as a heading in the first place).
+    func test_hideableMarkerRanges_emptyHeading_wholeLineIsTheMarker() {
+        let source = "#### "
+        let block = NoteDecoration.blocks(source)[0]
+        XCTAssertEqual(NoteDecoration.hideableMarkerRanges(source, in: block),
+                       [NSRange(location: 0, length: 5)])
+    }
+
+    /// No regression: real content after the marker still classifies and still
+    /// only hides the prefix, not the title text.
+    func test_blockKind_headingWithTrailingSpaceAfterRealTitle_stillClassifiesAsHeading() {
+        let source = "## Title \n"   // trailing space AFTER real content
+        let block = NoteDecoration.blocks(source)[0]
+        XCTAssertEqual(NoteDecoration.blockKind(source, of: block), .heading(2))
+    }
+
+    // MARK: - Block glyphs (Craft-style rendered prefixes)
+
+    private typealias BlockGlyph = NoteDecoration.BlockGlyph
+
+    /// First block's `blockGlyph` result, plus a convenience slice of `source`
+    /// via the returned `markerRange` — the shape every test below checks.
+    private func glyph(_ source: String, blockIndex: Int = 0) -> (markerRange: NSRange, glyph: BlockGlyph)? {
+        let blocks = NoteDecoration.blocks(source)
+        return NoteDecoration.blockGlyph(source, of: blocks[blockIndex])
+    }
+
+    private func markerSlice(_ source: String, _ range: NSRange) -> String {
+        (source as NSString).substring(with: range)
+    }
+
+    func test_blockGlyph_uncheckedTodo_withTrailingText() {
+        let source = "- [ ] task"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .checkbox(checked: false))
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "- [ ] ")
+    }
+
+    func test_blockGlyph_checkedTodo_lowercaseX_withTrailingText() {
+        let source = "- [x] done"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .checkbox(checked: true))
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "- [x] ")
+    }
+
+    func test_blockGlyph_checkedTodo_uppercaseX_withTrailingText() {
+        let source = "- [X] done"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .checkbox(checked: true))
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "- [X] ")
+    }
+
+    func test_blockGlyph_bareUncheckedTodo_noTrailingSpaceOrText() {
+        let source = "- [ ]"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .checkbox(checked: false))
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "- [ ]")
+    }
+
+    func test_blockGlyph_plainBullet_dash() {
+        let source = "- item"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .bullet)
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "- ")
+    }
+
+    func test_blockGlyph_plainBullet_asterisk() {
+        let source = "* item"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .bullet)
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "* ")
+    }
+
+    func test_blockGlyph_divider_dashes() {
+        let source = "---"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .divider)
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "---")
+    }
+
+    func test_blockGlyph_divider_asterisks() {
+        let source = "***"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .divider)
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "***")
+    }
+
+    func test_blockGlyph_quote() {
+        let source = "> quoted"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .quote)
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "> ")
+    }
+
+    func test_blockGlyph_orderedList_isNil() {
+        XCTAssertNil(glyph("1. item"))
+    }
+
+    func test_blockGlyph_heading_isNil() {
+        XCTAssertNil(glyph("# Heading"))
+    }
+
+    func test_blockGlyph_plainParagraph_isNil() {
+        XCTAssertNil(glyph("hello"))
+    }
+
+    func test_blockGlyph_indentedTodo_markerRangeIncludesLeadingSpaces() {
+        let source = "  - [ ] x"
+        let result = glyph(source)
+        XCTAssertEqual(result?.glyph, .checkbox(checked: false))
+        XCTAssertEqual(markerSlice(source, result!.markerRange), "  - [ ] ")
+    }
+
+    func test_blockGlyph_frontmatterBlock_isNil() {
+        let source = "---\ntitle: X\n---\nbody"
+        let blocks = NoteDecoration.blocks(source)
+        XCTAssertTrue(blocks[0].isFrontmatter)
+        XCTAssertNil(NoteDecoration.blockGlyph(source, of: blocks[0]))
+    }
+
+    func test_blockGlyph_fencedCodeBlock_isNil() {
+        let source = "```\n- [ ] not a checkbox\n```\n"
+        let blocks = NoteDecoration.blocks(source)
+        XCTAssertTrue(blocks[0].isFence)
+        XCTAssertNil(NoteDecoration.blockGlyph(source, of: blocks[0]))
+    }
 }

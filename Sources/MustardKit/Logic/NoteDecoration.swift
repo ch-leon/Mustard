@@ -199,6 +199,66 @@ public enum NoteDecoration {
         }
     }
 
+    // MARK: - Block glyphs (Craft-style rendered prefixes)
+
+    /// A block prefix the editor draws as a real glyph instead of raw markdown —
+    /// the checkbox / bullet / divider / quote treatments. Purely a classification
+    /// of the SOURCE; drawing and hit-testing live in the view.
+    public enum BlockGlyph: Equatable {
+        case checkbox(checked: Bool)   // "- [ ] " / "- [x] "
+        case bullet                    // "- " / "* " (non-todo)
+        case divider                   // "---" / "***"
+        case quote                     // "> "
+    }
+
+    /// For a block whose first line carries a drawable prefix, the `markerRange`
+    /// (the raw syntax the view suppresses — e.g. "- [ ] ", "- ", "---", "> ")
+    /// and the `glyph` to draw in its place. `nil` for everything else (ordinary
+    /// paragraphs, headings — whose `# ` is a hidden text marker, not a drawn
+    /// glyph — numbered lists, which keep their visible "1. ", code, tables,
+    /// images, subpages). Ranges are absolute UTF-16 offsets into `source`.
+    public static func blockGlyph(_ source: String, of block: Block) -> (markerRange: NSRange, glyph: BlockGlyph)? {
+        guard !block.isFrontmatter, !block.isFence else { return nil }
+        let ns = source as NSString
+        guard block.range.upperBound <= ns.length else { return nil }
+        guard let first = lines(ns, in: block.range).first else { return nil }
+        let content = first.content
+        let base = first.contentRange.location
+
+        switch classify(content) {
+        case .rule:
+            return (first.contentRange, .divider)
+        case .quote:
+            let prefix = leadingWhitespaceCount(content) + 2   // "> "
+            return (NSRange(location: base, length: prefix), .quote)
+        case .bullet:
+            let indent = leadingSpaceCount(content)
+            let afterBullet = content.dropFirst(indent).dropFirst(2)   // past "- "/"* "
+            if let checkboxLen = todoMarkerLength(afterBullet) {
+                // "- " + "[ ]"/"[x]"(+ optional trailing space)
+                return (NSRange(location: base, length: indent + 2 + checkboxLen),
+                        .checkbox(checked: isCheckedMarker(afterBullet)))
+            }
+            return (NSRange(location: base, length: indent + 2), .bullet)
+        default:
+            return nil
+        }
+    }
+
+    /// Length of the "[ ]"/"[x]"/"[X]" checkbox marker (plus one trailing space if
+    /// present) at the start of `afterBullet`, or `nil` if there's no checkbox.
+    private static func todoMarkerLength(_ afterBullet: Substring) -> Int? {
+        for marker in ["[ ]", "[x]", "[X]"] {
+            if afterBullet == marker { return marker.count }
+            if afterBullet.hasPrefix(marker + " ") { return marker.count + 1 }
+        }
+        return nil
+    }
+
+    private static func isCheckedMarker(_ afterBullet: Substring) -> Bool {
+        afterBullet.hasPrefix("[x]") || afterBullet.hasPrefix("[X]")
+    }
+
     // MARK: - Spans
 
     public struct Span: Equatable {
@@ -669,8 +729,16 @@ public enum NoteDecoration {
         if trimmed.isEmpty { return .blank }
         if trimmed.hasPrefix("```") { return .fence }
         if trimmed == "---" || trimmed == "***" { return .rule }
-        if let level = headingLevel(trimmed) { return .heading(level) }
-        if trimmed.hasPrefix("> ") { return .quote }
+        // Leading-whitespace-only trim (tabs included, matching `leadingWhitespaceCount`
+        // and `lineSpans`' heading/quote prefix-length math) — deliberately NOT
+        // `trimmed`, which also strips TRAILING whitespace and would eat the one
+        // space an EMPTY heading/quote ("#### " or "> " with no title/text yet —
+        // e.g. right after the slash menu inserts the template and before the user
+        // types) needs to classify correctly. Bullet/ordered below already dodge
+        // this bug because they check their own from-scratch `afterIndent`.
+        let afterLeadingWhitespace = content.drop { $0 == " " || $0 == "\t" }
+        if let level = headingLevel(afterLeadingWhitespace) { return .heading(level) }
+        if afterLeadingWhitespace.hasPrefix("> ") { return .quote }
         let afterIndent = content.drop { $0 == " " }
         if afterIndent.hasPrefix("- ") || afterIndent.hasPrefix("* ") { return .bullet }
         if isOrdered(afterIndent) { return .ordered }
@@ -678,9 +746,9 @@ public enum NoteDecoration {
     }
 
     /// `#{1,6} ` → the level; seven hashes or no trailing space is not a heading.
-    private static func headingLevel(_ trimmed: String) -> Int? {
-        let hashes = trimmed.prefix { $0 == "#" }.count
-        guard hashes >= 1, hashes <= 6, trimmed.dropFirst(hashes).hasPrefix(" ") else { return nil }
+    private static func headingLevel(_ afterLeadingWhitespace: Substring) -> Int? {
+        let hashes = afterLeadingWhitespace.prefix { $0 == "#" }.count
+        guard hashes >= 1, hashes <= 6, afterLeadingWhitespace.dropFirst(hashes).hasPrefix(" ") else { return nil }
         return hashes
     }
 
