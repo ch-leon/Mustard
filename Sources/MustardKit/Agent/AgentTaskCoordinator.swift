@@ -630,18 +630,42 @@ public final class AgentTaskCoordinator {
             )
 
         case .failed:
+            // A model-reported failure must NOT sit at the transition's default `.queued`
+            // (immediately runnable → the 2s tick would loop it forever, uncapped). Honor
+            // the agent's retry disposition under the same bounded backoff/cap as runtime
+            // failures; otherwise send it to Needs Review for a human (who can Request
+            // changes to requeue with feedback).
             run.completedAt = now
             let category = result.errorCategory ?? "Agent task failed"
             let detail = result.message.isEmpty ? category : "\(category): \(result.message)"
             run.lastError = detail
             lastError = detail
-            outcomeMessage = append(
-                to: run,
-                role: .agent,
-                kind: .error,
-                content: detail,
-                now: now
-            )
+            let wantsRetry = result.retryDisposition == .safe || result.retryDisposition == .backoff
+            if wantsRetry, run.autoRetryCount < AgentRetryPolicy.backoffSeconds.count {
+                let seconds = AgentRetryPolicy.backoffSeconds[run.autoRetryCount]
+                run.autoRetryCount += 1
+                run.nextAttemptAt = now.addingTimeInterval(seconds)
+                task.stage = .queued
+                run.state = .failed
+                outcomeMessage = append(
+                    to: run,
+                    role: .agent,
+                    kind: .error,
+                    content: "\(detail). Retrying automatically (attempt \(run.autoRetryCount)).",
+                    now: now
+                )
+            } else {
+                task.stage = .needsReview
+                run.state = .failed
+                run.nextAttemptAt = nil
+                outcomeMessage = append(
+                    to: run,
+                    role: .agent,
+                    kind: .error,
+                    content: detail,
+                    now: now
+                )
+            }
 
         case .cancelled:
             run.completedAt = now
@@ -874,6 +898,10 @@ public final class AgentTaskCoordinator {
             run.completedAt = now
             run.lastOutcomeRaw = AgentTurnOutcome.cancelled.rawValue
             run.lastError = nil
+            // Clear any scheduled backoff/retry budget so a later re-delegation is a clean
+            // slate rather than inheriting a stale wait window or a truncated retry cap.
+            run.nextAttemptAt = nil
+            run.autoRetryCount = 0
             message = append(
                 to: run,
                 role: .system,

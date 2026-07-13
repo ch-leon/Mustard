@@ -18,6 +18,8 @@ public final class AgentService {
         let lastOutcomeRaw: String?
         let lastError: String?
         let lastActivityAt: Date
+        let nextAttemptAt: Date?
+        let autoRetryCount: Int
     }
 
     public private(set) var isSweeping = false
@@ -463,7 +465,9 @@ public final class AgentService {
                 completedAt: $0.completedAt,
                 lastOutcomeRaw: $0.lastOutcomeRaw,
                 lastError: $0.lastError,
-                lastActivityAt: $0.lastActivityAt
+                lastActivityAt: $0.lastActivityAt,
+                nextAttemptAt: $0.nextAttemptAt,
+                autoRetryCount: $0.autoRetryCount
             )
         }
 
@@ -493,6 +497,10 @@ public final class AgentService {
         run.completedAt = nil
         run.lastOutcomeRaw = nil
         run.lastError = nil
+        // A human re-delegation is a clean slate: drop any stale backoff window / retry
+        // budget so the coordinator picks it up immediately with a full retry allowance.
+        run.nextAttemptAt = nil
+        run.autoRetryCount = 0
         run.lastActivityAt = message.createdAt
 
         do {
@@ -510,6 +518,8 @@ public final class AgentService {
                 previousRun.lastOutcomeRaw = snapshot.lastOutcomeRaw
                 previousRun.lastError = snapshot.lastError
                 previousRun.lastActivityAt = snapshot.lastActivityAt
+                previousRun.nextAttemptAt = snapshot.nextAttemptAt
+                previousRun.autoRetryCount = snapshot.autoRetryCount
             } else {
                 context.delete(run)
             }

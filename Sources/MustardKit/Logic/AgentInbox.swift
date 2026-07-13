@@ -29,9 +29,14 @@ public enum AgentInbox {
     }
 
     public static func attention(_ tasks: [MustardTask]) -> AgentAttention {
-        AgentAttention(
-            questions: tasks.filter { $0.stage == .needsInput }.sorted { $0.createdAt < $1.createdAt },
-            reviews: tasks.filter { $0.stage == .needsReview }.sorted { $0.createdAt < $1.createdAt }
+        // Oldest-first, with a uid tiebreak so equal timestamps order deterministically
+        // (Swift's sort isn't stable) — matches AgentRun.orderedMessages / AgentTaskQueue.
+        func precedes(_ a: MustardTask, _ b: MustardTask) -> Bool {
+            a.createdAt != b.createdAt ? a.createdAt < b.createdAt : a.uid < b.uid
+        }
+        return AgentAttention(
+            questions: tasks.filter { $0.stage == .needsInput }.sorted(by: precedes),
+            reviews: tasks.filter { $0.stage == .needsReview }.sorted(by: precedes)
         )
     }
 

@@ -944,6 +944,66 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertTrue(run.orderedMessages.last?.content.contains("Completion uncertain") ?? false)
     }
 
+    func test_structuredFailedWithoutRetryDispositionGoesToReviewNotAnUncappedLoop() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .success(.init(outcome: .failed, message: "Could not find the spec.", questions: [],
+                           summary: "", artifacts: [], retryDisposition: .none,
+                           errorCategory: "missing_input", connectedCapability: nil)),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Model failure", stage: .forAgent)
+        task.actionType = .vaultNote
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertNil(task.agentRun?.nextAttemptAt)
+
+        // A second tick must NOT re-run it — a model-reported failure at .queued would
+        // otherwise loop uncapped every tick.
+        await coordinator.runNext(settings: settings, now: secondTurn)
+        let startCount = await runtime.startRequests.count
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(task.stage, .needsReview)
+    }
+
+    func test_structuredFailedWithBackoffDispositionSchedulesBoundedRetry() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .success(.init(outcome: .failed, message: "Transient.", questions: [],
+                           summary: "", artifacts: [], retryDisposition: .backoff,
+                           errorCategory: nil, connectedCapability: nil)),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Retryable failure", stage: .forAgent)
+        task.actionType = .vaultNote
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertEqual(task.agentRun?.autoRetryCount, 1)
+        XCTAssertEqual(task.agentRun?.nextAttemptAt, secondTurn.addingTimeInterval(60))
+    }
+
+    func test_takeBackClearsRetryBudget() throws {
+        let runtime = ScriptedAgentRuntime()
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Backed off", stage: .queued)
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.autoRetryCount = 2
+        run.nextAttemptAt = thirdTurn
+        task.agentRun = run
+        context.insert(run)
+
+        coordinator.takeBack(task, now: secondTurn)
+
+        XCTAssertEqual(task.owner, .me)
+        XCTAssertEqual(task.stage, .planned)
+        XCTAssertEqual(run.autoRetryCount, 0)
+        XCTAssertNil(run.nextAttemptAt)
+    }
+
     func test_requestChangesResetsRetryBudgetForFreshTurn() async throws {
         let runtime = ScriptedAgentRuntime(responses: [.completed("First draft")])
         let (coordinator, context) = try fixture(runtime: runtime)

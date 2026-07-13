@@ -140,7 +140,9 @@ public struct NotchView: View {
     }
 
     private var waitingCount: Int {
-        pending.count + needsReviewCount
+        // Both agent attention stages count — a Needs You question waits on you just like a
+        // Needs Review output (mirrors PersonalBoard.waitingCount / AgentInbox).
+        pending.count + AgentInbox.attentionTaskCount(tasks)
     }
 
     private var nextMeeting: CalendarEvent? {
