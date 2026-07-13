@@ -36,19 +36,20 @@ final class AgentInboxTests: XCTestCase {
     // MARK: dock text (BAK-106)
 
     func test_dockText_allClearWhenEmpty() {
-        XCTAssertEqual(AgentInbox.dockText(recs: 0, outputs: 0), "All clear — nothing waiting on you")
+        XCTAssertEqual(AgentInbox.dockText(recs: 0, items: 0), "All clear — nothing waiting on you")
     }
 
     func test_dockText_recsOnly_pluralizes() {
-        XCTAssertEqual(AgentInbox.dockText(recs: 1, outputs: 0), "1 recommendation waiting on you")
-        XCTAssertEqual(AgentInbox.dockText(recs: 2, outputs: 0), "2 recommendations waiting on you")
+        XCTAssertEqual(AgentInbox.dockText(recs: 1, items: 0), "1 recommendation waiting on you")
+        XCTAssertEqual(AgentInbox.dockText(recs: 2, items: 0), "2 recommendations waiting on you")
     }
 
-    func test_dockText_outputsOnly() {
-        XCTAssertEqual(AgentInbox.dockText(recs: 0, outputs: 1), "1 output waiting on you")
+    func test_dockText_itemsOnly_pluralizes() {
+        XCTAssertEqual(AgentInbox.dockText(recs: 0, items: 1), "1 item waiting on you")
+        XCTAssertEqual(AgentInbox.dockText(recs: 0, items: 2), "2 items waiting on you")
     }
 
     func test_dockText_both() {
-        XCTAssertEqual(AgentInbox.dockText(recs: 1, outputs: 3), "1 recommendation and 3 outputs waiting on you")
+        XCTAssertEqual(AgentInbox.dockText(recs: 1, items: 3), "1 recommendation and 3 items waiting on you")
     }
 }

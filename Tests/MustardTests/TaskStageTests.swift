@@ -9,9 +9,10 @@ final class TaskStageTests: XCTestCase {
         }
     }
 
-    func test_mineView_hasNoAgentStages() {
-        let agentStages: Set<TaskStage> = [.forAgent, .needsApproval, .queued, .needsInput, .needsReview]
-        XCTAssertTrue(BoardOwnerView.mine.columns.allSatisfy { !agentStages.contains($0) })
+    func test_mineView_excludesAgentOnlyStages() {
+        // In Progress is intentionally shared by Mine and Agent; these stages are agent-only.
+        let agentOnlyStages: Set<TaskStage> = [.forAgent, .needsApproval, .queued, .needsInput, .needsReview]
+        XCTAssertTrue(BoardOwnerView.mine.columns.allSatisfy { !agentOnlyStages.contains($0) })
     }
 
     func test_mineView_preservesExactColumnsInOrder() {
