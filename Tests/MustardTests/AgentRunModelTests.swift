@@ -4,14 +4,17 @@ import SwiftData
 
 @MainActor
 final class AgentRunModelTests: XCTestCase {
-    private func makeContext() throws -> ModelContext {
+    private func makeContainer() throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
+        return try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
             AgentRun.self, AgentMessage.self,
             configurations: configuration
         )
-        return ModelContext(container)
+    }
+
+    private func makeContext() throws -> ModelContext {
+        ModelContext(try makeContainer())
     }
 
     func test_persistsTaskRunAndMessagesInSequenceOrder() throws {
@@ -62,6 +65,35 @@ final class AgentRunModelTests: XCTestCase {
         XCTAssertEqual(run.state, .queued)
         XCTAssertEqual(message.role, .system)
         XCTAssertEqual(message.kind, .progress)
+    }
+
+    func test_orderedMessagesDeterministicallyBreaksSequenceTiesAfterRefetch() throws {
+        let container = try makeContainer()
+        let writeContext = ModelContext(container)
+        let run = AgentRun()
+        let later = AgentMessage(run: run, sequence: 4, content: "later")
+        later.createdAt = Date(timeIntervalSince1970: 200)
+        later.uid = "message-z-later"
+        let earlierZ = AgentMessage(run: run, sequence: 4, content: "earlier-z")
+        earlierZ.createdAt = Date(timeIntervalSince1970: 100)
+        earlierZ.uid = "message-z-earlier"
+        let earlierA = AgentMessage(run: run, sequence: 4, content: "earlier-a")
+        earlierA.createdAt = Date(timeIntervalSince1970: 100)
+        earlierA.uid = "message-a-earlier"
+
+        writeContext.insert(run)
+        writeContext.insert(later)
+        writeContext.insert(earlierZ)
+        writeContext.insert(earlierA)
+        try writeContext.save()
+
+        let readContext = ModelContext(container)
+        let fetchedRun = try XCTUnwrap(readContext.fetch(FetchDescriptor<AgentRun>()).first)
+
+        XCTAssertEqual(
+            fetchedRun.orderedMessages.map(\.content),
+            ["earlier-a", "earlier-z", "later"]
+        )
     }
 
     func test_deletingTaskCascadesRunAndMessages() throws {

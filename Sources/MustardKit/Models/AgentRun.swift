@@ -48,7 +48,11 @@ public final class AgentRun {
     }
 
     public var orderedMessages: [AgentMessage] {
-        (messages ?? []).sorted { $0.sequence < $1.sequence }
+        (messages ?? []).sorted {
+            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.uid < $1.uid
+        }
     }
 
     public init(
