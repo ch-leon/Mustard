@@ -298,33 +298,57 @@ public final class AgentTaskCoordinator {
         }
     }
 
-    public func reconcileInterruptedRuns(now: Date = .now) {
+    /// Reconcile runs left `.running` by an app that stopped mid-turn back to the queue.
+    /// Returns `false` on a fetch or save failure so the caller (the launch scheduler) can
+    /// retry on a later tick. A failed save narrowly restores only the runs/tasks/messages
+    /// this pass touched — never a broad rollback — so unrelated dirty edits survive and a
+    /// retry does not append duplicate recovery messages.
+    @discardableResult
+    public func reconcileInterruptedRuns(now: Date = .now) -> Bool {
         let runs: [AgentRun]
         do {
             runs = try context.fetch(FetchDescriptor<AgentRun>())
         } catch {
             lastError = "Could not reconcile interrupted agent runs: \(error.localizedDescription)"
-            return
+            return false
         }
 
+        var touched: [(run: AgentRun, runBefore: RunSnapshot, task: MustardTask?, taskBefore: TaskSnapshot?, message: AgentMessage)] = []
         for run in runs where run.state == .running {
+            let runBefore = runSnapshot(run)
+            let task = run.task
+            let taskBefore = task.map(taskSnapshot)
             run.state = .interrupted
             run.completedAt = nil
             run.lastError = "The app stopped while this agent turn was running."
-            if let task = run.task,
+            if let task,
                task.owner == .agent,
                task.stage == .inProgress {
                 task.stage = .queued
             }
-            append(
+            let message = append(
                 to: run,
                 role: .system,
                 kind: .recovery,
                 content: "Recovered an interrupted run and returned it to the queue.",
                 now: now
             )
+            touched.append((run, runBefore, task, taskBefore, message))
         }
-        _ = save("Could not save interrupted-run recovery")
+
+        guard save("Could not save interrupted-run recovery") else {
+            let persistenceError = lastError
+            for entry in touched {
+                restore(entry.run, from: entry.runBefore)
+                if let task = entry.task, let taskBefore = entry.taskBefore {
+                    restore(task, from: taskBefore)
+                }
+                remove(entry.message, from: entry.run)
+            }
+            lastError = persistenceError
+            return false
+        }
+        return true
     }
 
     private func recoverMissingSession(

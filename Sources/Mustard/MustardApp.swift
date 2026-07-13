@@ -98,7 +98,9 @@ private final class MustardAppScheduler {
 
     private func runDelegatedTick() async {
         if !didReconcileTaskRuns {
-            taskAgent.reconcileInterruptedRuns()
+            // Only advance to normal execution once recovery has durably persisted.
+            // A transient save failure leaves the flag clear so the next 2s tick retries.
+            guard taskAgent.reconcileInterruptedRuns() else { return }
             didReconcileTaskRuns = true
         }
         if !agent.isSweeping, !agent.isExecuting {

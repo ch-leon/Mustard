@@ -789,6 +789,65 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(run.lastActivityAt, secondTurn)
     }
 
+    func test_reconcileInterruptedRunsReturnsTrueOnSuccess() throws {
+        let runtime = ScriptedAgentRuntime()
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Interrupted", stage: .inProgress)
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.state = .running
+        task.agentRun = run
+        context.insert(run)
+        try context.save()
+
+        XCTAssertTrue(coordinator.reconcileInterruptedRuns(now: secondTurn))
+    }
+
+    func test_reconcileInterruptedRunsSaveFailureRestoresStateThenRetryRecoversWithoutDuplicate() throws {
+        let runtime = ScriptedAgentRuntime()
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = true
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Interrupted", stage: .inProgress)
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.state = .running
+        run.lastActivityAt = thirdTurn
+        task.agentRun = run
+        context.insert(run)
+        let unrelated = MustardTask(title: "Unrelated")
+        unrelated.notes = "saved"
+        context.insert(unrelated)
+        try context.save()
+        unrelated.notes = "dirty"
+
+        // First attempt: the save fails, so the touched task/run are restored, no
+        // recovery message survives, the unrelated dirty edit is preserved, and the
+        // call reports failure so the scheduler will retry.
+        XCTAssertFalse(coordinator.reconcileInterruptedRuns(now: secondTurn))
+        XCTAssertEqual(task.stage, .inProgress)
+        XCTAssertEqual(run.state, .running)
+        XCTAssertEqual(run.lastActivityAt, thirdTurn)
+        XCTAssertTrue(run.orderedMessages.isEmpty)
+        XCTAssertEqual(unrelated.notes, "dirty")
+
+        // Retry: the save succeeds, producing exactly one recovery message.
+        XCTAssertTrue(coordinator.reconcileInterruptedRuns(now: secondTurn))
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(run.state, .interrupted)
+        XCTAssertEqual(run.orderedMessages.count, 1)
+        XCTAssertEqual(run.orderedMessages.last?.kind, .recovery)
+        XCTAssertEqual(unrelated.notes, "dirty")
+    }
+
     func test_messagesUseMonotonicSequenceAndPinnedTimestamps() async throws {
         let runtime = ScriptedAgentRuntime(responses: [.question("Choose one")])
         let (coordinator, context) = try fixture(runtime: runtime)
