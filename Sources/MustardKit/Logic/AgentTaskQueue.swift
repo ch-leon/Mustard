@@ -17,6 +17,7 @@ public enum AgentTaskQueue {
                 $0.owner == .agent
                     && ($0.stage == .forAgent || $0.stage == .queued)
                     && !$0.isBlocked
+                    && $0.agentRun?.requiresConnectedWorker != true
             }
             .min(by: precedes)
     }

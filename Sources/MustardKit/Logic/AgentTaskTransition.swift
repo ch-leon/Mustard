@@ -2,17 +2,20 @@ public struct AgentTransitionDecision: Equatable {
     public let taskStage: TaskStage
     public let runState: AgentRunState
     public let releasesSlot: Bool
+    public let taskOwner: TaskOwner?
     public let requiresConnectedWorker: Bool
 
     public init(
         taskStage: TaskStage,
         runState: AgentRunState,
         releasesSlot: Bool,
+        taskOwner: TaskOwner? = nil,
         requiresConnectedWorker: Bool = false
     ) {
         self.taskStage = taskStage
         self.runState = runState
         self.releasesSlot = releasesSlot
+        self.taskOwner = taskOwner
         self.requiresConnectedWorker = requiresConnectedWorker
     }
 }
@@ -49,7 +52,8 @@ public enum AgentTaskTransition {
             AgentTransitionDecision(
                 taskStage: .planned,
                 runState: .cancelled,
-                releasesSlot: true
+                releasesSlot: true,
+                taskOwner: .me
             )
         }
     }

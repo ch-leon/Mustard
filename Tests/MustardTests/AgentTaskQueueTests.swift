@@ -52,6 +52,27 @@ final class AgentTaskQueueTests: XCTestCase {
         XCTAssertTrue(AgentTaskQueue.nextRunnable([queued, forAgent]) === forAgent)
     }
 
+    func test_nextRunnableSkipsConnectedWorkerRunAndKeepsNoRunTaskRunnable() {
+        let connectedWorker = makeTask(
+            uid: "connected-worker",
+            stage: .queued,
+            priority: .urgent,
+            createdAt: date(100)
+        )
+        let run = AgentRun(task: connectedWorker)
+        run.requiresConnectedWorker = true
+        connectedWorker.agentRun = run
+        let ordinary = makeTask(
+            uid: "ordinary",
+            stage: .queued,
+            priority: .normal,
+            createdAt: date(200)
+        )
+
+        XCTAssertNil(ordinary.agentRun)
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([connectedWorker, ordinary]) === ordinary)
+    }
+
     func test_nextRunnableDeterministicallyBreaksExactTiesByUID() {
         let z = makeTask(uid: "task-z", createdAt: date(100))
         let a = makeTask(uid: "task-a", createdAt: date(100))

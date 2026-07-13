@@ -42,7 +42,8 @@ final class AgentTaskTransitionTests: XCTestCase {
                 AgentTransitionDecision(
                     taskStage: .planned,
                     runState: .cancelled,
-                    releasesSlot: true
+                    releasesSlot: true,
+                    taskOwner: .me
                 )
             ),
         ]
@@ -50,5 +51,19 @@ final class AgentTaskTransitionTests: XCTestCase {
         for (outcome, decision) in expected {
             XCTAssertEqual(AgentTaskTransition.decision(for: outcome), decision)
         }
+    }
+
+    func test_cancelledDecisionPlacesAppliedTaskInMinePlannedColumn() {
+        let task = MustardTask(title: "Cancelled work", owner: .agent)
+        task.stage = .inProgress
+        let decision = AgentTaskTransition.decision(for: .cancelled)
+
+        task.stage = decision.taskStage
+        if let taskOwner = decision.taskOwner {
+            task.owner = taskOwner
+        }
+
+        XCTAssertEqual(PersonalBoard.tasks([task], in: .planned, view: .mine, area: .all), [task])
+        XCTAssertTrue(PersonalBoard.tasks([task], in: .planned, view: .agent, area: .all).isEmpty)
     }
 }
