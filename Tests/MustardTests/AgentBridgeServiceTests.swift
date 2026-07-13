@@ -94,6 +94,86 @@ final class AgentBridgeServiceTests: XCTestCase {
         XCTAssertEqual(io.archived.count, 1)
     }
 
+    @MainActor
+    func test_ingest_normalizesExecuteDoneIntoRun_completedAndClearsFallback() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued
+        let run = AgentRun(task: t); run.requiresConnectedWorker = true; run.state = .running
+        t.agentRun = run
+        ctx.insert(t); ctx.insert(run)
+        io.results = [(AgentResult(uid: "u1", mode: "execute", status: "done", actionType: nil,
+            title: nil, body: nil, links: [TaskLink(label: "SC", url: "https://x")], summary: "Created it", error: nil),
+            "/kb/DL/_agent/results/u1.json")]
+
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+
+        XCTAssertEqual(t.stage, .needsReview)
+        XCTAssertEqual(run.state, .completed)
+        XCTAssertFalse(run.requiresConnectedWorker)
+        XCTAssertEqual(run.orderedMessages.last?.kind, .result)
+        XCTAssertEqual(run.orderedMessages.last?.content, "Created it")
+        XCTAssertEqual(run.orderedMessages.last?.links.first?.url, "https://x")
+    }
+
+    @MainActor
+    func test_ingest_normalizesFailedIntoRun_failedAndRetainsFallback() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued
+        let run = AgentRun(task: t); run.requiresConnectedWorker = true; run.state = .running
+        t.agentRun = run
+        ctx.insert(t); ctx.insert(run)
+        io.results = [(AgentResult(uid: "u1", mode: "execute", status: "failed", actionType: nil,
+            title: nil, body: nil, links: nil, summary: nil, error: "network down"),
+            "/kb/DL/_agent/results/u1.json")]
+
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+
+        XCTAssertEqual(t.stage, .queued)                // stays for re-export
+        XCTAssertEqual(run.state, .failed)
+        XCTAssertTrue(run.requiresConnectedWorker)      // retained so export retries
+        XCTAssertEqual(run.orderedMessages.last?.kind, .error)
+        XCTAssertTrue(run.orderedMessages.last?.content.contains("network down") ?? false)
+    }
+
+    @MainActor
+    func test_ingest_normalizesPrepDoneIntoRun_queued() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .forAgent
+        let run = AgentRun(task: t); run.requiresConnectedWorker = true; run.state = .running
+        t.agentRun = run
+        ctx.insert(t); ctx.insert(run)
+        io.results = [(AgentResult(uid: "u1", mode: "prep", status: "done", actionType: "ticket_write",
+            title: "Prepped", body: "notes", links: nil, summary: "ready", error: nil),
+            "/kb/DL/_agent/results/u1.json")]
+
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+
+        XCTAssertEqual(t.stage, .needsApproval)
+        XCTAssertEqual(run.state, .queued)
+        XCTAssertTrue(run.requiresConnectedWorker)      // retained for the execute pass
+        XCTAssertEqual(run.orderedMessages.last?.kind, .progress)
+    }
+
+    @MainActor
+    func test_ingest_normalizesDeclinedIntoRun_cancelled() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued; t.owner = .agent
+        let run = AgentRun(task: t); run.requiresConnectedWorker = true; run.state = .running
+        t.agentRun = run
+        ctx.insert(t); ctx.insert(run)
+        io.results = [(AgentResult(uid: "u1", mode: "execute", status: "declined", actionType: nil,
+            title: nil, body: nil, links: nil, summary: "not enough context", error: nil),
+            "/kb/DL/_agent/results/u1.json")]
+
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+
+        XCTAssertEqual(t.owner, .me)
+        XCTAssertEqual(t.stage, .planned)
+        XCTAssertEqual(run.state, .cancelled)
+        XCTAssertFalse(run.requiresConnectedWorker)
+        XCTAssertEqual(run.orderedMessages.last?.kind, .error)
+    }
+
     // BAK-84: ingest sweeps undecodable result files aside each run.
     @MainActor
     func test_ingest_quarantinesUndecodableResults() throws {

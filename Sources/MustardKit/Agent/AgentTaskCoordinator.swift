@@ -925,19 +925,15 @@ public final class AgentTaskCoordinator {
         links: [TaskLink] = [],
         now: Date
     ) -> AgentMessage {
-        let sequence = (run.messages?.map(\.sequence).max() ?? -1) + 1
-        let message = AgentMessage(
-            run: run,
-            sequence: sequence,
+        AgentConversation.append(
+            to: run,
             role: role,
             kind: kind,
             content: content,
-            links: links
+            links: links,
+            now: now,
+            in: context
         )
-        message.createdAt = now
-        context.insert(message)
-        run.lastActivityAt = now
-        return message
     }
 
     private func restoreFailedTurn(

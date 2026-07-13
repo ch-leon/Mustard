@@ -198,15 +198,73 @@ public final class AgentService {
         let all = (try? context.fetch(FetchDescriptor<MustardTask>())) ?? []
         let byUID = Dictionary(all.map { ($0.uid, $0) }, uniquingKeysWith: { a, _ in a })
         for (result, path) in bridge.readResults(workingDir: workingDir) {
-            let outcome = BridgeIngest.apply(result, to: byUID[result.uid])
-            if outcome == .applied, result.status == "failed" {
-                lastError = "Agent run failed: \(result.error ?? "unknown")"
+            let task = byUID[result.uid]
+            let outcome = BridgeIngest.apply(result, to: task)
+            if outcome == .applied {
+                if result.status == "failed" {
+                    lastError = "Agent run failed: \(result.error ?? "unknown")"
+                }
+                if let task, let run = task.agentRun {
+                    normalizeConnectedResult(result, into: run)
+                }
             }
             try? bridge.archiveResult(path, workingDir: workingDir)
         }
         // Hygiene (BAK-84): move any undecodable / empty-uid result aside so it isn't
         // silently re-scanned every loop. (readResults already skipped it above.)
         bridge.quarantineUndecodableResults(workingDir: workingDir)
+    }
+
+    /// Fold a connected-worker bridge result into the task's durable conversation and run
+    /// state, so bridge-executed work lands in the same timeline as local Claude turns.
+    /// - execute done → `.result`, run `.completed`, clear the fallback flag
+    /// - prep done    → `.progress`, run `.queued` (retain the flag for the execute pass)
+    /// - declined     → `.error`, run `.cancelled`, clear the fallback flag
+    /// - failed       → `.error`, run `.failed`, retain the flag so export re-issues (retry)
+    private func normalizeConnectedResult(_ r: AgentResult, into run: AgentRun) {
+        let now = Date.now
+        let summary = (r.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        switch (r.mode, r.status) {
+        case ("execute", "done"):
+            run.state = .completed
+            run.completedAt = now
+            run.requiresConnectedWorker = false
+            run.lastError = nil
+            AgentConversation.append(
+                to: run, role: .agent, kind: .result,
+                content: summary.isEmpty ? "Connected worker completed the task." : summary,
+                links: r.links ?? [], now: now, in: context)
+
+        case ("prep", "done"):
+            run.state = .queued
+            run.completedAt = nil
+            AgentConversation.append(
+                to: run, role: .agent, kind: .progress,
+                content: summary.isEmpty ? "Connected worker prepared the task for approval." : summary,
+                now: now, in: context)
+
+        case (_, "declined"):
+            run.state = .cancelled
+            run.completedAt = now
+            run.requiresConnectedWorker = false
+            AgentConversation.append(
+                to: run, role: .agent, kind: .error,
+                content: "Connected worker passed on this" + (summary.isEmpty ? "." : ": \(summary)"),
+                now: now, in: context)
+
+        case (_, "failed"):
+            run.state = .failed
+            run.completedAt = now
+            run.lastError = r.error ?? "Connected worker failed."
+            // Retain requiresConnectedWorker so the next export re-issues the order (retry).
+            AgentConversation.append(
+                to: run, role: .agent, kind: .error,
+                content: "Connected worker failed: \(r.error ?? "unknown").",
+                now: now, in: context)
+
+        default:
+            break
+        }
     }
 
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {
