@@ -39,6 +39,8 @@ public final class MustardTask {
     /// output history). Optional → CloudKit-safe default (ADR-0001).
     @Relationship(deleteRule: .nullify, inverse: \Recommendation.task)
     public var delegation: Recommendation?
+    @Relationship(deleteRule: .cascade, inverse: \AgentRun.task)
+    public var agentRun: AgentRun?
     /// Another task that must finish before this one can proceed (the detail/form
     /// "Blocked by"). Optional, no inverse → CloudKit-safe (ADR-0001); nullify on
     /// delete so removing the blocker just clears the dependency.

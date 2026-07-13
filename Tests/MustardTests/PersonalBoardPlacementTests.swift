@@ -58,7 +58,8 @@ final class PersonalBoardPlacementTests: XCTestCase {
     func test_migration_repairsStrandedInboxCards() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self, CalendarEvent.self,
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
+            AgentRun.self, AgentMessage.self, CalendarEvent.self,
             configurations: config
         )
         let ctx = ModelContext(container)

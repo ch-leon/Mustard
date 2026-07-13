@@ -22,7 +22,8 @@ final class NoteIndexServiceTests: XCTestCase {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-            CalendarEvent.self, NoteIndexEntry.self, configurations: config))
+            AgentRun.self, AgentMessage.self, CalendarEvent.self, NoteIndexEntry.self,
+            configurations: config))
     }
     private let t0 = Date(timeIntervalSince1970: 1_750_000_000)
 

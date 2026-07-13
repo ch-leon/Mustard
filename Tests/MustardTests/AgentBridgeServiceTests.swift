@@ -23,7 +23,8 @@ final class AgentBridgeServiceTests: XCTestCase {
     @MainActor
     private func service(_ io: StubIO) throws -> (AgentService, ModelContext) {
         let c = try ModelContainer(for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-                                   CalendarEvent.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                   AgentRun.self, AgentMessage.self, CalendarEvent.self,
+                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let ctx = ModelContext(c)
         return (AgentService(context: ctx, claude: { _, _ in .init(ok: true, text: "") }, bridge: io), ctx)
     }
