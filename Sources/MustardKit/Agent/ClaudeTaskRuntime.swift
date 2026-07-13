@@ -1,13 +1,13 @@
 import Foundation
 
 public actor ClaudeTaskRuntime: AgentRuntime {
-    public typealias CancelInvocation = @Sendable (UUID) -> Void
+    public typealias CancelInvocation = @Sendable (ClaudeCancellationToken) -> Void
 
     private static let activeInvocationMessage = "Claude runtime already has an active invocation."
 
     private let invoke: ClaudeInvoke
     private let cancelInvocation: CancelInvocation
-    private var currentInvocationID: UUID?
+    private var currentInvocationToken: ClaudeCancellationToken?
 
     public init(
         invoke: @escaping ClaudeInvoke = ClaudeRunner.invoke,
@@ -26,8 +26,8 @@ public actor ClaudeTaskRuntime: AgentRuntime {
     }
 
     public func cancel() async {
-        guard let currentInvocationID else { return }
-        cancelInvocation(currentInvocationID)
+        guard let currentInvocationToken else { return }
+        cancelInvocation(currentInvocationToken)
     }
 
     /// Health checks are independent probes and are intentionally not affected by
@@ -42,8 +42,9 @@ public actor ClaudeTaskRuntime: AgentRuntime {
             return .authenticationRequired(result.text)
         }
         if result.ok { return .available }
-        if Self.isAuthenticationFailure(result.text) {
-            return .authenticationRequired(result.text)
+        if let trustedText = Self.trustedFailureText(result),
+           Self.isAuthenticationFailure(trustedText) {
+            return .authenticationRequired(trustedText)
         }
         return .unavailable(result.text)
     }
@@ -55,51 +56,71 @@ public actor ClaudeTaskRuntime: AgentRuntime {
         _ request: AgentRuntimeRequest,
         sessionArgument: String
     ) async -> AgentRuntimeResponse {
-        guard currentInvocationID == nil else {
-            return .init(result: nil, failure: .process(Self.activeInvocationMessage))
+        guard currentInvocationToken == nil else {
+            return .failure(.process(Self.activeInvocationMessage))
         }
 
-        let id = UUID()
-        currentInvocationID = id
-        let result = await invoke(.init(
-            id: id,
+        let invocation = ClaudeInvocation(
+            id: UUID(),
             arguments: [
-                "-p", request.prompt,
+                "-p",
                 sessionArgument, request.sessionID,
                 "--output-format", "json",
                 "--json-schema", AgentTurnContract.jsonSchema,
             ],
-            workingDirectory: request.workingDirectory
-        ))
-        if currentInvocationID == id {
-            currentInvocationID = nil
+            workingDirectory: request.workingDirectory,
+            stdinData: Data(request.prompt.utf8)
+        )
+        currentInvocationToken = invocation.cancellationToken
+        let result = await invoke(invocation)
+        let response = await response(from: result)
+        if currentInvocationToken == invocation.cancellationToken {
+            currentInvocationToken = nil
         }
-        return Self.response(from: result)
+        return response
     }
 
-    private static func response(from result: ClaudeResult) -> AgentRuntimeResponse {
+    private func response(from result: ClaudeResult) async -> AgentRuntimeResponse {
         if result.unparsed {
-            return .init(result: nil, failure: .malformedOutput(result.text))
+            return .failure(.malformedOutput(result.text))
         }
         if !result.ok {
-            return .init(result: nil, failure: classifyFailure(result))
+            return .failure(await classifyFailure(result))
         }
         do {
-            return .init(result: try AgentTurnContract.decode(result.text), failure: nil)
+            return .success(try AgentTurnContract.decode(result.text))
         } catch {
-            return .init(result: nil, failure: .malformedOutput(result.text))
+            return .failure(.malformedOutput(result.text))
         }
     }
 
     /// Authentication and rate limits describe provider-wide failures, so they take
     /// precedence over session text that may be a secondary symptom.
-    private static func classifyFailure(_ result: ClaudeResult) -> AgentRuntimeFailure {
+    private func classifyFailure(_ result: ClaudeResult) async -> AgentRuntimeFailure {
         let text = result.text
-        if isAuthenticationFailure(text) { return .authenticationRequired(text) }
-        if result.rateLimited || ClaudeRunner.isRateLimited(text) { return .rateLimited(text) }
-        if isSessionMissing(text) { return .sessionMissing(text) }
-        if text.localizedCaseInsensitiveContains("timed out") { return .timedOut(text) }
+        if result.failureSource == .cancelled { return .cancelled(text) }
+        if result.failureSource == .timedOut { return .timedOut(text) }
+        guard let trustedText = Self.trustedFailureText(result) else { return .process(text) }
+        if Self.isAuthenticationFailure(trustedText) {
+            if case .authenticationRequired = await health() {
+                return .authenticationRequired(text)
+            }
+            return .process(text)
+        }
+        if result.rateLimited || ClaudeRunner.isRateLimited(trustedText) { return .rateLimited(text) }
+        if Self.isSessionMissing(trustedText) { return .sessionMissing(text) }
         return .process(text)
+    }
+
+    private static func trustedFailureText(_ result: ClaudeResult) -> String? {
+        switch result.failureSource {
+        case .outerError:
+            return result.text
+        case .exitStatus:
+            return result.stderr
+        default:
+            return nil
+        }
     }
 
     private static func isAuthenticationFailure(_ text: String) -> Bool {

@@ -19,6 +19,7 @@ public enum AgentRuntimeFailure: Equatable, Sendable {
     case sessionMissing(String)
     case malformedOutput(String)
     case process(String)
+    case cancelled(String)
 }
 
 public enum AgentRuntimeHealth: Equatable, Sendable {
@@ -28,13 +29,33 @@ public enum AgentRuntimeHealth: Equatable, Sendable {
 }
 
 public struct AgentRuntimeResponse: Equatable, Sendable {
-    public let result: AgentTurnResult?
-    public let failure: AgentRuntimeFailure?
+    private enum Storage: Equatable, Sendable {
+        case success(AgentTurnResult)
+        case failure(AgentRuntimeFailure)
+    }
 
-    /// Runtime adapters normally return exactly one of `result` or `failure`.
-    public init(result: AgentTurnResult?, failure: AgentRuntimeFailure?) {
-        self.result = result
-        self.failure = failure
+    private let storage: Storage
+
+    public var result: AgentTurnResult? {
+        guard case .success(let result) = storage else { return nil }
+        return result
+    }
+
+    public var failure: AgentRuntimeFailure? {
+        guard case .failure(let failure) = storage else { return nil }
+        return failure
+    }
+
+    private init(storage: Storage) {
+        self.storage = storage
+    }
+
+    public static func success(_ result: AgentTurnResult) -> Self {
+        .init(storage: .success(result))
+    }
+
+    public static func failure(_ failure: AgentRuntimeFailure) -> Self {
+        .init(storage: .failure(failure))
     }
 }
 
