@@ -37,6 +37,7 @@ public final class AgentTaskCoordinator {
 
     private let context: ModelContext
     private let runtime: any AgentRuntime
+    private let executionGate: AgentExecutionGate
     private let persist: () throws -> Void
     private let contractProvider: () throws -> String
     private let nowProvider: () -> Date
@@ -48,10 +49,12 @@ public final class AgentTaskCoordinator {
 
     public init(
         context: ModelContext,
-        runtime: any AgentRuntime = ClaudeTaskRuntime()
+        runtime: any AgentRuntime = ClaudeTaskRuntime(),
+        executionGate: AgentExecutionGate? = nil
     ) {
         self.context = context
         self.runtime = runtime
+        self.executionGate = executionGate ?? AgentExecutionGate()
         self.persist = { try context.save() }
         self.contractProvider = AgentTurnContract.workerContract
         self.nowProvider = { Date.now }
@@ -60,12 +63,14 @@ public final class AgentTaskCoordinator {
     init(
         context: ModelContext,
         runtime: any AgentRuntime,
+        executionGate: AgentExecutionGate? = nil,
         persist: @escaping () throws -> Void,
         contractProvider: @escaping () throws -> String = AgentTurnContract.workerContract,
         nowProvider: @escaping () -> Date = { Date.now }
     ) {
         self.context = context
         self.runtime = runtime
+        self.executionGate = executionGate ?? AgentExecutionGate()
         self.persist = persist
         self.contractProvider = contractProvider
         self.nowProvider = nowProvider
@@ -73,6 +78,8 @@ public final class AgentTaskCoordinator {
 
     public func runNext(settings: SourceSettings, now: Date = .now) async {
         guard !isRunning, !authenticationRequired else { return }
+        guard let executionToken = executionGate.tryAcquire(owner: "delegated task") else { return }
+        defer { executionGate.release(executionToken) }
 
         let tasks: [MustardTask]
         do {

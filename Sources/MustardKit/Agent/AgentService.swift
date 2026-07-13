@@ -25,12 +25,16 @@ public final class AgentService {
     private let context: ModelContext
     private let claude: ClaudeRun
     private let bridge: BridgeIO
+    private let executionGate: AgentExecutionGate
+    private let busyHint = "The agent is finishing another task. This work will stay queued and retry shortly."
 
     public init(context: ModelContext, claude: @escaping ClaudeRun = ClaudeRunner.run,
-                bridge: BridgeIO = FileBridgeIO()) {
+                bridge: BridgeIO = FileBridgeIO(),
+                executionGate: AgentExecutionGate? = nil) {
         self.context = context
         self.claude = claude
         self.bridge = bridge
+        self.executionGate = executionGate ?? AgentExecutionGate()
     }
 
     /// Manual vault sweep: ask claude for recommendations, ingest them through the
@@ -42,7 +46,11 @@ public final class AgentService {
         lastError = nil
         defer { isSweeping = false }
 
-        let result = await claude(VaultSweep.prompt, vaultPath)
+        guard let result = await runClaude(
+            VaultSweep.prompt,
+            workingDirectory: vaultPath,
+            owner: "source sweep"
+        ) else { return }
         guard result.ok else {
             lastError = "Sweep failed: \(result.text)"
             return
@@ -112,7 +120,11 @@ public final class AgentService {
                 lastSweptAt: state?.lastSweptAt, intervalHours: config.intervalHours, now: now
             ) else { continue }
 
-            let result = await claude(VaultSweep.prompt, config.workingDirectory)
+            guard let result = await runClaude(
+                VaultSweep.prompt,
+                workingDirectory: config.workingDirectory,
+                owner: "scheduled source sweep"
+            ) else { continue }
             guard result.ok else {
                 updated.upsertState(SourceState(id: config.id, project: config.project, lastSweptAt: state?.lastSweptAt, lastError: result.text))
                 continue
@@ -409,6 +421,12 @@ public final class AgentService {
         // (approved-but-no-task). If we're busy, it simply stays queued for a later run.
         let task = promote(rec, to: .queued, owner: .agent)
         guard !isExecuting else { return }
+        guard let token = executionGate.tryAcquire(owner: "recommendation execution") else {
+            lastHint = busyHint
+            return
+        }
+        defer { executionGate.release(token) }
+        if lastHint == busyHint { lastHint = nil }
         isExecuting = true
         currentTitle = rec.title
         rec.executionState = .running
@@ -430,5 +448,19 @@ public final class AgentService {
             lastError = "Execution failed: \(result.text)"
             task.stage = .queued
         }
+    }
+
+    private func runClaude(
+        _ prompt: String,
+        workingDirectory: String,
+        owner: String
+    ) async -> ClaudeResult? {
+        guard let token = executionGate.tryAcquire(owner: owner) else {
+            lastHint = busyHint
+            return nil
+        }
+        defer { executionGate.release(token) }
+        if lastHint == busyHint { lastHint = nil }
+        return await claude(prompt, workingDirectory)
     }
 }

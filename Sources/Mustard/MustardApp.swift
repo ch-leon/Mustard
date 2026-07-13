@@ -5,6 +5,7 @@ import MustardKit
 
 struct MustardApp: App {
     private let container: ModelContainer
+    @State private var executionGate: AgentExecutionGate
     @State private var agent: AgentService
     @State private var taskAgent: AgentTaskCoordinator
     @State private var noteIndex: NoteIndexService
@@ -17,9 +18,17 @@ struct MustardApp: App {
 
     init() {
         let container = MustardContainer.make()
+        let executionGate = AgentExecutionGate()
         self.container = container
-        self._agent = State(initialValue: AgentService(context: container.mainContext))
-        self._taskAgent = State(initialValue: AgentTaskCoordinator(context: container.mainContext))
+        self._executionGate = State(initialValue: executionGate)
+        self._agent = State(initialValue: AgentService(
+            context: container.mainContext,
+            executionGate: executionGate
+        ))
+        self._taskAgent = State(initialValue: AgentTaskCoordinator(
+            context: container.mainContext,
+            executionGate: executionGate
+        ))
         self._noteIndex = State(initialValue: NoteIndexService(context: container.mainContext))
 
         let keychain = KeychainTokenStore()
