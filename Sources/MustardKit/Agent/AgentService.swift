@@ -356,9 +356,9 @@ public final class AgentService {
         promote(rec, to: .queued, owner: .agent)
     }
 
-    /// Delegate a task to the agent ("Ask agent to do this"). Trivial under the
-    /// board model (ADR-0010): the task simply hands off to the agent at `.forAgent`;
-    /// a prep session picks it up, fleshes it out, and moves it to `.needsApproval`.
+    /// Delegate a task to the agent ("Ask agent to do this"). The hand-off creates
+    /// one durable queued run and its initial human transcript; re-delegating reuses
+    /// that same run so provider session and message history remain intact.
     public func delegate(_ task: MustardTask) {
         // BAK-90: require a client area first — the bridge export filters by area, so an
         // area-less hand-off would silently never route. Block it and surface a hint.
@@ -370,6 +370,28 @@ public final class AgentService {
         lastHint = nil
         task.owner = .agent
         task.stage = .forAgent
+
+        let run: AgentRun
+        if let existing = task.agentRun {
+            run = existing
+        } else {
+            run = AgentRun(task: task)
+            task.agentRun = run
+            context.insert(run)
+            let body = task.notes.isEmpty
+                ? task.title
+                : "\(task.title)\n\n\(task.notes)"
+            let message = AgentMessage(
+                run: run,
+                sequence: 0,
+                role: .human,
+                kind: .delegation,
+                content: body
+            )
+            context.insert(message)
+        }
+        run.state = .queued
+        run.requiresConnectedWorker = false
     }
 
     /// Clear the transient hand-off hint (e.g. after a successful drop into an agent lane).

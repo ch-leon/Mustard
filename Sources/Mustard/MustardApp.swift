@@ -6,17 +6,20 @@ import MustardKit
 struct MustardApp: App {
     private let container: ModelContainer
     @State private var agent: AgentService
+    @State private var taskAgent: AgentTaskCoordinator
     @State private var noteIndex: NoteIndexService
     @State private var calendar: GoogleCalendarService
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
     @State private var notchNav = NotchNavigation()
+    @State private var didReconcileTaskRuns = false
     @AppStorage("meetingVaultPath") private var meetingVaultPath = ""
 
     init() {
         let container = MustardContainer.make()
         self.container = container
         self._agent = State(initialValue: AgentService(context: container.mainContext))
+        self._taskAgent = State(initialValue: AgentTaskCoordinator(context: container.mainContext))
         self._noteIndex = State(initialValue: NoteIndexService(context: container.mainContext))
 
         let keychain = KeychainTokenStore()
@@ -36,6 +39,7 @@ struct MustardApp: App {
         WindowGroup {
             RootView()
                 .environment(agent)
+                .environment(taskAgent)
                 .environment(noteIndex)
                 .environment(calendar)
                 .environment(notchNav)
@@ -49,6 +53,7 @@ struct MustardApp: App {
                             AnyView(
                                 HoverPanelView()
                                     .environment(agent)
+                                    .environment(taskAgent)
                                     .modelContainer(container)
                             )
                         }
@@ -58,6 +63,7 @@ struct MustardApp: App {
                             AnyView(
                                 NotchView(onHoverChange: onHover)
                                     .environment(agent)
+                                    .environment(taskAgent)
                                     .environment(notchNav)
                                     .modelContainer(container)
                             )
@@ -71,7 +77,7 @@ struct MustardApp: App {
                     // the same queue. All local; no git.
                     var lastInbox = Date.distantPast
                     while !Task.isCancelled {
-                        if !agent.isSweeping, !agent.isExecuting {
+                        if !agent.isSweeping, !agent.isExecuting, !taskAgent.isRunning {
                             let settings = SourceSettingsStore.loadOrMigrate()
                             let updated = await agent.sweepDueSources(settings, now: .now)
                             SourceSettingsStore.save(updated)
@@ -117,6 +123,20 @@ struct MustardApp: App {
                             await calendar.fetch()
                         }
                         try? await Task.sleep(for: .seconds(60))
+                    }
+                }
+                .task {
+                    let agent = agent
+                    let taskAgent = taskAgent
+                    if !didReconcileTaskRuns {
+                        didReconcileTaskRuns = true
+                        taskAgent.reconcileInterruptedRuns()
+                    }
+                    while !Task.isCancelled {
+                        if !agent.isSweeping, !agent.isExecuting {
+                            await taskAgent.runNext(settings: SourceSettingsStore.loadOrMigrate())
+                        }
+                        try? await Task.sleep(for: .seconds(2))
                     }
                 }
         }

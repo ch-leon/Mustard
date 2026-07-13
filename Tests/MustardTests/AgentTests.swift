@@ -409,9 +409,9 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(task.stage, .planned)
     }
 
-    // MARK: - delegate (trivial board hand-off)
+    // MARK: - delegate
 
-    func test_delegate_handsTaskToAgent_atForAgent() {
+    func test_delegate_handsTaskToAgent_atForAgent_andQueuesRunWithDelegationMessage() throws {
         let ctx = try! makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
         let task = MustardTask(title: "Do this", owner: .me)
@@ -423,21 +423,78 @@ final class AgentServiceTests: XCTestCase {
         XCTAssertEqual(task.owner, .agent)
         XCTAssertEqual(task.stage, .forAgent)
         XCTAssertNil(service.lastHint)
+
+        let run = try XCTUnwrap(task.agentRun)
+        XCTAssertEqual(run.state, .queued)
+        XCTAssertFalse(run.requiresConnectedWorker)
+        XCTAssertEqual(run.orderedMessages.map(\.kind), [.delegation])
+        XCTAssertEqual(run.orderedMessages.map(\.role), [.human])
+        XCTAssertEqual(run.orderedMessages.map(\.sequence), [0])
+        XCTAssertEqual(run.orderedMessages.map(\.content), ["Do this"])
+
+        try ctx.save()
+        let fetchedRun = try XCTUnwrap(ctx.fetch(FetchDescriptor<AgentRun>()).first)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<AgentRun>()).count, 1)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<AgentMessage>()).count, 1)
+        XCTAssertEqual(fetchedRun.task, task)
+        XCTAssertEqual(task.agentRun, fetchedRun)
     }
 
     // BAK-90: an area-less task can't be handed off (the bridge export filters by area,
     // so it would silently never route). Block it and surface a hint instead.
-    func test_delegate_areaLessTask_isBlocked_withHint() {
+    func test_delegate_areaLessTask_isBlocked_withHint() throws {
         let ctx = try! makeContext()
         let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
         let task = MustardTask(title: "Prep release DLV 2.21.0", owner: .me)  // no area
+        task.stage = .planned
         ctx.insert(task)
 
         service.delegate(task)
 
         XCTAssertEqual(task.owner, .me, "owner must not flip without an area")
-        XCTAssertNotEqual(task.stage, .forAgent, "must not stage for the agent")
+        XCTAssertEqual(task.stage, .planned, "stage must not change without an area")
         XCTAssertNotNil(service.lastHint, "should surface a 'needs an area' hint")
+        XCTAssertNil(task.agentRun)
+        XCTAssertTrue(try ctx.fetch(FetchDescriptor<AgentRun>()).isEmpty)
+        XCTAssertTrue(try ctx.fetch(FetchDescriptor<AgentMessage>()).isEmpty)
+    }
+
+    func test_delegate_existingRun_requeuesWithoutDuplicatingHistoryOrSession() throws {
+        let ctx = try makeContext()
+        let service = AgentService(context: ctx, claude: { _, _ in ClaudeResult(ok: true, text: "x") })
+        let task = MustardTask(title: "Prep release", owner: .me)
+        task.notes = "Check the changelog and draft release notes."
+        task.list = TaskList(name: "DL", area: Area(name: "Digital Licence"))
+        ctx.insert(task)
+
+        service.delegate(task)
+        let originalRun = try XCTUnwrap(task.agentRun)
+        originalRun.providerSessionID = "session-123"
+        originalRun.state = .completed
+        originalRun.requiresConnectedWorker = true
+        let priorResult = AgentMessage(
+            run: originalRun,
+            sequence: 1,
+            role: .agent,
+            kind: .result,
+            content: "Earlier result"
+        )
+        ctx.insert(priorResult)
+        originalRun.messages = (originalRun.messages ?? []) + [priorResult]
+        task.owner = .me
+        task.stage = .planned
+
+        service.delegate(task)
+
+        XCTAssertEqual(task.agentRun, originalRun)
+        XCTAssertEqual(originalRun.providerSessionID, "session-123")
+        XCTAssertEqual(originalRun.state, .queued)
+        XCTAssertFalse(originalRun.requiresConnectedWorker)
+        XCTAssertEqual(originalRun.orderedMessages.map(\.kind), [.delegation, .result])
+        XCTAssertEqual(originalRun.orderedMessages.first?.content,
+                       "Prep release\n\nCheck the changelog and draft release notes.")
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<AgentRun>()).count, 1)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<AgentMessage>()).count, 2)
     }
 
     // MARK: - applyTrust
