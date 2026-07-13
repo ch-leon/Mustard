@@ -48,6 +48,22 @@ final class StageBoardTests: XCTestCase {
         XCTAssertEqual(PersonalBoard.waitingCount([approval], view: .everyone, area: .all), 1)
     }
 
+    func test_waitingCount_respectsOwnerAndAreaScope() {
+        let all = [
+            task(.needsApproval, owner: .agent, area: "DLA SDK"),
+            task(.needsInput, owner: .agent, area: "DLA SDK"),
+            task(.needsReview, owner: .me, area: "DLA SDK"),
+            task(.needsInput, owner: .agent, area: "Other"),
+            task(.inbox, owner: .agent, area: "DLA SDK"),
+        ]
+
+        XCTAssertEqual(PersonalBoard.waitingCount(all, view: .everyone, area: .all), 4)
+        XCTAssertEqual(PersonalBoard.waitingCount(all, view: .agent, area: .all), 3)
+        XCTAssertEqual(PersonalBoard.waitingCount(all, view: .mine, area: .all), 1)
+        XCTAssertEqual(PersonalBoard.waitingCount(all, view: .everyone, area: .area("DLA SDK")), 3)
+        XCTAssertEqual(PersonalBoard.waitingCount(all, view: .agent, area: .area("DLA SDK")), 2)
+    }
+
     func test_reassign_toAgentGoesForAgent_toMeGoesPlanned() {
         let t = task(.inbox)
         PersonalBoard.reassign(t, to: .agent)

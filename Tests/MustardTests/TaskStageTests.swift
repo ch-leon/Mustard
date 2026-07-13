@@ -14,6 +14,11 @@ final class TaskStageTests: XCTestCase {
         XCTAssertTrue(BoardOwnerView.mine.columns.allSatisfy { !agentStages.contains($0) })
     }
 
+    func test_mineView_preservesExactColumnsInOrder() {
+        XCTAssertEqual(BoardOwnerView.mine.columns,
+                       [.inbox, .planned, .scheduled, .inProgress, .blocked, .done])
+    }
+
     func test_everyoneView_isTheFullPipelineInOrder() {
         XCTAssertEqual(BoardOwnerView.everyone.columns,
             [.inbox, .planned, .scheduled, .forAgent, .needsApproval,
