@@ -7,8 +7,11 @@ private actor ScriptedAgentRuntime: AgentRuntime {
     private var healthResponses: [AgentRuntimeHealth]
     private var suspendNextInvocation: Bool
     private var suspendCancellation: Bool
+    private var controlHealthResponses: Bool
+    private var knownSessionIDs: Set<String>
     private var invocationContinuation: CheckedContinuation<Void, Never>?
     private var cancellationContinuation: CheckedContinuation<Void, Never>?
+    private var healthContinuations: [Int: CheckedContinuation<Void, Never>] = [:]
 
     private(set) var startRequests: [AgentRuntimeRequest] = []
     private(set) var resumeRequests: [AgentRuntimeRequest] = []
@@ -19,22 +22,30 @@ private actor ScriptedAgentRuntime: AgentRuntime {
         responses: [AgentRuntimeResponse] = [],
         healthResponses: [AgentRuntimeHealth] = [],
         suspendNextInvocation: Bool = false,
-        suspendCancellation: Bool = false
+        suspendCancellation: Bool = false,
+        controlHealthResponses: Bool = false,
+        knownSessionIDs: Set<String> = []
     ) {
         self.responses = responses
         self.healthResponses = healthResponses
         self.suspendNextInvocation = suspendNextInvocation
         self.suspendCancellation = suspendCancellation
+        self.controlHealthResponses = controlHealthResponses
+        self.knownSessionIDs = knownSessionIDs
     }
 
     func start(_ request: AgentRuntimeRequest) async -> AgentRuntimeResponse {
         startRequests.append(request)
+        knownSessionIDs.insert(request.sessionID)
         await suspendIfRequested()
         return popResponse()
     }
 
     func resume(_ request: AgentRuntimeRequest) async -> AgentRuntimeResponse {
         resumeRequests.append(request)
+        guard knownSessionIDs.contains(request.sessionID) else {
+            return .failure(.sessionMissing("Scripted runtime has never started session \(request.sessionID)"))
+        }
         await suspendIfRequested()
         return popResponse()
     }
@@ -49,9 +60,15 @@ private actor ScriptedAgentRuntime: AgentRuntime {
     }
 
     func health() async -> AgentRuntimeHealth {
+        let index = healthCount
         healthCount += 1
-        guard !healthResponses.isEmpty else { return .available }
-        return healthResponses.removeFirst()
+        let response = healthResponses.isEmpty ? .available : healthResponses.removeFirst()
+        if controlHealthResponses {
+            await withCheckedContinuation { continuation in
+                healthContinuations[index] = continuation
+            }
+        }
+        return response
     }
 
     func releaseInvocation() {
@@ -62,6 +79,10 @@ private actor ScriptedAgentRuntime: AgentRuntime {
     func releaseCancellation() {
         cancellationContinuation?.resume()
         cancellationContinuation = nil
+    }
+
+    func releaseHealth(_ index: Int) {
+        healthContinuations.removeValue(forKey: index)?.resume()
     }
 
     var invocationCount: Int { startRequests.count + resumeRequests.count }
@@ -139,10 +160,24 @@ private extension AgentRuntimeResponse {
     }
 }
 
+private final class SequencedTestClock {
+    private var values: [Date]
+
+    init(_ values: [Date]) {
+        self.values = values
+    }
+
+    func next() -> Date {
+        precondition(!values.isEmpty, "Test clock exhausted")
+        return values.removeFirst()
+    }
+}
+
 @MainActor
 final class AgentTaskCoordinatorTests: XCTestCase {
     private let firstTurn = ISO8601DateFormatter().date(from: "2026-07-13T01:00:00Z")!
     private let secondTurn = ISO8601DateFormatter().date(from: "2026-07-13T02:00:00Z")!
+    private let thirdTurn = ISO8601DateFormatter().date(from: "2026-07-13T03:00:00Z")!
 
     func test_runNextCompletesSimpleTaskIntoReviewWithArtifactLinks() async throws {
         let runtime = ScriptedAgentRuntime(responses: [
@@ -163,7 +198,7 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertNotNil(UUID(uuidString: try XCTUnwrap(run.providerSessionID)))
         XCTAssertEqual(run.attemptCount, 1)
         XCTAssertEqual(run.startedAt, firstTurn)
-        XCTAssertEqual(run.completedAt, firstTurn)
+        XCTAssertEqual(run.completedAt, secondTurn)
         XCTAssertEqual(run.lastOutcomeRaw, AgentTurnOutcome.completed.rawValue)
         XCTAssertNil(run.lastError)
         XCTAssertEqual(run.orderedMessages.map(\.kind), [.progress, .result])
@@ -317,7 +352,7 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         let run = try XCTUnwrap(task.agentRun)
         XCTAssertEqual(task.stage, .queued)
         XCTAssertEqual(run.state, .failed)
-        XCTAssertEqual(run.completedAt, firstTurn)
+        XCTAssertEqual(run.completedAt, secondTurn)
         XCTAssertEqual(run.orderedMessages.last?.kind, .error)
         XCTAssertTrue(run.lastError?.contains("Malformed") == true)
         XCTAssertEqual(coordinator.lastError, run.lastError)
@@ -368,10 +403,13 @@ final class AgentTaskCoordinatorTests: XCTestCase {
     }
 
     func test_sessionMissingAllocatesReplacementAndPerformsExactlyOneRecoveryStart() async throws {
-        let runtime = ScriptedAgentRuntime(responses: [
-            .failure(.sessionMissing("No conversation found")),
-            .completed("Recovered"),
-        ])
+        let runtime = ScriptedAgentRuntime(
+            responses: [
+                .failure(.sessionMissing("No conversation found")),
+                .completed("Recovered"),
+            ],
+            knownSessionIDs: ["11111111-1111-1111-1111-111111111111"]
+        )
         let (coordinator, context) = try fixture(runtime: runtime)
         let task = insertRoutedTask(in: context, title: "Resume me", stage: .queued)
         let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
@@ -399,11 +437,14 @@ final class AgentTaskCoordinatorTests: XCTestCase {
     }
 
     func test_repeatedSessionMissingDoesNotLoopAndBecomesNormalFailure() async throws {
-        let runtime = ScriptedAgentRuntime(responses: [
-            .failure(.sessionMissing("Session missing")),
-            .failure(.sessionMissing("Replacement also missing")),
-            .completed("Must never be consumed"),
-        ])
+        let runtime = ScriptedAgentRuntime(
+            responses: [
+                .failure(.sessionMissing("Session missing")),
+                .failure(.sessionMissing("Replacement also missing")),
+                .completed("Must never be consumed"),
+            ],
+            knownSessionIDs: ["22222222-2222-2222-2222-222222222222"]
+        )
         let (coordinator, context) = try fixture(runtime: runtime)
         let task = insertRoutedTask(in: context, title: "Broken session", stage: .queued)
         let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
@@ -552,11 +593,11 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         )
         let context = ModelContext(container)
         var saveCount = 0
-        let coordinator = AgentTaskCoordinator(context: context, runtime: runtime) {
+        let coordinator = AgentTaskCoordinator(context: context, runtime: runtime, persist: {
             saveCount += 1
             if saveCount == 2 { throw CocoaError(.fileWriteUnknown) }
             try context.save()
-        }
+        }, nowProvider: { self.secondTurn })
         let task = insertRoutedTask(in: context, title: "Persistence fails", stage: .forAgent)
         let unrelated = MustardTask(title: "Unrelated edit")
         unrelated.notes = "Saved value"
@@ -569,13 +610,19 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         await active.value
 
         let run = try XCTUnwrap(task.agentRun)
-        XCTAssertEqual(task.stage, .inProgress)
-        XCTAssertEqual(run.state, .running)
-        XCTAssertNil(run.completedAt)
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(run.state, .failed)
+        XCTAssertEqual(run.completedAt, secondTurn)
         XCTAssertFalse(run.orderedMessages.contains { $0.kind == .result })
         XCTAssertEqual(unrelated.notes, "Unsaved edit made during agent work")
         XCTAssertTrue(coordinator.lastError?.contains("Could not save the agent turn result") == true)
         XCTAssertFalse(coordinator.isRunning)
+
+        let fresh = ModelContext(container)
+        let durableUnrelated = try XCTUnwrap(
+            fresh.fetch(FetchDescriptor<MustardTask>()).first { $0.uid == unrelated.uid }
+        )
+        XCTAssertEqual(durableUnrelated.notes, "Unsaved edit made during agent work")
     }
 
     func test_runtimeCancelledOutcomeUsesCancellationDecisionWhenNoLocalCancellationOccurred() async throws {
@@ -637,8 +684,481 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         let run = try XCTUnwrap(task.agentRun)
         XCTAssertEqual(run.orderedMessages.map(\.sequence), [0, 1, 2])
         XCTAssertEqual(run.orderedMessages.map(\.kind), [.progress, .question, .answer])
-        XCTAssertEqual(run.orderedMessages.map(\.createdAt), [firstTurn, firstTurn, secondTurn])
+        XCTAssertEqual(run.orderedMessages.map(\.createdAt), [firstTurn, secondTurn, secondTurn])
         XCTAssertEqual(run.lastActivityAt, secondTurn)
+    }
+
+    func test_unroutableHighestRankedTaskDoesNotStarveRoutableTask() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.completed("Routed done")])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let unroutable = MustardTask(title: "Urgent but unrouted", owner: .agent)
+        unroutable.stage = .forAgent
+        unroutable.priority = .urgent
+        unroutable.createdAt = Date(timeIntervalSince1970: 1)
+        context.insert(unroutable)
+        let routed = insertRoutedTask(in: context, title: "Routable", stage: .forAgent, created: 2)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(unroutable.stage, .forAgent)
+        XCTAssertNil(unroutable.agentRun)
+        XCTAssertEqual(routed.stage, .needsReview)
+        let startCount = await runtime.startRequests.count
+        XCTAssertEqual(startCount, 1)
+    }
+
+    func test_contractLoadFailureLeavesNoPhantomTurnAndRetryStartsFreshSession() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.completed("Retried")])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var contractCalls = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: { try context.save() },
+            contractProvider: {
+                contractCalls += 1
+                if contractCalls == 1 { throw CocoaError(.fileNoSuchFile) }
+                return self.testContract
+            },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Contract retry", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .forAgent)
+        XCTAssertNil(task.agentRun)
+        let firstInvocationCount = await runtime.invocationCount
+        XCTAssertEqual(firstInvocationCount, 0)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        let startCount = await runtime.startRequests.count
+        let resumeCount = await runtime.resumeRequests.count
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(resumeCount, 0)
+    }
+
+    func test_preflightSaveFailureRemovesNewRunSessionProgressAndRetryStarts() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.completed("Retried")])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var saveCount = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                saveCount += 1
+                if saveCount == 1 { throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Preflight retry", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .forAgent)
+        XCTAssertNil(task.agentRun)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AgentRun>()).count, 0)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AgentMessage>()).count, 0)
+        let firstInvocationCount = await runtime.invocationCount
+        XCTAssertEqual(firstInvocationCount, 0)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        let startCount = await runtime.startRequests.count
+        let resumeCount = await runtime.resumeRequests.count
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(resumeCount, 0)
+    }
+
+    func test_preflightSaveFailureRestoresExistingRunAndPreservesUnrelatedEdit() async throws {
+        let sessionID = "55555555-5555-5555-5555-555555555555"
+        let runtime = ScriptedAgentRuntime(knownSessionIDs: [sessionID])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = false
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Existing preflight", stage: .queued)
+        let run = AgentRun(task: task, workingDirectory: "/old/path", project: "Old Project")
+        run.state = .failed
+        run.providerSessionID = sessionID
+        run.attemptCount = 3
+        run.resumeCount = 2
+        run.startedAt = thirdTurn
+        run.completedAt = thirdTurn
+        run.lastActivityAt = thirdTurn
+        run.lastOutcomeRaw = AgentTurnOutcome.failed.rawValue
+        run.lastError = "Old error"
+        task.agentRun = run
+        context.insert(run)
+        let unrelated = MustardTask(title: "Unrelated")
+        unrelated.notes = "saved"
+        context.insert(unrelated)
+        try context.save()
+        unrelated.notes = "dirty"
+        fail = true
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertTrue(task.agentRun === run)
+        XCTAssertEqual(run.state, .failed)
+        XCTAssertEqual(run.providerSessionID, sessionID)
+        XCTAssertEqual(run.workingDirectory, "/old/path")
+        XCTAssertEqual(run.project, "Old Project")
+        XCTAssertEqual(run.attemptCount, 3)
+        XCTAssertEqual(run.resumeCount, 2)
+        XCTAssertEqual(run.startedAt, thirdTurn)
+        XCTAssertEqual(run.completedAt, thirdTurn)
+        XCTAssertEqual(run.lastActivityAt, thirdTurn)
+        XCTAssertEqual(run.lastOutcomeRaw, AgentTurnOutcome.failed.rawValue)
+        XCTAssertEqual(run.lastError, "Old error")
+        XCTAssertTrue(run.orderedMessages.isEmpty)
+        XCTAssertEqual(unrelated.notes, "dirty")
+        let invocationCount = await runtime.invocationCount
+        XCTAssertEqual(invocationCount, 0)
+    }
+
+    func test_recoveryCheckpointFailureRestoresOldSessionAndNeverStartsReplacement() async throws {
+        let oldSession = "33333333-3333-3333-3333-333333333333"
+        let runtime = ScriptedAgentRuntime(
+            responses: [.failure(.sessionMissing("Lost"))],
+            knownSessionIDs: [oldSession]
+        )
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var saveCount = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                saveCount += 1
+                if saveCount == 2 { throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Recovery checkpoint", stage: .queued)
+        let run = AgentRun(task: task, workingDirectory: "/kb/DL", project: "DL-Knowledge-Base")
+        run.providerSessionID = oldSession
+        task.agentRun = run
+        context.insert(run)
+        try context.save()
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(run.providerSessionID, oldSession)
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(run.state, .failed)
+        let resumedSessionIDs = await runtime.resumeRequests.map(\.sessionID)
+        let startCount = await runtime.startRequests.count
+        XCTAssertEqual(resumedSessionIDs, [oldSession])
+        XCTAssertEqual(startCount, 0)
+        XCTAssertFalse(run.orderedMessages.contains {
+            $0.content.contains("starting a replacement session")
+        })
+    }
+
+    func test_transitionClockSeparatesInvocationStartFromOutcome() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.completed("Later")])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let clock = SequencedTestClock([secondTurn])
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: { try context.save() },
+            contractProvider: { self.testContract },
+            nowProvider: { clock.next() }
+        )
+        let task = insertRoutedTask(in: context, title: "Timed", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        let run = try XCTUnwrap(task.agentRun)
+        XCTAssertEqual(run.startedAt, firstTurn)
+        XCTAssertEqual(run.orderedMessages.first?.createdAt, firstTurn)
+        XCTAssertEqual(run.orderedMessages.last?.createdAt, secondTurn)
+        XCTAssertEqual(run.completedAt, secondTurn)
+        XCTAssertEqual(run.lastActivityAt, secondTurn)
+    }
+
+    func test_recoveryUsesIndependentCheckpointAndOutcomeTimes() async throws {
+        let oldSession = "44444444-4444-4444-4444-444444444444"
+        let runtime = ScriptedAgentRuntime(
+            responses: [.failure(.sessionMissing("Lost")), .completed("Recovered")],
+            knownSessionIDs: [oldSession]
+        )
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let clock = SequencedTestClock([secondTurn, thirdTurn])
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: { try context.save() },
+            contractProvider: { self.testContract },
+            nowProvider: { clock.next() }
+        )
+        let task = insertRoutedTask(in: context, title: "Timed recovery", stage: .queued)
+        let run = AgentRun(task: task)
+        run.providerSessionID = oldSession
+        task.agentRun = run
+        context.insert(run)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        let recovery = try XCTUnwrap(run.orderedMessages.first { $0.kind == .recovery })
+        let result = try XCTUnwrap(run.orderedMessages.last { $0.kind == .result })
+        XCTAssertEqual(recovery.createdAt, secondTurn)
+        XCTAssertEqual(result.createdAt, thirdTurn)
+        XCTAssertEqual(run.completedAt, thirdTurn)
+        XCTAssertEqual(run.lastActivityAt, thirdTurn)
+    }
+
+    func test_duplicateReplyRequestChangesAndAcceptAreNoOps() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .question("Answer?"), .completed("Draft"), .completed("Revised"),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Idempotent commands", stage: .forAgent)
+        task.recurrence = .daily
+        task.dueAt = firstTurn
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        coordinator.reply(to: task, text: "One", now: secondTurn)
+        let afterReply = try XCTUnwrap(task.agentRun).orderedMessages.count
+        coordinator.reply(to: task, text: "Duplicate", now: secondTurn)
+        XCTAssertEqual(task.agentRun?.orderedMessages.count, afterReply)
+        await coordinator.runNext(settings: settings, now: secondTurn)
+
+        coordinator.requestChanges(task, feedback: "Revise", now: thirdTurn)
+        let afterFeedback = try XCTUnwrap(task.agentRun).orderedMessages.count
+        coordinator.requestChanges(task, feedback: "Duplicate", now: thirdTurn)
+        XCTAssertEqual(task.agentRun?.orderedMessages.count, afterFeedback)
+        await coordinator.runNext(settings: settings, now: thirdTurn)
+
+        coordinator.accept(task, now: thirdTurn)
+        coordinator.accept(task, now: thirdTurn)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MustardTask>()).filter {
+            $0.recurredFrom == task.uid
+        }.count, 1)
+    }
+
+    func test_outcomeSaveFailureCompensatesDurablyAndCanRerun() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .completed("First result"), .completed("Second result"),
+        ])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var saveCount = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                saveCount += 1
+                if saveCount == 2 { throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Compensate", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .queued)
+        XCTAssertEqual(task.agentRun?.state, .failed)
+        XCTAssertEqual(task.agentRun?.orderedMessages.last?.kind, .error)
+        let fresh = ModelContext(container)
+        let durable = try XCTUnwrap(fresh.fetch(FetchDescriptor<MustardTask>()).first {
+            $0.uid == task.uid
+        })
+        XCTAssertEqual(durable.stage, .queued)
+        XCTAssertEqual(durable.agentRun?.state, .failed)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        XCTAssertEqual(task.stage, .needsReview)
+        let startCount = await runtime.startRequests.count
+        let resumeCount = await runtime.resumeRequests.count
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(resumeCount, 1)
+    }
+
+    func test_acceptSaveFailureRestoresRecurringTaskAndPreservesUnrelatedEdit() throws {
+        let runtime = ScriptedAgentRuntime()
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = false
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Recurring", stage: .needsReview)
+        task.recurrence = .daily
+        task.dueAt = firstTurn
+        let unrelated = MustardTask(title: "Unrelated")
+        unrelated.notes = "saved"
+        context.insert(unrelated)
+        try context.save()
+        unrelated.notes = "dirty"
+        fail = true
+
+        coordinator.accept(task, now: secondTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        XCTAssertNil(task.completedAt)
+        XCTAssertEqual(unrelated.notes, "dirty")
+        XCTAssertTrue(try context.fetch(FetchDescriptor<MustardTask>()).allSatisfy {
+            $0.recurredFrom != task.uid
+        })
+        coordinator.accept(task, now: secondTurn)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MustardTask>()).filter {
+            $0.recurredFrom == task.uid
+        }.count, 1)
+    }
+
+    func test_replySaveFailureRestoresGateAndPreservesUnrelatedEdit() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [.question("Answer?")])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = false
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Reply rollback", stage: .forAgent)
+        let unrelated = MustardTask(title: "Unrelated")
+        unrelated.notes = "saved"
+        context.insert(unrelated)
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        unrelated.notes = "dirty"
+        fail = true
+        let oldCount = try XCTUnwrap(task.agentRun).orderedMessages.count
+
+        coordinator.reply(to: task, text: "Answer", now: thirdTurn)
+
+        XCTAssertEqual(task.stage, .needsInput)
+        XCTAssertEqual(task.agentRun?.state, .needsInput)
+        XCTAssertEqual(task.agentRun?.orderedMessages.count, oldCount)
+        XCTAssertEqual(unrelated.notes, "dirty")
+    }
+
+    func test_takeBackSaveFailureDoesNotCancelOrInvalidateActiveTurn() async throws {
+        let runtime = ScriptedAgentRuntime(
+            responses: [.completed("Late success")],
+            suspendNextInvocation: true
+        )
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = false
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Failed take back", stage: .forAgent)
+        let active = Task { await coordinator.runNext(settings: settings, now: firstTurn) }
+        await waitForInvocation(runtime)
+        fail = true
+
+        coordinator.takeBack(task, now: secondTurn)
+
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertEqual(task.stage, .inProgress)
+        XCTAssertEqual(task.agentRun?.state, .running)
+        let cancelCount = await runtime.cancelCount
+        XCTAssertEqual(cancelCount, 0)
+        await runtime.releaseInvocation()
+        await active.value
+        XCTAssertEqual(task.stage, .needsReview)
+    }
+
+    func test_cancelActiveSaveFailureDoesNotCancelOrInvalidateActiveTurn() async throws {
+        let runtime = ScriptedAgentRuntime(
+            responses: [.completed("Late success")],
+            suspendNextInvocation: true
+        )
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var fail = false
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                if fail { fail = false; throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Failed cancel", stage: .forAgent)
+        let active = Task { await coordinator.runNext(settings: settings, now: firstTurn) }
+        await waitForInvocation(runtime)
+        fail = true
+
+        coordinator.cancelActive()
+
+        XCTAssertEqual(task.owner, .agent)
+        XCTAssertEqual(task.stage, .inProgress)
+        XCTAssertEqual(task.agentRun?.state, .running)
+        let cancelCount = await runtime.cancelCount
+        XCTAssertEqual(cancelCount, 0)
+        await runtime.releaseInvocation()
+        await active.value
+        XCTAssertEqual(task.stage, .needsReview)
+    }
+
+    func test_retryAuthenticationIgnoresOlderHealthResultThatFinishesLast() async throws {
+        let runtime = ScriptedAgentRuntime(
+            healthResponses: [.unavailable("old failure"), .available],
+            controlHealthResponses: true
+        )
+        let (coordinator, _) = try fixture(runtime: runtime)
+
+        let older = Task { await coordinator.retryAuthentication() }
+        await waitForHealth(runtime, count: 1)
+        let newer = Task { await coordinator.retryAuthentication() }
+        await waitForHealth(runtime, count: 2)
+        await runtime.releaseHealth(1)
+        await newer.value
+        await runtime.releaseHealth(0)
+        await older.value
+
+        XCTAssertFalse(coordinator.authenticationRequired)
+        XCTAssertNil(coordinator.lastError)
     }
 
     func test_noTaskDoesNotCallRuntime() async throws {
@@ -666,6 +1186,18 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         )
     }
 
+    private var testContract: String {
+        "Work only on the assigned task.\nNever send email.\nReturn only structured output."
+    }
+
+    private func makeContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
+            AgentRun.self, AgentMessage.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+    }
+
     private func fixture(
         runtime: ScriptedAgentRuntime
     ) throws -> (AgentTaskCoordinator, ModelContext) {
@@ -676,7 +1208,16 @@ final class AgentTaskCoordinatorTests: XCTestCase {
             configurations: configuration
         )
         let context = ModelContext(container)
-        return (AgentTaskCoordinator(context: context, runtime: runtime), context)
+        return (
+            AgentTaskCoordinator(
+                context: context,
+                runtime: runtime,
+                persist: { try context.save() },
+                contractProvider: { self.testContract },
+                nowProvider: { self.secondTurn }
+            ),
+            context
+        )
     }
 
     @discardableResult
@@ -722,5 +1263,18 @@ final class AgentTaskCoordinatorTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("Timed out waiting for runtime cancellation", file: file, line: line)
+    }
+
+    private func waitForHealth(
+        _ runtime: ScriptedAgentRuntime,
+        count: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0..<10_000 {
+            if await runtime.healthCount >= count { return }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for runtime health call", file: file, line: line)
     }
 }

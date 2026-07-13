@@ -5,6 +5,31 @@ import SwiftData
 @MainActor
 @Observable
 public final class AgentTaskCoordinator {
+    private struct TaskSnapshot {
+        let stage: TaskStage
+        let status: TaskStatus
+        let owner: TaskOwner
+        let links: [TaskLink]
+        let completedAt: Date?
+        let autoCompleted: Bool
+        let agentRun: AgentRun?
+    }
+
+    private struct RunSnapshot {
+        let state: AgentRunState
+        let providerSessionID: String?
+        let workingDirectory: String
+        let project: String
+        let attemptCount: Int
+        let resumeCount: Int
+        let startedAt: Date?
+        let lastActivityAt: Date
+        let completedAt: Date?
+        let lastOutcomeRaw: String?
+        let lastError: String?
+        let requiresConnectedWorker: Bool
+    }
+
     public private(set) var isRunning = false
     public private(set) var activeTitle: String?
     public private(set) var authenticationRequired = false
@@ -13,10 +38,13 @@ public final class AgentTaskCoordinator {
     private let context: ModelContext
     private let runtime: any AgentRuntime
     private let persist: () throws -> Void
+    private let contractProvider: () throws -> String
+    private let nowProvider: () -> Date
     private var activeTask: MustardTask?
     private var activeRun: AgentRun?
     private var activeGeneration = 0
     private var cancellationTask: Task<Void, Never>?
+    private var authenticationGeneration = 0
 
     public init(
         context: ModelContext,
@@ -25,16 +53,22 @@ public final class AgentTaskCoordinator {
         self.context = context
         self.runtime = runtime
         self.persist = { try context.save() }
+        self.contractProvider = AgentTurnContract.workerContract
+        self.nowProvider = { Date.now }
     }
 
     init(
         context: ModelContext,
         runtime: any AgentRuntime,
-        persist: @escaping () throws -> Void
+        persist: @escaping () throws -> Void,
+        contractProvider: @escaping () throws -> String = AgentTurnContract.workerContract,
+        nowProvider: @escaping () -> Date = { Date.now }
     ) {
         self.context = context
         self.runtime = runtime
         self.persist = persist
+        self.contractProvider = contractProvider
+        self.nowProvider = nowProvider
     }
 
     public func runNext(settings: SourceSettings, now: Date = .now) async {
@@ -48,9 +82,15 @@ public final class AgentTaskCoordinator {
             return
         }
 
-        guard let task = AgentTaskQueue.nextRunnable(tasks) else { return }
-        guard let route = AgentTaskQueue.route(task, settings: settings) else {
-            lastError = "No enabled agent route is configured for “\(task.title)”."
+        guard let (task, route) = nextRoutableTask(in: tasks, settings: settings) else {
+            return
+        }
+
+        let contract: String
+        do {
+            contract = try contractProvider()
+        } catch {
+            lastError = "Could not load the worker contract: \(error.localizedDescription)"
             return
         }
 
@@ -60,6 +100,9 @@ public final class AgentTaskCoordinator {
         activeGeneration += 1
         let generation = activeGeneration
 
+        let taskBeforePreflight = taskSnapshot(task)
+        let existingRun = task.agentRun
+        let runBeforePreflight = existingRun.map(runSnapshot)
         let run = ensureRun(for: task)
         activeTask = task
         activeRun = run
@@ -85,7 +128,7 @@ public final class AgentTaskCoordinator {
         run.lastError = nil
         run.attemptCount += 1
         if !startsNewSession { run.resumeCount += 1 }
-        append(
+        let progressMessage = append(
             to: run,
             role: .system,
             kind: .progress,
@@ -94,28 +137,16 @@ public final class AgentTaskCoordinator {
         )
 
         guard save("Could not persist the agent turn before execution") else {
-            restoreFailedTurn(
+            let persistenceError = lastError
+            restorePreflight(
                 task: task,
+                taskSnapshot: taskBeforePreflight,
                 run: run,
-                detail: lastError ?? "Could not persist the agent turn.",
-                now: now,
-                kind: .error
+                runSnapshot: runBeforePreflight,
+                wasNewRun: existingRun == nil,
+                progressMessage: progressMessage
             )
-            return
-        }
-
-        let contract: String
-        do {
-            contract = try AgentTurnContract.workerContract()
-        } catch {
-            guard isCurrent(task: task, run: run, generation: generation) else { return }
-            restoreFailedTurn(
-                task: task,
-                run: run,
-                detail: "Could not load the worker contract: \(error.localizedDescription)",
-                now: now,
-                kind: .error
-            )
+            lastError = persistenceError
             return
         }
 
@@ -147,6 +178,7 @@ public final class AgentTaskCoordinator {
                 workingDirectory: route.workingDirectory
             ))
         }
+        let responseTime = nowProvider()
 
         await drainPendingCancellation()
         guard isCurrent(task: task, run: run, generation: generation) else { return }
@@ -159,12 +191,12 @@ public final class AgentTaskCoordinator {
                 contract: contract,
                 detail: detail,
                 generation: generation,
-                now: now
+                now: responseTime
             )
             return
         }
 
-        apply(response, to: task, run: run, generation: generation, now: now)
+        apply(response, to: task, run: run, generation: generation, now: responseTime)
     }
 
     public func reply(to task: MustardTask, text: String, now: Date = .now) {
@@ -180,29 +212,44 @@ public final class AgentTaskCoordinator {
     }
 
     public func accept(_ task: MustardTask, now: Date = .now) {
+        guard task.stage == .needsReview else { return }
+        let family = completionFamily(of: task)
+        let snapshots = family.map { ($0, taskSnapshot($0)) }
+        let existingUIDs: Set<String>
+        do {
+            existingUIDs = Set(try context.fetch(FetchDescriptor<MustardTask>()).map(\.uid))
+        } catch {
+            lastError = "Could not prepare task acceptance: \(error.localizedDescription)"
+            return
+        }
         TaskCompletion.complete(task, in: context, now: now)
-        _ = save("Could not save the accepted task")
+        guard save("Could not save the accepted task") else {
+            let persistenceError = lastError
+            for (member, snapshot) in snapshots {
+                restore(member, from: snapshot)
+            }
+            if let tasks = try? context.fetch(FetchDescriptor<MustardTask>()) {
+                for inserted in tasks where !existingUIDs.contains(inserted.uid) {
+                    context.delete(inserted)
+                }
+            }
+            lastError = persistenceError
+            return
+        }
     }
 
     public func takeBack(_ task: MustardTask, now: Date = .now) {
-        let run = task.agentRun
-        task.owner = .me
-        task.stage = .planned
-        if let run {
-            run.state = .cancelled
-            run.requiresConnectedWorker = false
-            run.completedAt = now
-            run.lastOutcomeRaw = AgentTurnOutcome.cancelled.rawValue
-            run.lastError = nil
-            append(
-                to: run,
-                role: .system,
-                kind: .recovery,
-                content: "Task taken back by you; active agent work was cancelled.",
-                now: now
-            )
-        }
-        _ = save("Could not save the taken-back task")
+        let legalStages: Set<TaskStage> = [
+            .forAgent, .queued, .inProgress, .needsInput, .needsReview,
+        ]
+        guard task.owner == .agent, legalStages.contains(task.stage) else { return }
+        guard persistLocalCancellation(
+            task: task,
+            run: task.agentRun,
+            detail: "Task taken back by you; active agent work was cancelled.",
+            now: now,
+            savePrefix: "Could not save the taken-back task"
+        ) else { return }
 
         if activeTask === task {
             activeGeneration += 1
@@ -212,22 +259,27 @@ public final class AgentTaskCoordinator {
 
     public func cancelActive() {
         guard let task = activeTask, let run = activeRun else { return }
-        activeGeneration += 1
-
-        if task.owner == .agent, task.stage == .inProgress, run.state == .running {
-            applyCancellation(
+        guard task.owner == .agent,
+              task.stage == .inProgress,
+              run.state == .running,
+              persistLocalCancellation(
                 task: task,
                 run: run,
                 detail: "Active agent work was cancelled by you.",
-                now: .now,
-                role: .system
-            )
-        }
+                now: nowProvider(),
+                savePrefix: "Could not save the cancelled agent turn"
+              )
+        else { return }
+        activeGeneration += 1
         requestRuntimeCancellation()
     }
 
     public func retryAuthentication() async {
-        switch await runtime.health() {
+        authenticationGeneration += 1
+        let generation = authenticationGeneration
+        let health = await runtime.health()
+        guard generation == authenticationGeneration else { return }
+        switch health {
         case .available:
             authenticationRequired = false
             lastError = nil
@@ -279,10 +331,11 @@ public final class AgentTaskCoordinator {
     ) async {
         guard isCurrent(task: task, run: run, generation: generation) else { return }
 
+        let runBeforeRecovery = runSnapshot(run)
         let replacementSessionID = UUID().uuidString
         run.providerSessionID = replacementSessionID
         run.attemptCount += 1
-        append(
+        let recoveryMessage = append(
             to: run,
             role: .system,
             kind: .recovery,
@@ -290,10 +343,14 @@ public final class AgentTaskCoordinator {
             now: now
         )
         guard save("Could not persist provider-session recovery") else {
-            restoreFailedTurn(
+            let persistenceError = lastError
+                ?? "Could not persist provider-session recovery."
+            restore(run, from: runBeforeRecovery)
+            remove(recoveryMessage, from: run)
+            compensatePersistenceFailure(
                 task: task,
                 run: run,
-                detail: lastError ?? "Could not persist provider-session recovery.",
+                detail: persistenceError,
                 now: now,
                 kind: .error
             )
@@ -311,10 +368,17 @@ public final class AgentTaskCoordinator {
             prompt: recoveryPrompt,
             workingDirectory: route.workingDirectory
         ))
+        let recoveryResponseTime = nowProvider()
 
         await drainPendingCancellation()
         guard isCurrent(task: task, run: run, generation: generation) else { return }
-        apply(recoveryResponse, to: task, run: run, generation: generation, now: now)
+        apply(
+            recoveryResponse,
+            to: task,
+            run: run,
+            generation: generation,
+            now: recoveryResponseTime
+        )
     }
 
     private func apply(
@@ -412,15 +476,8 @@ public final class AgentTaskCoordinator {
         run: AgentRun,
         now: Date
     ) {
-        let previousTaskStage = task.stage
-        let previousTaskOwner = task.owner
-        let previousTaskLinks = task.links
-        let previousRunState = run.state
-        let previousConnectedWorker = run.requiresConnectedWorker
-        let previousOutcome = run.lastOutcomeRaw
-        let previousRunError = run.lastError
-        let previousCompletedAt = run.completedAt
-        let previousActivityAt = run.lastActivityAt
+        let taskBeforeOutcome = taskSnapshot(task)
+        let runBeforeOutcome = runSnapshot(run)
 
         let decision = AgentTaskTransition.decision(for: result.outcome)
         task.stage = decision.taskStage
@@ -500,19 +557,17 @@ public final class AgentTaskCoordinator {
 
         guard save("Could not save the agent turn result") else {
             let persistenceError = lastError
-            task.stage = previousTaskStage
-            task.owner = previousTaskOwner
-            task.links = previousTaskLinks
-            run.state = previousRunState
-            run.requiresConnectedWorker = previousConnectedWorker
-            run.lastOutcomeRaw = previousOutcome
-            run.lastError = previousRunError
-            run.completedAt = previousCompletedAt
-            run.lastActivityAt = previousActivityAt
-            run.messages = run.messages?.filter { $0 !== outcomeMessage }
-            outcomeMessage.run = nil
-            context.delete(outcomeMessage)
-            lastError = persistenceError
+                ?? "Could not save the agent turn result."
+            restore(task, from: taskBeforeOutcome)
+            restore(run, from: runBeforeOutcome)
+            remove(outcomeMessage, from: run)
+            compensatePersistenceFailure(
+                task: task,
+                run: run,
+                detail: persistenceError,
+                now: now,
+                kind: .error
+            )
             return
         }
     }
@@ -532,8 +587,24 @@ public final class AgentTaskCoordinator {
             lastError = "This task has no agent run to resume."
             return
         }
+        let isLegal: Bool
+        switch kind {
+        case .answer:
+            isLegal = task.owner == .agent
+                && task.stage == .needsInput
+                && run.state == .needsInput
+        case .reviewFeedback:
+            isLegal = task.owner == .agent
+                && task.stage == .needsReview
+                && run.state == .completed
+        default:
+            isLegal = false
+        }
+        guard isLegal else { return }
 
-        append(to: run, role: .human, kind: kind, content: trimmed, now: now)
+        let taskBeforeCommand = taskSnapshot(task)
+        let runBeforeCommand = runSnapshot(run)
+        let message = append(to: run, role: .human, kind: kind, content: trimmed, now: now)
         task.owner = .agent
         task.stage = .queued
         run.state = .queued
@@ -541,7 +612,14 @@ public final class AgentTaskCoordinator {
         run.completedAt = nil
         run.lastError = nil
         lastError = nil
-        _ = save("Could not save the agent reply")
+        guard save("Could not save the agent reply") else {
+            let persistenceError = lastError
+            restore(task, from: taskBeforeCommand)
+            restore(run, from: runBeforeCommand)
+            remove(message, from: run)
+            lastError = persistenceError
+            return
+        }
     }
 
     private func ensureRun(for task: MustardTask) -> AgentRun {
@@ -550,6 +628,170 @@ public final class AgentTaskCoordinator {
         task.agentRun = run
         context.insert(run)
         return run
+    }
+
+    private func nextRoutableTask(
+        in tasks: [MustardTask],
+        settings: SourceSettings
+    ) -> (MustardTask, AgentTaskRoute)? {
+        var remaining = tasks
+        var unroutableTitles: [String] = []
+        while let candidate = AgentTaskQueue.nextRunnable(remaining) {
+            if let route = AgentTaskQueue.route(candidate, settings: settings) {
+                return (candidate, route)
+            }
+            unroutableTitles.append(candidate.title)
+            remaining.removeAll { $0 === candidate }
+        }
+        if let first = unroutableTitles.first {
+            let suffix = unroutableTitles.count == 1
+                ? ""
+                : " and \(unroutableTitles.count - 1) other task(s)"
+            lastError = "No enabled agent route is configured for “\(first)”\(suffix)."
+        }
+        return nil
+    }
+
+    private func taskSnapshot(_ task: MustardTask) -> TaskSnapshot {
+        TaskSnapshot(
+            stage: task.stage,
+            status: task.status,
+            owner: task.owner,
+            links: task.links,
+            completedAt: task.completedAt,
+            autoCompleted: task.autoCompleted,
+            agentRun: task.agentRun
+        )
+    }
+
+    private func runSnapshot(_ run: AgentRun) -> RunSnapshot {
+        RunSnapshot(
+            state: run.state,
+            providerSessionID: run.providerSessionID,
+            workingDirectory: run.workingDirectory,
+            project: run.project,
+            attemptCount: run.attemptCount,
+            resumeCount: run.resumeCount,
+            startedAt: run.startedAt,
+            lastActivityAt: run.lastActivityAt,
+            completedAt: run.completedAt,
+            lastOutcomeRaw: run.lastOutcomeRaw,
+            lastError: run.lastError,
+            requiresConnectedWorker: run.requiresConnectedWorker
+        )
+    }
+
+    private func restore(_ task: MustardTask, from snapshot: TaskSnapshot) {
+        task.stage = snapshot.stage
+        task.status = snapshot.status
+        task.owner = snapshot.owner
+        task.links = snapshot.links
+        task.completedAt = snapshot.completedAt
+        task.autoCompleted = snapshot.autoCompleted
+        task.agentRun = snapshot.agentRun
+    }
+
+    private func restore(_ run: AgentRun, from snapshot: RunSnapshot) {
+        run.state = snapshot.state
+        run.providerSessionID = snapshot.providerSessionID
+        run.workingDirectory = snapshot.workingDirectory
+        run.project = snapshot.project
+        run.attemptCount = snapshot.attemptCount
+        run.resumeCount = snapshot.resumeCount
+        run.startedAt = snapshot.startedAt
+        run.lastActivityAt = snapshot.lastActivityAt
+        run.completedAt = snapshot.completedAt
+        run.lastOutcomeRaw = snapshot.lastOutcomeRaw
+        run.lastError = snapshot.lastError
+        run.requiresConnectedWorker = snapshot.requiresConnectedWorker
+    }
+
+    private func remove(_ message: AgentMessage, from run: AgentRun) {
+        run.messages = run.messages?.filter { $0 !== message }
+        message.run = nil
+        context.delete(message)
+    }
+
+    private func restorePreflight(
+        task: MustardTask,
+        taskSnapshot: TaskSnapshot,
+        run: AgentRun,
+        runSnapshot: RunSnapshot?,
+        wasNewRun: Bool,
+        progressMessage: AgentMessage
+    ) {
+        remove(progressMessage, from: run)
+        restore(task, from: taskSnapshot)
+        if let runSnapshot {
+            restore(run, from: runSnapshot)
+        } else if wasNewRun {
+            run.task = nil
+            context.delete(run)
+        }
+    }
+
+    private func completionFamily(of task: MustardTask) -> [MustardTask] {
+        [task] + (task.subtasks ?? []).flatMap(completionFamily)
+    }
+
+    private func persistLocalCancellation(
+        task: MustardTask,
+        run: AgentRun?,
+        detail: String,
+        now: Date,
+        savePrefix: String
+    ) -> Bool {
+        let taskBefore = taskSnapshot(task)
+        let runBefore = run.map(runSnapshot)
+        task.owner = .me
+        task.stage = .planned
+        var message: AgentMessage?
+        if let run {
+            run.state = .cancelled
+            run.requiresConnectedWorker = false
+            run.completedAt = now
+            run.lastOutcomeRaw = AgentTurnOutcome.cancelled.rawValue
+            run.lastError = nil
+            message = append(
+                to: run,
+                role: .system,
+                kind: .recovery,
+                content: detail,
+                now: now
+            )
+        }
+        guard save(savePrefix) else {
+            let persistenceError = lastError
+            restore(task, from: taskBefore)
+            if let run, let runBefore { restore(run, from: runBefore) }
+            if let message, let run { remove(message, from: run) }
+            lastError = persistenceError
+            return false
+        }
+        return true
+    }
+
+    private func compensatePersistenceFailure(
+        task: MustardTask,
+        run: AgentRun,
+        detail: String,
+        now: Date,
+        kind: AgentMessageKind
+    ) {
+        task.owner = .agent
+        task.stage = .queued
+        run.state = .failed
+        run.requiresConnectedWorker = false
+        run.completedAt = now
+        run.lastOutcomeRaw = nil
+        run.lastError = detail
+        lastError = detail
+        append(to: run, role: .system, kind: kind, content: detail, now: now)
+        if !save("Could not persist recovery from an agent persistence failure") {
+            // Intentionally retain the recoverable in-memory state even when storage
+            // remains unavailable; never expose a released running turn.
+            run.lastError = lastError
+        }
     }
 
     @discardableResult
