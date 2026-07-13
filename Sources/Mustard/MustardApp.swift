@@ -3,7 +3,6 @@ import SwiftData
 import AppKit
 import MustardKit
 
-@main
 struct MustardApp: App {
     private let container: ModelContainer
     @State private var agent: AgentService

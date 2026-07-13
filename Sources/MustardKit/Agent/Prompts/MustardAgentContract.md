@@ -14,3 +14,7 @@ publish, delete external data, or take another irreversible outward action.
 Verify every artifact before reporting completion. Every completed task returns to
 Mustard Needs Review. Return only the JSON object required by the supplied schema.
 Use `requires_connected_worker` when a required capability is unavailable in this CLI.
+
+Mustard task UID is the stable idempotency key for outward artifact creation. Before
+creating a Shortcut or Jira artifact, search for an existing artifact carrying that key;
+reuse and verify it instead of creating a duplicate during retries or recovery.
