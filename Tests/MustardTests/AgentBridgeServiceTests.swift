@@ -30,7 +30,7 @@ final class AgentBridgeServiceTests: XCTestCase {
     }
 
     @MainActor
-    func test_export_writesQueuedTask() throws {
+    func test_export_skipsOrdinaryQueuedLocalTask() throws {
         let io = StubIO(); let (svc, ctx) = try service(io)
         // Route the task to the DL area so exportWorkOrders' area filter selects it.
         let area = Area(name: "Digital Licence")
@@ -39,6 +39,23 @@ final class AgentBridgeServiceTests: XCTestCase {
         t.list = list
         ctx.insert(area); ctx.insert(list); ctx.insert(t)
         svc.exportWorkOrders(workingDir: "/kb/DL", area: "Digital Licence", project: "DL")
+        XCTAssertTrue(io.written.isEmpty)
+    }
+
+    @MainActor
+    func test_export_writesConnectedFallbackTask() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let area = Area(name: "Digital Licence")
+        let list = TaskList(name: "DL", area: area)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued; t.actionType = .ticket
+        t.list = list
+        let run = AgentRun(task: t)
+        run.requiresConnectedWorker = true
+        t.agentRun = run
+        ctx.insert(area); ctx.insert(list); ctx.insert(t); ctx.insert(run)
+
+        svc.exportWorkOrders(workingDir: "/kb/DL", area: "Digital Licence", project: "DL")
+
         XCTAssertEqual(io.written.map(\.uid), ["u1"])
         XCTAssertEqual(io.written.first?.mode, "execute")
     }
@@ -53,7 +70,10 @@ final class AgentBridgeServiceTests: XCTestCase {
         let list = TaskList(name: "DL", area: area)
         let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued; t.actionType = .ticket
         t.list = list
-        ctx.insert(area); ctx.insert(list); ctx.insert(t)
+        let run = AgentRun(task: t)
+        run.requiresConnectedWorker = true
+        t.agentRun = run
+        ctx.insert(area); ctx.insert(list); ctx.insert(t); ctx.insert(run)
         io.live = []                 // worker already archived the outbox
         io.liveResults = ["u1"]      // result written, not yet ingested
         svc.exportWorkOrders(workingDir: "/kb/DL", area: "Digital Licence", project: "DL")
