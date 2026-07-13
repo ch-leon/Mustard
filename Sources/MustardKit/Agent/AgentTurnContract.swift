@@ -42,21 +42,16 @@ public enum AgentTurnContract {
       "type":"object",
       "additionalProperties":false,
       "properties":{
-        "outcome":{"type":"string","enum":["completed","needs_input","failed","cancelled","requires_connected_worker"]},
+        "outcome":{"type":"string","enum":["completed","needs_input","failed","cancelled","requires_connected_worker"],"description":"The turn outcome. Outcome-specific fields must follow their property descriptions."},
         "message":{"type":"string"},
-        "questions":{"type":"array","items":{"type":"string"}},
+        "questions":{"type":"array","items":{"type":"string"},"description":"For needs_input, include at least one nonblank question; otherwise use an empty array."},
         "summary":{"type":"string"},
         "artifacts":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"label":{"type":"string"},"url":{"type":"string"}},"required":["label","url"]}},
         "retryDisposition":{"type":"string","enum":["none","safe","backoff","uncertain"]},
-        "errorCategory":{"type":["string","null"]},
-        "connectedCapability":{"type":["string","null"]}
+        "errorCategory":{"type":["string","null"],"description":"For failed, provide a nonblank error category; otherwise use null."},
+        "connectedCapability":{"type":["string","null"],"description":"For requires_connected_worker, provide a nonblank capability; otherwise use null."}
       },
-      "required":["outcome","message","questions","summary","artifacts","retryDisposition"],
-      "allOf":[
-        {"if":{"properties":{"outcome":{"const":"needs_input"}}},"then":{"properties":{"questions":{"minItems":1,"contains":{"type":"string","pattern":"\\S"}}}}},
-        {"if":{"properties":{"outcome":{"const":"failed"}}},"then":{"required":["errorCategory"],"properties":{"errorCategory":{"type":"string","pattern":"\\S"}}}},
-        {"if":{"properties":{"outcome":{"const":"requires_connected_worker"}}},"then":{"required":["connectedCapability"],"properties":{"connectedCapability":{"type":"string","pattern":"\\S"}}}}
-      ]
+      "required":["outcome","message","questions","summary","artifacts","retryDisposition","errorCategory","connectedCapability"]
     }
     """#
 
@@ -98,7 +93,7 @@ public enum AgentTurnContract {
             "outcome", "message", "questions", "summary", "artifacts",
             "retryDisposition", "errorCategory", "connectedCapability",
         ]
-        guard Set(object.keys).isSubset(of: allowedResultKeys) else {
+        guard Set(object.keys) == allowedResultKeys else {
             throw CocoaError(.propertyListReadCorrupt)
         }
 

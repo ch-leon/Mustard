@@ -4,7 +4,7 @@ import XCTest
 
 final class AgentTurnContractTests: XCTestCase {
     func test_decodesNeedsInput() throws {
-        let json = #"{"outcome":"needs_input","message":"I need the version","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none"}"#
+        let json = #"{"outcome":"needs_input","message":"I need the version","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
 
         let result = try AgentTurnContract.decode(json)
 
@@ -13,7 +13,7 @@ final class AgentTurnContractTests: XCTestCase {
     }
 
     func test_decodesCompletedArtifact() throws {
-        let json = #"{"outcome":"completed","message":"Created it","questions":[],"summary":"Created Shortcut 123","artifacts":[{"label":"Shortcut","url":"https://app.shortcut.com/x/123"}],"retryDisposition":"none"}"#
+        let json = #"{"outcome":"completed","message":"Created it","questions":[],"summary":"Created Shortcut 123","artifacts":[{"label":"Shortcut","url":"https://app.shortcut.com/x/123"}],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
 
         let result = try AgentTurnContract.decode(json)
 
@@ -22,27 +22,43 @@ final class AgentTurnContractTests: XCTestCase {
     }
 
     func test_decodesValidOutcomeSpecificFields() throws {
-        let needsInput = #"{"outcome":"needs_input","message":"Need detail","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none"}"#
-        let failed = #"{"outcome":"failed","message":"Could not continue","questions":[],"summary":"","artifacts":[],"retryDisposition":"safe","errorCategory":"network"}"#
-        let connected = #"{"outcome":"requires_connected_worker","message":"Needs Shortcut","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","connectedCapability":"shortcut"}"#
+        let needsInput = #"{"outcome":"needs_input","message":"Need detail","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
+        let failed = #"{"outcome":"failed","message":"Could not continue","questions":[],"summary":"","artifacts":[],"retryDisposition":"safe","errorCategory":"network","connectedCapability":null}"#
+        let connected = #"{"outcome":"requires_connected_worker","message":"Needs Shortcut","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":"shortcut"}"#
 
         XCTAssertEqual(try AgentTurnContract.decode(needsInput).outcome, .needsInput)
         XCTAssertEqual(try AgentTurnContract.decode(failed).errorCategory, "network")
         XCTAssertEqual(try AgentTurnContract.decode(connected).connectedCapability, "shortcut")
     }
 
+    func test_acceptsExplicitNullOutcomeFieldsWhenOutcomePermits() throws {
+        let completed = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
+        let cancelled = #"{"outcome":"cancelled","message":"Stopped","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
+
+        XCTAssertNil(try AgentTurnContract.decode(completed).errorCategory)
+        XCTAssertNil(try AgentTurnContract.decode(cancelled).connectedCapability)
+    }
+
+    func test_rejectsMissingNullableKeysEvenWhenOutcomePermitsNull() {
+        let missingErrorCategory = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","connectedCapability":null}"#
+        let missingConnectedCapability = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":null}"#
+
+        XCTAssertThrowsError(try AgentTurnContract.decode(missingErrorCategory))
+        XCTAssertThrowsError(try AgentTurnContract.decode(missingConnectedCapability))
+    }
+
     func test_rejectsMissingOrBlankOutcomeSpecificFields() {
         let needsInputCases = [
-            #"{"outcome":"needs_input","message":"Need detail","questions":[],"summary":"","artifacts":[],"retryDisposition":"none"}"#,
-            #"{"outcome":"needs_input","message":"Need detail","questions":["  "],"summary":"","artifacts":[],"retryDisposition":"none"}"#,
+            #"{"outcome":"needs_input","message":"Need detail","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#,
+            #"{"outcome":"needs_input","message":"Need detail","questions":["  "],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#,
         ]
         let failedCases = [
-            #"{"outcome":"failed","message":"Failed","questions":[],"summary":"","artifacts":[],"retryDisposition":"none"}"#,
-            #"{"outcome":"failed","message":"Failed","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":" \n "}"#,
+            #"{"outcome":"failed","message":"Failed","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#,
+            #"{"outcome":"failed","message":"Failed","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":" \n ","connectedCapability":null}"#,
         ]
         let connectedCases = [
-            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":[],"summary":"","artifacts":[],"retryDisposition":"none"}"#,
-            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","connectedCapability":"  "}"#,
+            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#,
+            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":"  "}"#,
         ]
 
         for json in needsInputCases + failedCases + connectedCases {
@@ -89,10 +105,10 @@ final class AgentTurnContractTests: XCTestCase {
 
         XCTAssertEqual(schema["type"] as? String, "object")
         XCTAssertEqual(schema["additionalProperties"] as? Bool, false)
-        XCTAssertEqual(
-            schema["required"] as? [String],
-            ["outcome", "message", "questions", "summary", "artifacts", "retryDisposition"]
-        )
+        XCTAssertEqual(Set(schema["required"] as? [String] ?? []), Set([
+            "outcome", "message", "questions", "summary", "artifacts", "retryDisposition",
+            "errorCategory", "connectedCapability",
+        ]))
         XCTAssertEqual(
             outcome["enum"] as? [String],
             ["completed", "needs_input", "failed", "cancelled", "requires_connected_worker"]
@@ -103,6 +119,38 @@ final class AgentTurnContractTests: XCTestCase {
         )
         XCTAssertEqual(artifactItems["additionalProperties"] as? Bool, false)
         XCTAssertEqual(artifactItems["required"] as? [String], ["label", "url"])
-        XCTAssertNotNil(schema["allOf"], "schema should advertise outcome-specific requirements")
+        XCTAssertEqual(
+            questionsDescription(from: properties),
+            "For needs_input, include at least one nonblank question; otherwise use an empty array."
+        )
+        XCTAssertEqual(
+            (properties["errorCategory"] as? [String: Any])?["description"] as? String,
+            "For failed, provide a nonblank error category; otherwise use null."
+        )
+        XCTAssertEqual(
+            (properties["connectedCapability"] as? [String: Any])?["description"] as? String,
+            "For requires_connected_worker, provide a nonblank capability; otherwise use null."
+        )
+
+        let unsupported = Set(["allOf", "if", "then", "contains", "pattern"])
+        XCTAssertTrue(schemaKeywords(in: schema).isDisjoint(with: unsupported))
+    }
+
+    private func questionsDescription(from properties: [String: Any]) -> String? {
+        (properties["questions"] as? [String: Any])?["description"] as? String
+    }
+
+    private func schemaKeywords(in value: Any) -> Set<String> {
+        if let object = value as? [String: Any] {
+            return object.reduce(into: Set(object.keys)) { result, pair in
+                result.formUnion(schemaKeywords(in: pair.value))
+            }
+        }
+        if let array = value as? [Any] {
+            return array.reduce(into: Set<String>()) { result, element in
+                result.formUnion(schemaKeywords(in: element))
+            }
+        }
+        return []
     }
 }
