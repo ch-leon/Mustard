@@ -111,19 +111,33 @@ public enum AgentTurnContract {
 
         switch result.outcome {
         case .needsInput:
-            guard result.questions.contains(where: { !isBlank($0) }) else {
+            guard result.questions.contains(where: { !isBlank($0) }),
+                  result.errorCategory == nil,
+                  result.connectedCapability == nil
+            else {
                 throw CocoaError(.propertyListReadCorrupt)
             }
         case .failed:
-            guard !isBlank(result.errorCategory) else {
+            guard result.questions.isEmpty,
+                  !isBlank(result.errorCategory),
+                  result.connectedCapability == nil
+            else {
                 throw CocoaError(.propertyListReadCorrupt)
             }
         case .requiresConnectedWorker:
-            guard !isBlank(result.connectedCapability) else {
+            guard result.questions.isEmpty,
+                  result.errorCategory == nil,
+                  !isBlank(result.connectedCapability)
+            else {
                 throw CocoaError(.propertyListReadCorrupt)
             }
         case .completed, .cancelled:
-            break
+            guard result.questions.isEmpty,
+                  result.errorCategory == nil,
+                  result.connectedCapability == nil
+            else {
+                throw CocoaError(.propertyListReadCorrupt)
+            }
         }
     }
 }

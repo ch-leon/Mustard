@@ -66,16 +66,34 @@ final class AgentTurnContractTests: XCTestCase {
         }
     }
 
+    func test_rejectsOutcomeFieldsThatContradictOutcome() {
+        let contradictoryPayloads = [
+            #"{"outcome":"completed","message":"Done","questions":["Unexpected?"],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#,
+            #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":"none","connectedCapability":null}"#,
+            #"{"outcome":"cancelled","message":"Stopped","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":"shortcut"}"#,
+            #"{"outcome":"needs_input","message":"Need detail","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":"not-an-error","connectedCapability":null}"#,
+            #"{"outcome":"needs_input","message":"Need detail","questions":["Which version?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":"shortcut"}"#,
+            #"{"outcome":"failed","message":"Failed","questions":["Retry?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":"network","connectedCapability":null}"#,
+            #"{"outcome":"failed","message":"Failed","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":"network","connectedCapability":"shortcut"}"#,
+            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":["Connect?"],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":"shortcut"}"#,
+            #"{"outcome":"requires_connected_worker","message":"Blocked","questions":[],"summary":"","artifacts":[],"retryDisposition":"none","errorCategory":"network","connectedCapability":"shortcut"}"#,
+        ]
+
+        for json in contradictoryPayloads {
+            XCTAssertThrowsError(try AgentTurnContract.decode(json), json)
+        }
+    }
+
     func test_rejectsUnknownOutcomeAndProse() {
-        let otherwiseCompleteUnknownOutcome = #"{"outcome":"done","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none"}"#
+        let otherwiseCompleteUnknownOutcome = #"{"outcome":"done","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
 
         XCTAssertThrowsError(try AgentTurnContract.decode(otherwiseCompleteUnknownOutcome))
         XCTAssertThrowsError(try AgentTurnContract.decode("looks good"))
     }
 
     func test_decodeRejectsUnknownTopLevelAndArtifactProperties() {
-        let unknownTopLevel = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","surprise":true}"#
-        let unknownArtifact = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[{"label":"File","url":"file:///tmp/result","surprise":true}],"retryDisposition":"none"}"#
+        let unknownTopLevel = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null,"surprise":true}"#
+        let unknownArtifact = #"{"outcome":"completed","message":"Done","questions":[],"summary":"Done","artifacts":[{"label":"File","url":"file:///tmp/result","surprise":true}],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
 
         XCTAssertThrowsError(try AgentTurnContract.decode(unknownTopLevel))
         XCTAssertThrowsError(try AgentTurnContract.decode(unknownArtifact))
