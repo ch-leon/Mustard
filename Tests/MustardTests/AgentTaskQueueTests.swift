@@ -21,7 +21,7 @@ final class AgentTaskQueueTests: XCTestCase {
                 createdAt: date(200)
             )
 
-            XCTAssertTrue(AgentTaskQueue.nextRunnable(from: [oldLower, newHigher]) === newHigher)
+            XCTAssertTrue(AgentTaskQueue.nextRunnable([oldLower, newHigher]) === newHigher)
         }
     }
 
@@ -29,7 +29,7 @@ final class AgentTaskQueueTests: XCTestCase {
         let newer = makeTask(uid: "newer", priority: .high, createdAt: date(200))
         let older = makeTask(uid: "older", priority: .high, createdAt: date(100))
 
-        XCTAssertTrue(AgentTaskQueue.nextRunnable(from: [newer, older]) === older)
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([newer, older]) === older)
     }
 
     func test_nextRunnableSkipsNonRunnableStagesWrongOwnerAndBlockedTasks() {
@@ -40,7 +40,7 @@ final class AgentTaskQueueTests: XCTestCase {
         let blocked = makeTask(uid: "blocked")
         blocked.blockedReason = "Waiting on approval"
 
-        XCTAssertNil(AgentTaskQueue.nextRunnable(from: [
+        XCTAssertNil(AgentTaskQueue.nextRunnable([
             needsInput, inProgress, needsReview, wrongOwner, blocked,
         ]))
     }
@@ -49,15 +49,15 @@ final class AgentTaskQueueTests: XCTestCase {
         let queued = makeTask(uid: "queued", stage: .queued, createdAt: date(200))
         let forAgent = makeTask(uid: "for-agent", stage: .forAgent, createdAt: date(100))
 
-        XCTAssertTrue(AgentTaskQueue.nextRunnable(from: [queued, forAgent]) === forAgent)
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([queued, forAgent]) === forAgent)
     }
 
     func test_nextRunnableDeterministicallyBreaksExactTiesByUID() {
         let z = makeTask(uid: "task-z", createdAt: date(100))
         let a = makeTask(uid: "task-a", createdAt: date(100))
 
-        XCTAssertTrue(AgentTaskQueue.nextRunnable(from: [z, a]) === a)
-        XCTAssertTrue(AgentTaskQueue.nextRunnable(from: [a, z]) === a)
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([z, a]) === a)
+        XCTAssertTrue(AgentTaskQueue.nextRunnable([a, z]) === a)
     }
 
     func test_routeMapsTaskAreaToEnabledSource() {

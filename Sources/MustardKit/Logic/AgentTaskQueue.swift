@@ -11,7 +11,7 @@ public struct AgentTaskRoute: Equatable, Sendable {
 }
 
 public enum AgentTaskQueue {
-    public static func nextRunnable(from tasks: [MustardTask]) -> MustardTask? {
+    public static func nextRunnable(_ tasks: [MustardTask]) -> MustardTask? {
         tasks
             .filter {
                 $0.owner == .agent
