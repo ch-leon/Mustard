@@ -755,3 +755,6 @@ Before claiming the learning loop is complete:
 - skill changes are constrained to allowed `SKILL.md` files, snapshotted, atomic, and undoable
 - no skill change is committed or pushed automatically
 - all tests/builds pass and Leon confirms the native UI
+- all implementation remains on its feature branch; do not merge to `main`, push, or
+  create a ready-to-merge PR until Leon has completed thorough hands-on testing and gives
+  explicit approval

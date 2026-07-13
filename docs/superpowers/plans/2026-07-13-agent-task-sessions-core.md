@@ -1515,3 +1515,6 @@ Before claiming the core MVP is complete:
 - every completed task lands in Needs Review
 - the untracked/user-owned `AGENTS.md` is not added or modified unless Leon separately
   approves it
+- all implementation remains on its feature branch; do not merge to `main`, push, or
+  create a ready-to-merge PR until Leon has completed thorough hands-on testing and gives
+  explicit approval
