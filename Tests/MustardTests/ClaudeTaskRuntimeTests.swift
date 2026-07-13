@@ -141,6 +141,80 @@ final class ClaudeTaskRuntimeTests: XCTestCase {
         XCTAssertEqual(unavailableHealth, .unavailable(unavailableText))
     }
 
+    func test_health_loggedOutJSONFieldsEachMapAuthenticationRequired() async {
+        for text in [#"{"loggedIn":false}"#, #"{"authMethod":"none"}"#] {
+            let health = await runtime(
+                returning: .init(ok: true, text: text, unparsed: true)
+            ).health()
+            XCTAssertEqual(health, .authenticationRequired(text))
+        }
+    }
+
+    func test_health_realRunner_exitOneLoggedOutJSON_mapsAuthenticationRequired() async throws {
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-logged-out-\(UUID().uuidString).sh")
+        try FileManager.default.createDirectory(
+            at: stub.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        #!/bin/zsh
+        echo '{"loggedIn":false,"authMethod":"none"}'
+        exit 1
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        let previousBinary = ProcessInfo.processInfo.environment["MUSTARD_CLAUDE_BIN"]
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+        defer {
+            if let previousBinary {
+                setenv("MUSTARD_CLAUDE_BIN", previousBinary, 1)
+            } else {
+                unsetenv("MUSTARD_CLAUDE_BIN")
+            }
+        }
+
+        let health = await ClaudeTaskRuntime().health()
+
+        guard case .authenticationRequired(let text) = health else {
+            return XCTFail("expected logged-out auth JSON to require authentication, got \(health)")
+        }
+        XCTAssertTrue(text.contains(#""loggedIn":false"#))
+        XCTAssertTrue(text.contains(#""authMethod":"none""#))
+    }
+
+    func test_health_realRunner_exitOneUnrelatedJSON_mapsUnavailable() async throws {
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-unavailable-\(UUID().uuidString).sh")
+        try FileManager.default.createDirectory(
+            at: stub.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        #!/bin/zsh
+        echo '{"unexpected":true}'
+        exit 1
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        let previousBinary = ProcessInfo.processInfo.environment["MUSTARD_CLAUDE_BIN"]
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+        defer {
+            if let previousBinary {
+                setenv("MUSTARD_CLAUDE_BIN", previousBinary, 1)
+            } else {
+                unsetenv("MUSTARD_CLAUDE_BIN")
+            }
+        }
+
+        let health = await ClaudeTaskRuntime().health()
+
+        guard case .unavailable(let text) = health else {
+            return XCTFail("expected unrelated nonzero JSON to be unavailable, got \(health)")
+        }
+        XCTAssertTrue(text.contains(#""unexpected":true"#))
+    }
+
     func test_cancelTargetsOnlyCurrentInvocation_andCompletionClearsIt() async throws {
         let controlled = ControlledInvoke()
         let cancelled = LockedValues<UUID>()

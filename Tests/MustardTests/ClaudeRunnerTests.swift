@@ -84,6 +84,62 @@ final class ClaudeRunnerTests: XCTestCase {
         XCTAssertFalse(result.unparsed)
     }
 
+    func test_run_zeroExitArbitraryJSON_isFlaggedUnparsed() async throws {
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-auth-json-\(UUID().uuidString).sh")
+        try """
+        #!/bin/zsh
+        echo '{"loggedIn":true,"authMethod":"oauth"}'
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+
+        let result = await ClaudeRunner.run("any", "/tmp")
+
+        XCTAssertTrue(result.ok)
+        XCTAssertTrue(result.unparsed, "arbitrary JSON is not a Claude prompt-result envelope")
+        XCTAssertTrue(result.text.contains(#""loggedIn":true"#))
+    }
+
+    func test_run_nonzeroArbitraryJSON_isFailure_andPreservesStdoutAndStderr() async throws {
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-auth-failure-\(UUID().uuidString).sh")
+        try """
+        #!/bin/zsh
+        echo '{"loggedIn":false,"authMethod":"none"}'
+        echo 'auth status failed' 1>&2
+        exit 1
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+
+        let result = await ClaudeRunner.run("any", "/tmp")
+
+        XCTAssertFalse(result.ok, "a nonzero process exit can never be a successful run")
+        XCTAssertTrue(result.text.contains(#""loggedIn":false"#))
+        XCTAssertTrue(result.text.contains("auth status failed"))
+    }
+
+    func test_run_nonzeroPromptResultEnvelope_isFailure() async throws {
+        let stub = FileManager.default.temporaryDirectory
+            .appending(path: "mustard-tests/fake-claude-result-failure-\(UUID().uuidString).sh")
+        try """
+        #!/bin/zsh
+        echo '{"type":"result","is_error":false,"result":"must not succeed"}'
+        exit 9
+        """.write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        setenv("MUSTARD_CLAUDE_BIN", stub.path, 1)
+
+        let result = await ClaudeRunner.run("any", "/tmp")
+
+        XCTAssertFalse(result.ok, "outer result JSON cannot override a nonzero process exit")
+        XCTAssertTrue(result.text.contains("must not succeed"))
+    }
+
     // MARK: - concurrent pipe drain (large stderr must not deadlock stdout)
 
     func test_run_largeStderrDoesNotDeadlockStdoutDrain() async throws {

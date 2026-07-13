@@ -228,26 +228,38 @@ public enum ClaudeRunner {
                 let stdout = String(data: stdoutBuffer.withLock { $0 }, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrBuffer.withLock { $0 }, encoding: .utf8) ?? ""
 
+                if process.terminationStatus != 0 {
+                    let text = """
+                    claude exited \(process.terminationStatus)
+                    stdout:
+                    \(stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+                    stderr:
+                    \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+                    """
+                    continuation.resume(returning: ClaudeResult(
+                        ok: false, text: text, rateLimited: isRateLimited(text)))
+                    return
+                }
+
                 struct CLIOutput: Decodable {
                     let result: String?
-                    let is_error: Bool?
+                    let is_error: Bool
                 }
                 if let data = stdout.data(using: .utf8),
+                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   object.keys.contains("result"),
+                   object.keys.contains("is_error"),
                    let parsed = try? JSONDecoder().decode(CLIOutput.self, from: data) {
-                    if parsed.is_error == true {
+                    if parsed.is_error {
                         let text = parsed.result ?? "claude reported an error"
                         continuation.resume(returning: ClaudeResult(
                             ok: false, text: text, rateLimited: isRateLimited(text)))
                     } else {
                         continuation.resume(returning: ClaudeResult(ok: true, text: parsed.result ?? ""))
                     }
-                } else if process.terminationStatus == 0 {
+                } else {
                     continuation.resume(returning: ClaudeResult(
                         ok: true, text: stdout.trimmingCharacters(in: .whitespacesAndNewlines), unparsed: true))
-                } else {
-                    let text = "claude exited \(process.terminationStatus)\n\(stderr)"
-                    continuation.resume(returning: ClaudeResult(
-                        ok: false, text: text, rateLimited: isRateLimited(stderr)))
                 }
             }
         }

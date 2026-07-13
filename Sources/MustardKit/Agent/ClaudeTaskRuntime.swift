@@ -38,6 +38,9 @@ public actor ClaudeTaskRuntime: AgentRuntime {
             arguments: ["auth", "status", "--json"],
             workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path
         ))
+        if Self.isLoggedOutAuthStatus(result.text) {
+            return .authenticationRequired(result.text)
+        }
         if result.ok { return .available }
         if Self.isAuthenticationFailure(result.text) {
             return .authenticationRequired(result.text)
@@ -103,6 +106,12 @@ public actor ClaudeTaskRuntime: AgentRuntime {
         text.localizedCaseInsensitiveContains("401")
             || text.localizedCaseInsensitiveContains("not logged in")
             || text.localizedCaseInsensitiveContains("authentication")
+    }
+
+    private static func isLoggedOutAuthStatus(_ text: String) -> Bool {
+        let options: String.CompareOptions = [.regularExpression, .caseInsensitive]
+        return text.range(of: #""loggedIn"\s*:\s*false"#, options: options) != nil
+            || text.range(of: #""authMethod"\s*:\s*"none""#, options: options) != nil
     }
 
     private static func isSessionMissing(_ text: String) -> Bool {
