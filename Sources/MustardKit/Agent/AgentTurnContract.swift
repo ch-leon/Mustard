@@ -67,17 +67,25 @@ public enum AgentTurnContract {
         let packagedBundle = Bundle.main.resourceURL
             .map { $0.appendingPathComponent("Mustard_MustardKit.bundle", isDirectory: true) }
             .flatMap(Bundle.init(url:))
-        let url = packagedBundle?.url(
-            forResource: "MustardAgentContract",
-            withExtension: "md"
-        ) ?? Bundle.module.url(
-            forResource: "MustardAgentContract",
-            withExtension: "md",
-            subdirectory: "Prompts"
-        ) ?? Bundle.module.url(
+        var url = packagedBundle?.url(
             forResource: "MustardAgentContract",
             withExtension: "md"
         )
+        #if SWIFT_PACKAGE
+        // Dev/test builds resolve the resource from the SwiftPM-synthesized module bundle.
+        // `Bundle.module` exists only under SwiftPM; the iOS Xcode companion target — which
+        // never runs the CLI worker — has no such bundle and falls through to the error.
+        if url == nil {
+            url = Bundle.module.url(
+                forResource: "MustardAgentContract",
+                withExtension: "md",
+                subdirectory: "Prompts"
+            ) ?? Bundle.module.url(
+                forResource: "MustardAgentContract",
+                withExtension: "md"
+            )
+        }
+        #endif
         guard let url else {
             throw CocoaError(.fileNoSuchFile)
         }

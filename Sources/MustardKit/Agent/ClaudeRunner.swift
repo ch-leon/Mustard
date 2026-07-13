@@ -85,6 +85,7 @@ public struct ClaudeInvocation: Sendable {
 
 public typealias ClaudeInvoke = @Sendable (ClaudeInvocation) async -> ClaudeResult
 
+#if os(macOS)
 enum ClaudeTerminationReason: Equatable, Sendable {
     case cancelled
     case timedOut
@@ -93,6 +94,7 @@ enum ClaudeTerminationReason: Equatable, Sendable {
 /// Generation tokens make late cancellation harmless even when a completed UUID is
 /// reused. Only active/pending IDs are retained, so registry memory is bounded by
 /// concurrent invocations rather than process lifetime.
+/// `Process` is macOS-only (ADR-0003), so this registry is compiled only there.
 final class ClaudeInvocationRegistry: @unchecked Sendable {
     private struct Entry {
         let token: ClaudeCancellationToken
@@ -171,6 +173,7 @@ final class ClaudeInvocationRegistry: @unchecked Sendable {
         }
     }
 }
+#endif
 
 public enum ClaudeRunner {
 #if os(macOS)
