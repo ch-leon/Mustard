@@ -66,6 +66,10 @@ public struct TaskDetailSheet: View {
                     // All its commands route through AgentTaskCoordinator.
                     if task.agentRun != nil { AgentConversationView(task: task) }
 
+                    if let run = task.agentRun, !(run.drafts ?? []).isEmpty {
+                        AgentDraftsSection(run: run)
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         sectionHeader("Details")
                         PropertyRow(label: "Stage") {
