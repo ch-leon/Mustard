@@ -24,9 +24,11 @@ without sending anything and without converting tasks into notes.
 ## Approach
 
 A draft **is a vault markdown file**. The worker writes it to the vault (it already has
-vault access) and returns a lightweight reference; Mustard records the reference, renders
-the file inline in the task, and can open it in the built-in Notes editor. The conversation
-keeps only a short line, so the transcript stays lean regardless of draft size.
+vault access) and returns a lightweight reference; Mustard records the reference and renders
+— and lets you **edit** — the file **inline in the task detail panel, which opens over the
+board**. Reviewing a draft never changes surfaces: no jump to the Notes tab, no context
+switch. The embedded markdown editor is the one we already built (Notes/Craft editor); the
+conversation keeps only a short line, so the transcript stays lean regardless of draft size.
 
 ## Components
 
@@ -72,24 +74,34 @@ keeps only a short line, so the transcript stays lean regardless of draft size.
   bodies.
 - Draft creation participates in the existing narrow snapshot/restore on save failure.
 
-### 6. Display (`AgentDraftsSection` in the task detail; Notes navigation)
-- A "Drafts" section (shown when `run.drafts` is non-empty), each row:
-  - title + a `kind` icon;
-  - the file's markdown **read live** on view via the vault IO + shared `MarkdownBlocksView`
-    (no cache — reflects in-app/Notes edits, and large files never enter the store);
-  - **Copy** — copies the raw file text (for pasting into Jira/email/etc.);
-  - **Open in Notes** — navigates the Notes surface to
-    `NoteRef(project: run.project, workingDirectory: run.workingDirectory, relativePath: draft.relativePath)`
-    in the built-in Craft editor for in-app editing. (No Obsidian.)
+### 6. Display & edit (`AgentDraftsSection` in the task detail — in place, over the board)
+The task detail already opens as a panel/drawer over the board, so everything below happens
+without leaving the board or switching surfaces.
+
+- A "Drafts" section (shown when `run.drafts` is non-empty). Each draft is a **collapsed
+  preview card**: `kind` icon + title + a 2–3 line snippet of the body (read live from the
+  file). Collapsed by default so a large draft stays a tidy card.
+- **Expand** reveals the draft **inline in the same panel**, mounted in the embedded markdown
+  editor we already built (the Notes/Craft editor component driven by a
+  `NoteRef(project: run.project, workingDirectory: run.workingDirectory, relativePath: draft.relativePath)`).
+  The draft is **editable in place** and autosaves to the file (a "saved" affordance). The
+  file is the single source of truth — read live, never cached into the store, so size is a
+  non-issue.
+- **Copy** copies the raw file text (for pasting into Jira/email/etc.); **Collapse** tucks it away.
+- **Comment / request changes**: the task panel's existing review bar carries a
+  feedback field → `AgentTaskCoordinator.requestChanges` (a comment *to the agent*), alongside
+  **Take back** and **Accept output** — all in the same panel.
 - Missing/moved file → a graceful "draft file not found" state, not a crash.
-- Cross-surface navigation from task detail → Notes uses a shared navigation hook (a
-  `NoteRef` open-request the Root layer routes to the Notes tab).
+- Optional (not the primary path): a small "pop out to Notes ↗" affordance for a heavy editing
+  session, routing a `NoteRef` open-request to the Notes tab. Deferrable — the in-place editor
+  covers review and light edits.
 
 ### 7. Safety
-- Path validation confines drafts to `_agent/drafts/` within the working directory.
-- Mustard's file access for drafts is **read-only** (writes happen only in the Notes editor
-  the user opens).
-- The no-send rule is unchanged and reinforced in the contract.
+- Path validation confines drafts to `_agent/drafts/` within the working directory — for both
+  reading and the in-place editor's writes.
+- Mustard writes to a draft file only through the user-driven inline editor (their own edits);
+  it never posts or sends. The agent likewise only *drafts* — the no-send rule is unchanged and
+  reinforced in the contract.
 
 ## Testing
 - **Pure:** `AgentTurnContract` decode of `drafts[]`; path-safety validation (absolute / `..`
@@ -99,10 +111,14 @@ keeps only a short line, so the transcript stays lean regardless of draft size.
   dropped.
 - **Bridge:** a connected `AgentResult` with `drafts` creates `AgentDraft` records via ingest.
 - **Model round-trip:** `AgentDraft` persists and resolves through `run.drafts`.
-- **View:** build + Leon's eye-check (Drafts section render, Copy, Open in Notes).
+- **View:** build + Leon's eye-check (collapsed preview → expand to inline editor, edit
+  autosaves to the file, Copy, Collapse, review bar in the same panel over the board).
 
 ## Out of scope (YAGNI)
+- Anchored inline/margin comments *on* the draft text (Google-Docs-style annotations) — our
+  editor has no annotation layer; a comment *to the agent* uses the existing review field.
 - Converting tasks into vault notes (separate epic if ever wanted).
 - Routing *non-draft* large outputs through files (same mechanism could extend later).
 - Auto-cleanup / lifecycle status on draft files (accepted/used/stale).
-- Editing a draft directly inside the task detail (Notes editor covers editing).
+- Cross-surface Notes navigation as the primary review path (in-place only; a "pop out to
+  Notes" escape hatch is optional and deferrable).
