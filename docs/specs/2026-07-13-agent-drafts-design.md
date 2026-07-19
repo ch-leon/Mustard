@@ -1,6 +1,6 @@
 # File-backed Agent Drafts — Design
 
-- **Status:** Approved in conversation; ready for implementation plan
+- **Status:** Implemented and eye-checked by Leon (2026-07-20); includes the companion side panel and the durable marker-hiding fix (cfd60a4)
 - **Date:** 2026-07-13
 - **Depends on:** the agent task-sessions core MVP (F24, `docs/specs/2026-07-13-agent-task-sessions-design.md`)
 - **Branch:** `codex/agent-task-sessions-implementation`
