@@ -1014,6 +1014,7 @@ public final class AgentTaskCoordinator {
         let prefixes = [
             "Work only", "Ask focused", "Never ", "Verify every", "Every completed",
             "Return only", "Mustard task UID", "The coordinator",
+            "When you produce drafted",
         ]
         let selected = contract
             .components(separatedBy: .newlines)
@@ -1021,6 +1022,10 @@ public final class AgentTaskCoordinator {
             .filter { line in
                 prefixes.contains { line.hasPrefix($0) }
                     || line.contains("Never send email")
+                    // Resumed sessions predate or may have drifted from the drafts
+                    // convention, so the file-path + drafts[] lines must survive
+                    // into the compact reminder.
+                    || line.contains("_agent/drafts/")
             }
         return selected.isEmpty
             ? "Follow the binding worker safety and structured-output contract from the first turn."

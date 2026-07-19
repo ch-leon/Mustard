@@ -1025,6 +1025,38 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertNil(run.nextAttemptAt)
     }
 
+    func test_resumeContractReminderCarriesDraftFileInstruction() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .question("Which version?"),
+            .completed("Done"),
+        ])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let contractWithDrafts = """
+        Work only on the assigned task.
+        Never send email.
+        When you produce drafted content, write the full draft to a markdown file at \
+        `_agent/drafts/<task-uid>/<slug>.md` and return it in `drafts[]`.
+        Return only structured output.
+        """
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: { try context.save() },
+            contractProvider: { contractWithDrafts },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Draft on resume", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        coordinator.reply(to: task, text: "Use 5.2.0", now: secondTurn)
+        await coordinator.runNext(settings: settings, now: secondTurn)
+
+        let resumeRequests = await runtime.resumeRequests
+        let prompt = try XCTUnwrap(resumeRequests.first).prompt
+        XCTAssertTrue(prompt.contains("_agent/drafts/"))
+    }
+
     func test_requestChangesResetsRetryBudgetForFreshTurn() async throws {
         let runtime = ScriptedAgentRuntime(responses: [.completed("First draft")])
         let (coordinator, context) = try fixture(runtime: runtime)
