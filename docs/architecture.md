@@ -43,6 +43,7 @@ property has a default or is optional, **no `@Attribute(.unique)`**.
 | `OutputCard` | legacy recommendation-execution output (pre-ADR-0010) | content, kind, `reviewRaw`, → recommendation |
 | `AgentRun` | one delegated-task conversation | `provider`, `state`, `providerSessionID`, `requiresConnectedWorker`, `nextAttemptAt`, `autoRetryCount`, → task, → messages |
 | `AgentMessage` | one ordered turn in a run | `sequence`, `role`, `kind`, `content`, `links`, → run |
+| `AgentDraft` | a file-backed draft the agent produced | `kind`, `title`, `relativePath` (under `_agent/drafts/`), → run. Body lives in the vault file, not the store |
 | `CalendarEvent` | a Google Calendar meeting | externalId, calendarId, title, start, end, isAllDay, joinURL, location |
 
 > **F24 note:** delegated agent tasks now carry an `AgentRun`/`AgentMessage` conversation and

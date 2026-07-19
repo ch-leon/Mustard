@@ -111,6 +111,19 @@ public enum PreviewData {
                          links: [storyLink]),
         ] { ctx.insert(m) }
 
+        let draftsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mustard-preview/_agent/drafts/\(review.uid)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: draftsDir, withIntermediateDirectories: true)
+        let draftRel = "_agent/drafts/\(review.uid)/jira-reply.md"
+        try? "## Jira reply (draft)\n\nThe \"Manage my QDI\" option can't satisfy Apple 5.1.1(v) or Google Play account-deletion rules, so the delete-worded option must stay regardless of SSP.\n\n- Apple 5.1.1(v)\n- Google Play account-deletion"
+            .write(to: FileManager.default.temporaryDirectory.appendingPathComponent("mustard-preview/\(draftRel)"),
+                   atomically: true, encoding: .utf8)
+        reviewRun.workingDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("mustard-preview").path
+        let previewDraft = AgentDraft(run: reviewRun, kind: .comment, title: "Manage my QDI — Jira reply",
+                                      relativePath: draftRel)
+        reviewRun.drafts = [previewDraft]
+        ctx.insert(previewDraft)
+
         return container
     }()
 }
