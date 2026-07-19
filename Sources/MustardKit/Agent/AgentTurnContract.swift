@@ -25,6 +25,25 @@ public struct AgentArtifact: Codable, Equatable, Sendable {
     }
 }
 
+public struct AgentDraftPayload: Codable, Equatable, Sendable {
+    public let kind: String
+    public let title: String
+    public let path: String
+    public init(kind: String, title: String, path: String) {
+        self.kind = kind; self.title = title; self.path = path
+    }
+}
+
+public enum AgentDrafts {
+    /// A draft path must be relative, escape-free, and confined to the drafts folder.
+    public static func isSafeRelativePath(_ path: String) -> Bool {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("/"),
+              trimmed.hasPrefix("_agent/drafts/") else { return false }
+        return !trimmed.split(separator: "/").contains("..")
+    }
+}
+
 public struct AgentTurnResult: Codable, Equatable, Sendable {
     public let outcome: AgentTurnOutcome
     public let message: String
@@ -34,6 +53,19 @@ public struct AgentTurnResult: Codable, Equatable, Sendable {
     public let retryDisposition: AgentRetryDisposition
     public let errorCategory: String?
     public let connectedCapability: String?
+    public let drafts: [AgentDraftPayload]?
+
+    public init(
+        outcome: AgentTurnOutcome, message: String, questions: [String], summary: String,
+        artifacts: [AgentArtifact], retryDisposition: AgentRetryDisposition,
+        errorCategory: String?, connectedCapability: String?,
+        drafts: [AgentDraftPayload]? = nil
+    ) {
+        self.outcome = outcome; self.message = message; self.questions = questions
+        self.summary = summary; self.artifacts = artifacts; self.retryDisposition = retryDisposition
+        self.errorCategory = errorCategory; self.connectedCapability = connectedCapability
+        self.drafts = drafts
+    }
 }
 
 public enum AgentTurnContract {
@@ -49,7 +81,8 @@ public enum AgentTurnContract {
         "artifacts":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"label":{"type":"string"},"url":{"type":"string"}},"required":["label","url"]}},
         "retryDisposition":{"type":"string","enum":["none","safe","backoff","uncertain"]},
         "errorCategory":{"type":["string","null"],"description":"For failed, provide a nonblank error category; otherwise use null."},
-        "connectedCapability":{"type":["string","null"],"description":"For requires_connected_worker, provide a nonblank capability; otherwise use null."}
+        "connectedCapability":{"type":["string","null"],"description":"For requires_connected_worker, provide a nonblank capability; otherwise use null."},
+        "drafts":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string"},"title":{"type":"string"},"path":{"type":"string"}},"required":["kind","title","path"]}}
       },
       "required":["outcome","message","questions","summary","artifacts","retryDisposition","errorCategory","connectedCapability"]
     }
@@ -97,11 +130,14 @@ public enum AgentTurnContract {
             throw CocoaError(.propertyListReadCorrupt)
         }
 
-        let allowedResultKeys: Set<String> = [
+        let requiredResultKeys: Set<String> = [
             "outcome", "message", "questions", "summary", "artifacts",
             "retryDisposition", "errorCategory", "connectedCapability",
         ]
-        guard Set(object.keys) == allowedResultKeys else {
+        let optionalResultKeys: Set<String> = ["drafts"]
+        let keys = Set(object.keys)
+        guard requiredResultKeys.isSubset(of: keys),
+              keys.isSubset(of: requiredResultKeys.union(optionalResultKeys)) else {
             throw CocoaError(.propertyListReadCorrupt)
         }
 

@@ -154,6 +154,33 @@ final class AgentTurnContractTests: XCTestCase {
         XCTAssertTrue(schemaKeywords(in: schema).isDisjoint(with: unsupported))
     }
 
+    func test_decodesDraftsWhenPresent() throws {
+        let json = #"{"outcome":"completed","message":"done","questions":[],"summary":"Drafted","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null,"drafts":[{"kind":"comment","title":"Jira reply","path":"_agent/drafts/u1/reply.md"}]}"#
+        let result = try AgentTurnContract.decode(json)
+        XCTAssertEqual(result.drafts?.count, 1)
+        XCTAssertEqual(result.drafts?.first?.kind, "comment")
+        XCTAssertEqual(result.drafts?.first?.path, "_agent/drafts/u1/reply.md")
+    }
+
+    func test_decodesWithoutDraftsKey_defaultsToNil() throws {
+        let json = #"{"outcome":"completed","message":"done","questions":[],"summary":"s","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null}"#
+        let result = try AgentTurnContract.decode(json)
+        XCTAssertNil(result.drafts)
+    }
+
+    func test_rejectsUnknownTopLevelKey() {
+        let json = #"{"outcome":"completed","message":"m","questions":[],"summary":"s","artifacts":[],"retryDisposition":"none","errorCategory":null,"connectedCapability":null,"bogus":1}"#
+        XCTAssertThrowsError(try AgentTurnContract.decode(json))
+    }
+
+    func test_draftPathSafety() {
+        XCTAssertTrue(AgentDrafts.isSafeRelativePath("_agent/drafts/u1/reply.md"))
+        XCTAssertFalse(AgentDrafts.isSafeRelativePath("/etc/passwd"))
+        XCTAssertFalse(AgentDrafts.isSafeRelativePath("_agent/drafts/../../secret.md"))
+        XCTAssertFalse(AgentDrafts.isSafeRelativePath("notes/elsewhere.md"))
+        XCTAssertFalse(AgentDrafts.isSafeRelativePath(""))
+    }
+
     private func questionsDescription(from properties: [String: Any]) -> String? {
         (properties["questions"] as? [String: Any])?["description"] as? String
     }
