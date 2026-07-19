@@ -29,73 +29,52 @@ public struct AgentDraftsSection: View {
 private struct AgentDraftCard: View {
     let draft: AgentDraft
     let workingDirectory: String
-    @State private var expanded = false
-    @State private var text: String = ""
-    @State private var loaded = false
+    @Environment(AgentDraftPanelState.self) private var panel
+    @State private var snippet: String = ""
 
-    private var io: FileVaultIO { FileVaultIO(rootPath: workingDirectory) }
+    private var isOpen: Bool { panel.draft === draft }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-            if expanded {
-                if loaded {
-                    MarkdownTextView(text: $text)
-                        .frame(minHeight: 160, maxHeight: 420)
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.Palette.hairline, lineWidth: 0.5))
-                        .onChange(of: text) { _, newValue in try? io.write(draft.relativePath, newValue) }
-                } else {
-                    Text("Draft file not found — it may have been moved.")
-                        .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.warnText)
+        Button { panel.open(draft, workingDirectory: workingDirectory) } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 9) {
+                    Image(systemName: icon).font(Theme.Fonts.body).foregroundStyle(Theme.Palette.agent)
+                    Text(draft.title).font(Theme.Fonts.body).fontWeight(.medium)
+                        .foregroundStyle(Theme.Palette.textPrimary)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 8)
+                    Text(draft.kind.rawValue)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.agentText)
+                        .padding(.horizontal, 7).padding(.vertical, 1)
+                        .background(Theme.Palette.agentTintLight, in: Capsule())
                 }
-                actions
-            } else {
-                Text(snippet).font(Theme.Fonts.meta)
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                    .lineLimit(3)
-                    .padding(.leading, 10)
-                    .overlay(alignment: .leading) { Rectangle().fill(Theme.Palette.hairline).frame(width: 2) }
-                actions
+                if isOpen {
+                    Text("Open — editing beside this panel")
+                        .font(Theme.Fonts.meta).foregroundStyle(Theme.Palette.agentText)
+                } else {
+                    Text(snippet.isEmpty ? "Open draft" : snippet)
+                        .font(Theme.Fonts.meta)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                        .padding(.leading, 10)
+                        .overlay(alignment: .leading) {
+                            Rectangle().fill(Theme.Palette.hairline).frame(width: 2)
+                        }
+                }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .stroke(isOpen ? Theme.Palette.agent : Theme.Palette.hairline,
+                        lineWidth: isOpen ? 1.5 : 0.5))
         }
-        .padding(12)
-        .background(Theme.Palette.surface, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.Palette.hairline, lineWidth: 0.5))
-        .task(id: draft.uid) { load() }
-    }
-
-    private var header: some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon).font(Theme.Fonts.body).foregroundStyle(Theme.Palette.agent)
-            Text(draft.title).font(Theme.Fonts.body).fontWeight(.medium)
-            Spacer(minLength: 8)
-            Text(draft.kind.rawValue)
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(Theme.Palette.agentText)
-                .padding(.horizontal, 7).padding(.vertical, 1)
-                .background(Theme.Palette.agentTintLight, in: Capsule())
+        .buttonStyle(.plain)
+        .task(id: draft.uid) {
+            snippet = FileVaultIO(rootPath: workingDirectory).read(draft.relativePath) ?? ""
         }
-    }
-
-    private var actions: some View {
-        HStack(spacing: 8) {
-            Button { expanded.toggle() } label: {
-                Label(expanded ? "Collapse" : "Expand",
-                      systemImage: expanded ? "chevron.up" : "chevron.down")
-            }.controlSize(.small)
-            Button {
-                #if canImport(AppKit)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-                #endif
-            } label: { Label("Copy", systemImage: "doc.on.doc") }
-                .controlSize(.small).disabled(!loaded)
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var snippet: String {
-        loaded ? text : "Loading…"
     }
 
     private var icon: String {
@@ -104,14 +83,6 @@ private struct AgentDraftCard: View {
         case .message: return "message"
         case .comment: return "text.bubble"
         case .note, .other: return "doc.text"
-        }
-    }
-
-    private func load() {
-        if let contents = io.read(draft.relativePath) {
-            text = contents; loaded = true
-        } else {
-            loaded = false
         }
     }
 }

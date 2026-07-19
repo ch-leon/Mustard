@@ -39,9 +39,9 @@ public struct AgentConsoleView: View {
         .background(Theme.Palette.bg)
         .sheet(item: $selectedTask) { task in
             // Reuse the task detail flow (which hosts the agent conversation) rather than
-            // duplicating the conversation UI in the console.
-            TaskDetailSheet(task: task, onClose: { selectedTask = nil })
-                .frame(minWidth: 480, minHeight: 560)
+            // duplicating the conversation UI in the console. A draft opens as a companion
+            // panel beside the task, same as the board drawer.
+            ConsoleTaskSheet(task: task, onClose: { selectedTask = nil })
         }
         .onAppear {
             if selected == nil {
@@ -466,6 +466,28 @@ struct FlowChips: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+/// Console host for the task detail: pairs the sheet with the companion draft panel.
+private struct ConsoleTaskSheet: View {
+    let task: MustardTask
+    let onClose: () -> Void
+    @State private var draftPanel = AgentDraftPanelState()
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if draftPanel.draft != nil {
+                AgentDraftPanelView(state: draftPanel)
+                    .frame(width: 440)
+                Divider().overlay(Theme.Palette.hairline)
+            }
+            TaskDetailSheet(task: task, onClose: onClose)
+                .frame(minWidth: 480)
+                .environment(draftPanel)
+        }
+        .frame(minHeight: 560)
+        .animation(Theme.Motion.expand, value: draftPanel.draft?.uid)
     }
 }
 
