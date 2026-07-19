@@ -18,3 +18,9 @@ Use `requires_connected_worker` when a required capability is unavailable in thi
 Mustard task UID is the stable idempotency key for outward artifact creation. Before
 creating a Shortcut or Jira artifact, search for an existing artifact carrying that key;
 reuse and verify it instead of creating a duplicate during retries or recovery.
+
+When you produce drafted content (an email, a message, a ticket/comment, or a note), write
+the full draft to a markdown file at `_agent/drafts/<task-uid>/<slug>.md` and return it in
+`drafts[]` as `{ "kind": "email|message|comment|note|other", "title": "...", "path": "_agent/drafts/<task-uid>/<slug>.md" }`.
+Never inline a large draft body in `message` or `summary`; never send or post it. Always
+include a `drafts` array (empty when there are none).

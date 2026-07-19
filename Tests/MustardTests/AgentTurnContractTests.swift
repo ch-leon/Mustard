@@ -112,6 +112,12 @@ final class AgentTurnContractTests: XCTestCase {
         XCTAssertTrue(text.contains("Before creating a Shortcut or Jira artifact, search for an existing artifact carrying that key; reuse and verify it instead of creating a duplicate during retries or recovery."))
     }
 
+    func test_workerContractDescribesDraftFiles() throws {
+        let text = try AgentTurnContract.workerContract()
+        XCTAssertTrue(text.contains("_agent/drafts/"))
+        XCTAssertTrue(text.contains("drafts[]"))
+    }
+
     func test_schemaRequiresStrictResultAndArtifactShapes() throws {
         let data = Data(AgentTurnContract.jsonSchema.utf8)
         let schema = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
