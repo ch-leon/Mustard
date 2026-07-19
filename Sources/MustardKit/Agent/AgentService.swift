@@ -267,6 +267,8 @@ public final class AgentService {
         default:
             break
         }
+
+        AgentConversation.materializeDrafts(r.drafts ?? [], into: run, in: context)
     }
 
     private func ingest(_ proposals: [SourceProposal], vaultPath: String) {

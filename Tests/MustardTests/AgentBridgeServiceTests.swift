@@ -116,6 +116,24 @@ final class AgentBridgeServiceTests: XCTestCase {
     }
 
     @MainActor
+    func test_ingest_materializesConnectedDrafts() throws {
+        let io = StubIO(); let (svc, ctx) = try service(io)
+        let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued
+        let run = AgentRun(task: t); run.requiresConnectedWorker = true; run.state = .running
+        t.agentRun = run
+        ctx.insert(t); ctx.insert(run)
+        io.results = [(AgentResult(uid: "u1", mode: "execute", status: "done", actionType: nil,
+            title: nil, body: nil, links: nil, summary: "Drafted", error: nil,
+            drafts: [AgentDraftPayload(kind: "email", title: "Reply", path: "_agent/drafts/u1/reply.md")]),
+            "/kb/DL/_agent/results/u1.json")]
+
+        svc.ingestAgentResults(workingDir: "/kb/DL")
+
+        XCTAssertEqual(run.drafts?.count, 1)
+        XCTAssertEqual(run.drafts?.first?.kind, .email)
+    }
+
+    @MainActor
     func test_ingest_normalizesFailedIntoRun_failedAndRetainsFallback() throws {
         let io = StubIO(); let (svc, ctx) = try service(io)
         let t = MustardTask(title: "ship"); t.uid = "u1"; t.stage = .queued
