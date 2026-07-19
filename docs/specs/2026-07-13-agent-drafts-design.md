@@ -78,16 +78,20 @@ conversation keeps only a short line, so the transcript stays lean regardless of
 The task detail already opens as a panel/drawer over the board, so everything below happens
 without leaving the board or switching surfaces.
 
-- A "Drafts" section (shown when `run.drafts` is non-empty). Each draft is a **collapsed
-  preview card**: `kind` icon + title + a 2–3 line snippet of the body (read live from the
-  file). Collapsed by default so a large draft stays a tidy card.
-- **Expand** reveals the draft **inline in the same panel**, mounted in the embedded markdown
-  editor we already built (the Notes/Craft editor component driven by a
-  `NoteRef(project: run.project, workingDirectory: run.workingDirectory, relativePath: draft.relativePath)`).
-  The draft is **editable in place** and autosaves to the file (a "saved" affordance). The
-  file is the single source of truth — read live, never cached into the store, so size is a
+- A "Drafts" section (shown when `run.drafts` is non-empty). Each draft is a **compact
+  reference card**: `kind` icon + title + a 2–3 line snippet of the body (read live from the
+  file). Tapping it (or its **Open** affordance) does NOT expand in place — a tiny embedded
+  box is a poor reading surface (UX review, 2026-07-20).
+- Instead, opening a draft slides a **full-height companion panel in beside the task panel,
+  to its left** (same docked-drawer pattern the task panel uses), giving the draft real
+  reading width. The panel hosts the embedded markdown editor we already built
+  (`MarkdownTextView` on the file at `run.workingDirectory + draft.relativePath`), **editable
+  in place** with autosave (a "saved" affordance) plus **Copy** and a close control. The file
+  is the single source of truth — read live, never cached into the store, so size is a
   non-issue.
-- **Copy** copies the raw file text (for pasting into Jira/email/etc.); **Collapse** tucks it away.
+- **One draft panel at a time**: opening another draft swaps the panel's content. Closing the
+  task panel closes the draft panel with it. Review actions (Request changes / Accept / Take
+  back) stay in the task panel only, so the two sit side by side: read left, act right.
 - **Comment / request changes**: the task panel's existing review bar carries a
   feedback field → `AgentTaskCoordinator.requestChanges` (a comment *to the agent*), alongside
   **Take back** and **Accept output** — all in the same panel.
