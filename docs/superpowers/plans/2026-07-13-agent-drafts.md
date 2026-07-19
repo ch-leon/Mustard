@@ -150,21 +150,26 @@ In `AgentTurnContract.jsonSchema`, add a `drafts` property (do NOT add it to `re
 "drafts":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string"},"title":{"type":"string"},"path":{"type":"string"}},"required":["kind","title","path"]}}
 ```
 
-In `validateNoUnknownProperties`, add `"drafts"` to `allowedResultKeys` and change the strict
-equality to a subset check so optional keys may be absent:
+In `validateNoUnknownProperties`, split the check into required-presence + no-unknown-keys.
+The original 8 keys must ALL be present (this is what rejects a payload that omits a
+nullable key instead of sending an explicit `null` — see
+`test_rejectsMissingNullableKeysEvenWhenOutcomePermitsNull`); only `drafts` may be absent:
 
 ```swift
-let allowedResultKeys: Set<String> = [
+let requiredResultKeys: Set<String> = [
     "outcome", "message", "questions", "summary", "artifacts",
-    "retryDisposition", "errorCategory", "connectedCapability", "drafts",
+    "retryDisposition", "errorCategory", "connectedCapability",
 ]
-guard Set(object.keys).isSubset(of: allowedResultKeys) else {
+let optionalResultKeys: Set<String> = ["drafts"]
+let keys = Set(object.keys)
+guard requiredResultKeys.isSubset(of: keys),
+      keys.isSubset(of: requiredResultKeys.union(optionalResultKeys)) else {
     throw CocoaError(.propertyListReadCorrupt)
 }
 ```
 
-(Required fields are still enforced by `AgentTurnResult`'s non-optional properties during
-`JSONDecoder` decode, so a missing `message`/`outcome`/etc. still throws.)
+This preserves the existing strictness exactly (missing nullable keys still throw; unknown
+keys still throw) while tolerating an absent `drafts`.
 
 - [ ] **Step 5: Run and confirm pass**
 
