@@ -214,6 +214,27 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.activeTitle)
     }
 
+    func test_completedTurnMaterializesValidDraftsAndDropsUnsafeOnes() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .success(.init(outcome: .completed, message: "done", questions: [], summary: "Drafted",
+                           artifacts: [], retryDisposition: .none, errorCategory: nil,
+                           connectedCapability: nil, drafts: [
+                               .init(kind: "comment", title: "Jira reply", path: "_agent/drafts/u1/reply.md"),
+                               .init(kind: "email", title: "Escape attempt", path: "../../etc/passwd"),
+                           ])),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Draft it", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(task.stage, .needsReview)
+        let drafts = task.agentRun?.drafts ?? []
+        XCTAssertEqual(drafts.count, 1)
+        XCTAssertEqual(drafts.first?.kind, .comment)
+        XCTAssertEqual(drafts.first?.relativePath, "_agent/drafts/u1/reply.md")
+    }
+
     func test_needsInputReleasesSlotAndSecondRunNextRunsNextTask() async throws {
         let runtime = ScriptedAgentRuntime(responses: [
             .question("Which version?"),

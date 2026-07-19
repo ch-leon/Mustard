@@ -692,12 +692,15 @@ public final class AgentTaskCoordinator {
             )
         }
 
+        let createdDrafts = AgentConversation.materializeDrafts(result.drafts ?? [], into: run, in: context)
+
         guard save("Could not save the agent turn result") else {
             let persistenceError = lastError
                 ?? "Could not save the agent turn result."
             restore(task, from: taskBeforeOutcome)
             restore(run, from: runBeforeOutcome)
             remove(outcomeMessage, from: run)
+            for draft in createdDrafts { draft.run = nil; context.delete(draft) }
             compensatePersistenceFailure(
                 task: task,
                 run: run,

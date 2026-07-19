@@ -30,4 +30,24 @@ enum AgentConversation {
         run.lastActivityAt = now
         return message
     }
+
+    @discardableResult
+    static func materializeDrafts(
+        _ payloads: [AgentDraftPayload],
+        into run: AgentRun,
+        in context: ModelContext
+    ) -> [AgentDraft] {
+        var created: [AgentDraft] = []
+        for payload in payloads where AgentDrafts.isSafeRelativePath(payload.path) {
+            let draft = AgentDraft(
+                run: run,
+                kind: AgentDraftKind(rawValue: payload.kind) ?? .other,
+                title: payload.title.isEmpty ? payload.path : payload.title,
+                relativePath: payload.path
+            )
+            context.insert(draft)
+            created.append(draft)
+        }
+        return created
+    }
 }
