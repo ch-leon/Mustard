@@ -42,6 +42,8 @@ public final class AgentRun {
     public var task: MustardTask?
     @Relationship(deleteRule: .cascade, inverse: \AgentMessage.run)
     public var messages: [AgentMessage]? = []
+    @Relationship(deleteRule: .cascade, inverse: \AgentDraft.run)
+    public var drafts: [AgentDraft]? = []
 
     public var provider: AgentProvider {
         get { AgentProvider(rawValue: providerRaw) ?? .claude }

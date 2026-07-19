@@ -8,7 +8,7 @@ public enum PreviewData {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-            AgentRun.self, AgentMessage.self, CalendarEvent.self, NoteIndexEntry.self,
+            AgentRun.self, AgentMessage.self, AgentDraft.self, CalendarEvent.self, NoteIndexEntry.self,
             configurations: config
         )
         let ctx = container.mainContext

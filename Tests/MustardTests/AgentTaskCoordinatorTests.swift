@@ -1540,7 +1540,7 @@ final class AgentTaskCoordinatorTests: XCTestCase {
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-            AgentRun.self, AgentMessage.self,
+            AgentRun.self, AgentMessage.self, AgentDraft.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }
@@ -1551,7 +1551,7 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-            AgentRun.self, AgentMessage.self,
+            AgentRun.self, AgentMessage.self, AgentDraft.self,
             configurations: configuration
         )
         let context = ModelContext(container)

@@ -8,7 +8,7 @@ final class AgentRunModelTests: XCTestCase {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
             for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-            AgentRun.self, AgentMessage.self,
+            AgentRun.self, AgentMessage.self, AgentDraft.self,
             configurations: configuration
         )
     }

@@ -11,7 +11,7 @@ public enum MustardContainer {
         do {
             let container = try ModelContainer(
                 for: Area.self, TaskList.self, MustardTask.self, Recommendation.self,
-                AgentRun.self, AgentMessage.self, CalendarEvent.self, NoteIndexEntry.self,
+                AgentRun.self, AgentMessage.self, AgentDraft.self, CalendarEvent.self, NoteIndexEntry.self,
                 configurations: config
             )
             // One-time backfill of the stage model from legacy status (BAK-75).
