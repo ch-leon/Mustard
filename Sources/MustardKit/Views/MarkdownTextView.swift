@@ -270,12 +270,22 @@ struct MarkdownTextView: NSViewRepresentable {
         /// `isProgrammaticUpdate`/`isPerformingEdit`, which guard OUR OWN writes,
         /// not the user's focus state. `nil` `focusedRange` (editor has no focus
         /// at all) hides every marker in the document (`NoteDecoration
-        /// .markerVisibility`'s documented behaviour).
-        private var hasFocus = false
-        /// The blocks whose markers are CURRENTLY revealed (diff baseline for the
-        /// incremental selection-change path — see `refreshMarkerVisibility`).
-        private var revealedMarkerBlocks: [NoteDecoration.Block] = []
-        private var markerVisibilityInitialized = false
+        /// .markerVisibility`'s documented behaviour). Internal (not private)
+        /// so marker-hiding tests can simulate focus without a key window.
+        var hasFocus = false
+        /// Character indexes whose glyphs render hidden (`.null`), consulted by the
+        /// glyph-generation delegate hook. This is the durable home for marker
+        /// hiding: `setNotShownAttribute` is transient typesetter state that TextKit
+        /// wipes on every layout regeneration (first display, resize, scroll), so
+        /// hiding MUST be re-established during glyph generation itself or markers
+        /// reappear the moment a real window lays out.
+        private var hiddenMarkerCharacters = IndexSet()
+        /// Document length `hiddenMarkerCharacters` was computed against. Glyph
+        /// generation can run for the edited range BEFORE `textDidChange` rebuilds
+        /// the set; a length mismatch means the indexes are stale for THIS pass, so
+        /// the hook stands down (markers briefly visible beats hiding the wrong
+        /// characters). The rebuild + invalidation that follows regenerates them.
+        private var hiddenMarkerDocLength = 0
 
         /// Large-note fallback (spec "never block typing"): above this many UTF-16
         /// units decoration is skipped entirely — plain editable text. 200k units
@@ -306,18 +316,13 @@ struct MarkdownTextView: NSViewRepresentable {
             // frontmatter fences) which the scoped pass can't see.
             let block = caretBlock(in: textView)
             applyDecorations(scopedTo: block)
-            // Fast path (BAK-250): the block under the caret is always focused —
-            // reveal ITS hideable markers immediately so typed syntax ("**", "#
-            // ", "> ") shows without waiting on the debounce. Every other block's
-            // glyphs are untouched by this edit (TextKit preserves/shifts glyph
-            // flags for characters outside the edited range), so their existing
-            // hidden/shown state is still correct — any TOPOLOGY change (new/
-            // merged block) is caught by the debounced full pass below, same
-            // split `applyDecorations` already uses.
-            if let block, let layoutManager = textView.layoutManager {
-                setNotShown(false, ranges: NoteDecoration.hideableMarkerRanges(textView.string, in: block),
-                           source: textView.string, layoutManager: layoutManager)
-            }
+            // Fast path (BAK-250): rebuild marker visibility right away so the
+            // caret block's typed syntax ("**", "# ", "> ") reveals without
+            // waiting on the debounce, and so the hidden-character set (whose
+            // indexes shifted with this edit) is correct before the edited
+            // range's glyphs regenerate. The visibility decision is a cheap line
+            // scan — only `applyDecorations` needs the scoped/debounced split.
+            refreshMarkerVisibility(fullRecompute: true)
             scheduleFullPass()
             refreshSlashMenu()
             // Any edit collapses the selection (typing replaces it) — hide the
@@ -483,51 +488,88 @@ struct MarkdownTextView: NSViewRepresentable {
         ///     `revealedMarkerBlocks` and re-touch ONLY the blocks whose
         ///     membership changed — never a whole-document glyph walk on a plain
         ///     caret move.
+        /// Recompute which marker characters hide vs reveal and re-invalidate the
+        /// glyphs whose visibility changed. The decision (`NoteDecoration
+        /// .markerVisibility`) is a cheap line scan, so every path takes the same
+        /// full recompute — `fullRecompute` is retained for call-site stability but
+        /// both values behave identically now that application happens during glyph
+        /// generation (see `hiddenMarkerCharacters`) rather than as transient
+        /// per-glyph state that had to be touched incrementally.
         func refreshMarkerVisibility(fullRecompute: Bool) {
             guard let textView, let layoutManager = textView.layoutManager else { return }
             let source = textView.string
-            guard (source as NSString).length <= Self.plainTextFallbackLimit else { return }
-
-            let focusedRange: NSRange? = hasFocus ? textView.selectedRange() : nil
-
-            if fullRecompute || !markerVisibilityInitialized {
-                let visibility = NoteDecoration.markerVisibility(source, focusedRange: focusedRange)
-                setNotShown(true, ranges: visibility.hidden, source: source, layoutManager: layoutManager)
-                setNotShown(false, ranges: visibility.revealed, source: source, layoutManager: layoutManager)
-                revealedMarkerBlocks = NoteDecoration.revealedBlocks(source, focusedRange: focusedRange)
-                markerVisibilityInitialized = true
+            let length = (source as NSString).length
+            guard length <= Self.plainTextFallbackLimit else {
+                replaceHiddenMarkers(with: IndexSet(), docLength: length, layoutManager: layoutManager)
                 return
             }
 
-            let nowRevealed = NoteDecoration.revealedBlocks(source, focusedRange: focusedRange)
-            guard nowRevealed != revealedMarkerBlocks else { return }
-
-            for block in revealedMarkerBlocks where !nowRevealed.contains(block) {
-                setNotShown(true, ranges: NoteDecoration.hideableMarkerRanges(source, in: block),
-                           source: source, layoutManager: layoutManager)
+            let focusedRange: NSRange? = hasFocus ? textView.selectedRange() : nil
+            let visibility = NoteDecoration.markerVisibility(source, focusedRange: focusedRange)
+            var hidden = IndexSet()
+            for range in visibility.hidden where range.length > 0 && range.upperBound <= length {
+                hidden.insert(integersIn: range.location..<range.upperBound)
             }
-            for block in nowRevealed where !revealedMarkerBlocks.contains(block) {
-                setNotShown(false, ranges: NoteDecoration.hideableMarkerRanges(source, in: block),
-                           source: source, layoutManager: layoutManager)
-            }
-            revealedMarkerBlocks = nowRevealed
+            replaceHiddenMarkers(with: hidden, docLength: length, layoutManager: layoutManager)
         }
 
-        /// `notShown = true` hides (no layout, no paint); `false` reveals. Ranges
-        /// past the current storage length are skipped defensively — the same
-        /// stale-range guard `applyDecorations` uses.
-        private func setNotShown(_ notShown: Bool, ranges: [NSRange], source: String,
-                                 layoutManager: NSLayoutManager) {
-            let length = (source as NSString).length
-            for range in ranges {
-                guard range.length > 0, range.upperBound <= length else { continue }
-                let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-                guard glyphRange.length > 0 else { continue }
-                for glyphIndex in glyphRange.location..<glyphRange.upperBound {
-                    layoutManager.setNotShownAttribute(notShown, forGlyphAt: glyphIndex)
-                }
-                layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
+        /// Swap in the new hidden set and force glyph REGENERATION (not merely
+        /// relayout) for every character whose visibility flipped — regeneration is
+        /// what re-runs the delegate hook that applies `.null`. Stale indexes past
+        /// the document end are clamped defensively.
+        private func replaceHiddenMarkers(with newSet: IndexSet, docLength: Int,
+                                          layoutManager: NSLayoutManager) {
+            let previous = hiddenMarkerCharacters
+            let previousLength = hiddenMarkerDocLength
+            hiddenMarkerCharacters = newSet
+            hiddenMarkerDocLength = docLength
+            guard previous != newSet || previousLength != docLength else { return }
+
+            var changed = previous.symmetricDifference(newSet)
+            if docLength > 0 {
+                changed = changed.intersection(IndexSet(integersIn: 0..<docLength))
+            } else {
+                changed = IndexSet()
             }
+            for range in changed.rangeView {
+                let characterRange = NSRange(location: range.lowerBound,
+                                             length: range.upperBound - range.lowerBound)
+                layoutManager.invalidateGlyphs(forCharacterRange: characterRange,
+                                               changeInLength: 0, actualCharacterRange: nil)
+                layoutManager.invalidateLayout(forCharacterRange: characterRange,
+                                               actualCharacterRange: nil)
+            }
+        }
+
+        /// Glyph-generation hook: mark hidden marker characters' glyphs `.null` so
+        /// they neither lay out nor draw. Running here (rather than poking
+        /// `setNotShownAttribute` after the fact) makes hiding survive every layout
+        /// pass by construction — TextKit re-invokes this whenever it regenerates
+        /// glyphs. Stands down when the set is stale for the current document (see
+        /// `hiddenMarkerDocLength`).
+        func layoutManager(_ layoutManager: NSLayoutManager,
+                           shouldGenerateGlyphs glyphs: UnsafePointer<CGGlyph>,
+                           properties props: UnsafePointer<NSLayoutManager.GlyphProperty>,
+                           characterIndexes charIndexes: UnsafePointer<Int>,
+                           font: NSFont,
+                           forGlyphRange glyphRange: NSRange) -> Int {
+            guard !hiddenMarkerCharacters.isEmpty,
+                  hiddenMarkerDocLength == (layoutManager.textStorage?.length ?? 0)
+            else { return 0 }
+
+            var newProps = Array(UnsafeBufferPointer(start: props, count: glyphRange.length))
+            var modified = false
+            for index in 0..<glyphRange.length where hiddenMarkerCharacters.contains(charIndexes[index]) {
+                newProps[index].insert(.null)
+                modified = true
+            }
+            guard modified else { return 0 }
+            newProps.withUnsafeBufferPointer { buffer in
+                layoutManager.setGlyphs(glyphs, properties: buffer.baseAddress!,
+                                        characterIndexes: charIndexes, font: font,
+                                        forGlyphRange: glyphRange)
+            }
+            return glyphRange.length
         }
 
         /// First-responder tracking (posted by `NSTextView.become/resignFirstResponder`).
