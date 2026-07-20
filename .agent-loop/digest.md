@@ -605,3 +605,14 @@ Append-only ledger of merges and holds. Each entry carries a ready `git revert` 
 - **Outward actions:** none
 - **Run:** `.agent-loop/runs/20260713-bak254-craft-glyphs/`
 - **Revert:** `git revert 26976fd`
+
+## 2026-07-20 — MERGED · Resumable agent task sessions + file-backed drafts (F24) (PR #97)
+- **Risk:** high (Agent/+Logic/+Models/+Views/+contract) · **Merged on green** (post-CI), Leon explicit approval after hands-on testing
+- **Origin:** Codex handoff (docs/handoffs/2026-07-13-agent-task-sessions-claude-handoff.md); Tasks 1–6 pre-built, Tasks 7–12 + drafts follow-on built this run.
+- **Checks:** swift build clean · ./build-app.sh assembles + worker-contract probe · swift test 1033 pass/1 skip/0 fail (baseline 866) · CI green on the mustard runner
+- **Fresh-context reviews:** core Tasks 1–12 (spec SPEC-COMPLETE; quality CRITICAL fixed: structured `outcome:failed` looped uncapped every 2s), drafts+editor (6 Important remediated: draft dedup, honest autosave, symlink confinement, rollback coverage, glyph-hook perf, env landmine doc).
+- **What landed:** durable AgentRun/AgentMessage conversations; serial AgentTaskCoordinator behind AgentExecutionGate; Needs You stage releases the slot; every completion → Needs Review; pure AgentTaskQueue/Transition/RetryPolicy (auth pause, 60/300/900s backoff cap 3, gated-action timeouts → completion-uncertain review); bridge reserved for requiresConnectedWorker fallback with results normalized into the conversation; all take-backs route through the coordinator; conversation/reply/review UI + console attention queue; file-backed drafts (`_agent/drafts/<uid>/`, drafts[] contract field, AgentDraft refs, companion side panel with debounced honest autosave + resolvedDraftURL symlink confinement); merged main's PR #96 marker hiding and added a staleness stamp + IndexSet span pre-check to the glyph hook.
+- **Safety:** drafts only — worker contract forbids sending/posting; task UID is binding idempotency metadata for ticket creation.
+- **Follow-ups (tracked):** running agent-lane→agent-lane drag doesn't cancel the live turn; pre-existing iOS shared-view-atom build break; bridge failed-result re-export has no retry cap; learning loop is phase two (docs/superpowers/plans/2026-07-13-agent-learning-loop.md).
+- **Outward actions:** none
+- **Revert:** `git revert d04a340`
