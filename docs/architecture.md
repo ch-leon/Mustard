@@ -40,8 +40,15 @@ property has a default or is optional, **no `@Attribute(.unique)`**.
 | `TaskList` | list within an area | name, → area, → tasks |
 | `MustardTask` | a task (mine or agent's) | `uid` (drag id), title, notes, `statusRaw`/`ownerRaw` (typed accessors), `scheduledAt`, `estimateMinutes`, `completedAt` |
 | `Recommendation` | an agent proposal (pre-execution) | title, body, `proposedActionType`, `confidence`, `reasoning`, `draft`, `source`/`sourceContext`/`sourceURL`, `comment`, `snoozedUntil`, `decisionRaw`, `executionStateRaw`, → outputs |
-| `OutputCard` | what an execution produced (post-execution) | content, kind, `reviewRaw`, → recommendation. Invariant: exactly one per execution |
+| `OutputCard` | legacy recommendation-execution output (pre-ADR-0010) | content, kind, `reviewRaw`, → recommendation |
+| `AgentRun` | one delegated-task conversation | `provider`, `state`, `providerSessionID`, `requiresConnectedWorker`, `nextAttemptAt`, `autoRetryCount`, → task, → messages |
+| `AgentMessage` | one ordered turn in a run | `sequence`, `role`, `kind`, `content`, `links`, → run |
+| `AgentDraft` | a file-backed draft the agent produced | `kind`, `title`, `relativePath` (under `_agent/drafts/`), → run. Body lives in the vault file, not the store |
 | `CalendarEvent` | a Google Calendar meeting | externalId, calendarId, title, start, end, isAllDay, joinURL, location |
+
+> **F24 note:** delegated agent tasks now carry an `AgentRun`/`AgentMessage` conversation and
+> land in the board's **Needs Review** column (ADR-0010). `OutputCard` remains only for the
+> legacy recommendation-execution path; delegated work does not create one.
 
 Enums are stored as `…Raw` strings with computed typed accessors — primitives
 persist cleanly in SwiftData/CloudKit while call sites stay type-safe.

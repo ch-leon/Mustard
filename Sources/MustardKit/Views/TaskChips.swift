@@ -84,6 +84,8 @@ public struct TaskChipRow: View {
         case .forAgent: return "For agent"
         case .needsApproval: return "Approve"
         case .queued: return "Queued"
+        case .inProgress: return "Working…"
+        case .needsInput: return "Needs you"
         case .needsReview: return "Review"
         default: return "Agent"
         }

@@ -136,7 +136,7 @@ public struct RootView: View {
     /// console; surfaces what's waiting and links into the console.
     private var copilotDock: some View {
         let recs = AgentInbox.pendingRecCount(recommendations)
-        let outs = AgentInbox.outputCount(tasks)
+        let items = AgentInbox.attentionTaskCount(tasks)
         return VStack(spacing: 0) {
             Divider().overlay(Theme.Palette.hairline)
             HStack(spacing: 8) {
@@ -144,7 +144,7 @@ public struct RootView: View {
                 Text("Agent")
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(Theme.Palette.agentText)
-                Text(AgentInbox.dockText(recs: recs, outputs: outs))
+                Text(AgentInbox.dockText(recs: recs, items: items))
                     .font(.system(size: 12.5))
                     .foregroundStyle(Theme.Palette.textSecondary)
                 Spacer(minLength: 0)

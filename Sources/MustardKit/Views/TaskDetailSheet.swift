@@ -8,6 +8,7 @@ public struct TaskDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(AgentService.self) private var agent
+    @Environment(AgentTaskCoordinator.self) private var taskAgent
     @Bindable var task: MustardTask
     /// Set when hosted in the docked drawer (not a sheet): the drawer owns dismissal,
     /// so close actions call this instead of the sheet-only `@Environment(\.dismiss)`.
@@ -61,6 +62,13 @@ public struct TaskDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     agentContext
+                    // The durable agent conversation + reply/review controls (Task 11).
+                    // All its commands route through AgentTaskCoordinator.
+                    if task.agentRun != nil { AgentConversationView(task: task) }
+
+                    if let run = task.agentRun, !(run.drafts ?? []).isEmpty {
+                        AgentDraftsSection(run: run)
+                    }
 
                     VStack(alignment: .leading, spacing: 12) {
                         sectionHeader("Details")
@@ -86,6 +94,13 @@ public struct TaskDetailSheet: View {
                                 get: { task.owner },
                                 set: { newOwner in
                                     if newOwner == .agent, !gateHandOff() { return }
+                                    // Switching an agent task back to you is a take-back:
+                                    // route it through the coordinator so the run is cancelled
+                                    // and the slot released rather than mutating owner directly.
+                                    if newOwner == .me, task.owner == .agent {
+                                        taskAgent.takeBack(task)
+                                        return
+                                    }
                                     task.owner = newOwner
                                 }
                             )) {
@@ -281,10 +296,18 @@ public struct TaskDetailSheet: View {
             Button(task.isGated ? "Approve & run" : "Approve") { approveGate() }
                 .buttonStyle(.borderedProminent).tint(Theme.Palette.agent).controlSize(.small)
         case .needsReview:
-            Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
             Button("Discard", role: .destructive) { context.delete(task); close() }.controlSize(.small)
-            Button("Accept output") { TaskCompletion.complete(task, in: context); close() }
-                .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+            if task.agentRun == nil {
+                // Legacy tasks without a conversation keep the shared state-machine controls;
+                // run-backed tasks get accept / request-changes / take-back in the
+                // conversation view, which routes through the coordinator.
+                Button("Request changes") { PersonalBoard.move(task, to: .queued) }.controlSize(.small)
+                Button("Accept output") { TaskCompletion.complete(task, in: context); close() }
+                    .buttonStyle(.borderedProminent).tint(Theme.Palette.done).controlSize(.small)
+            }
+        case .needsInput:
+            // Answering happens in the conversation view above; the footer offers take-back.
+            Button("Take back") { takeOver() }.controlSize(.small)
         case .queued:
             Button("Hold") { PersonalBoard.move(task, to: .needsApproval) }.controlSize(.small)
             Button("Move to review") { PersonalBoard.move(task, to: .needsReview) }
@@ -312,10 +335,16 @@ public struct TaskDetailSheet: View {
         }
     }
 
-    /// Take a task back to yourself as planned work.
+    /// Take a task back to yourself as planned work. Agent-owned work routes through the
+    /// coordinator so any active run is cancelled and the local slot is released; genuinely
+    /// local tasks fall back to a direct reassignment.
     private func takeOver() {
-        task.owner = .me
-        if task.stage.isOpen { task.stage = .planned }
+        if task.owner == .agent {
+            taskAgent.takeBack(task)
+        } else {
+            task.owner = .me
+            if task.stage.isOpen { task.stage = .planned }
+        }
     }
 
     /// Approve a gate using the shared state machine (needsApproval → queued/needsReview).
@@ -325,6 +354,9 @@ public struct TaskDetailSheet: View {
 
     /// Schedule a proposed task for tomorrow 9am as your own planned/scheduled work.
     private func scheduleTomorrow() {
+        // Scheduling a proposed agent task is a take-back: cancel any run and release the
+        // slot through the coordinator before it becomes your own scheduled work.
+        if task.owner == .agent { taskAgent.takeBack(task) }
         task.owner = .me
         let cal = Calendar.current
         if let tomorrow = cal.date(byAdding: .day, value: 1, to: .now) {

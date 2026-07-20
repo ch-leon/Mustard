@@ -4,11 +4,11 @@ import Foundation
 /// sidebar badge, the co-pilot dock, and Today's "Agent has N things for you" nudge
 /// (BAK-104). Pure + tested; respects snooze/ignore via `RecommendationQueue.pending`.
 public enum AgentInbox {
-    /// Pending (un-snoozed, non-ignored) recommendations + tasks at the review gate.
+    /// Pending (un-snoozed, non-ignored) recommendations + tasks needing input or review.
     public static func waitingCount(
         recommendations: [Recommendation], tasks: [MustardTask], now: Date = .now
     ) -> Int {
-        pendingRecCount(recommendations, now: now) + outputCount(tasks)
+        pendingRecCount(recommendations, now: now) + attentionTaskCount(tasks)
     }
 
     /// Pending (un-snoozed, non-ignored) recommendations awaiting triage.
@@ -16,18 +16,37 @@ public enum AgentInbox {
         RecommendationQueue.pending(recommendations, now: now).count
     }
 
-    /// Agent outputs awaiting your review (board Needs Review column, ADR-0010).
-    public static func outputCount(_ tasks: [MustardTask]) -> Int {
-        tasks.filter { $0.stage == .needsReview }.count
+    /// Agent tasks awaiting your answer or output review (Needs You + Needs Review).
+    public static func attentionTaskCount(_ tasks: [MustardTask]) -> Int {
+        tasks.filter { $0.stage == .needsInput || $0.stage == .needsReview }.count
     }
 
-    /// Co-pilot dock text (BAK-106): "{N} recommendation(s) and {M} output(s) waiting
+    /// The two attention groups for the unified Agent Console queue: questions (Needs You)
+    /// and outputs (Needs Review), each oldest-first so the longest-waiting item leads.
+    public struct AgentAttention {
+        public let questions: [MustardTask]
+        public let reviews: [MustardTask]
+    }
+
+    public static func attention(_ tasks: [MustardTask]) -> AgentAttention {
+        // Oldest-first, with a uid tiebreak so equal timestamps order deterministically
+        // (Swift's sort isn't stable) — matches AgentRun.orderedMessages / AgentTaskQueue.
+        func precedes(_ a: MustardTask, _ b: MustardTask) -> Bool {
+            a.createdAt != b.createdAt ? a.createdAt < b.createdAt : a.uid < b.uid
+        }
+        return AgentAttention(
+            questions: tasks.filter { $0.stage == .needsInput }.sorted(by: precedes),
+            reviews: tasks.filter { $0.stage == .needsReview }.sorted(by: precedes)
+        )
+    }
+
+    /// Co-pilot dock text (BAK-106): "{N} recommendation(s) and {M} item(s) waiting
     /// on you", or "All clear — nothing waiting on you" when both are zero.
-    public static func dockText(recs: Int, outputs: Int) -> String {
-        guard recs > 0 || outputs > 0 else { return "All clear — nothing waiting on you" }
+    public static func dockText(recs: Int, items: Int) -> String {
+        guard recs > 0 || items > 0 else { return "All clear — nothing waiting on you" }
         var parts: [String] = []
         if recs > 0 { parts.append("\(recs) recommendation\(recs == 1 ? "" : "s")") }
-        if outputs > 0 { parts.append("\(outputs) output\(outputs == 1 ? "" : "s")") }
+        if items > 0 { parts.append("\(items) item\(items == 1 ? "" : "s")") }
         return parts.joined(separator: " and ") + " waiting on you"
     }
 }

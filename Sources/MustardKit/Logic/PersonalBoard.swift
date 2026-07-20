@@ -20,9 +20,9 @@ public enum PersonalBoard {
     /// Columns shown for a given owner view.
     public static func columns(for view: BoardOwnerView) -> [TaskStage] { view.columns }
 
-    /// The two gate columns shown when the board is focused to the review queue
+    /// The gate columns shown when the board is focused to the review queue
     /// ("N waiting on you" → Exit review queue, BAK-101).
-    public static let gateStages: [TaskStage] = [.needsApproval, .needsReview]
+    public static let gateStages: [TaskStage] = [.needsApproval, .needsInput, .needsReview]
 
     /// Board search (BAK-134): case-insensitive title filter; empty query → unchanged.
     public static func filterBySearch(_ tasks: [MustardTask], query: String) -> [MustardTask] {
@@ -47,15 +47,14 @@ public enum PersonalBoard {
             .sorted { sortKey($0) < sortKey($1) }
     }
 
-    /// Items needing you (needs approval + needs review) within the current scope.
+    /// Items needing you within the current scope.
     public static func waitingCount(_ all: [MustardTask], view: BoardOwnerView, area: BoardArea) -> Int {
-        all.filter { ($0.stage == .needsApproval || $0.stage == .needsReview)
-            && ownerOK($0, view) && areaOK($0, area) }.count
+        all.filter { needsHuman($0) && ownerOK($0, view) && areaOK($0, area) }.count
     }
 
-    /// Unfiltered agent attention badge (sidebar): needs approval + needs review.
+    /// Unfiltered agent attention badge (sidebar).
     public static func agentBadge(_ all: [MustardTask]) -> Int {
-        all.filter { $0.stage == .needsApproval || $0.stage == .needsReview }.count
+        all.filter(needsHuman).count
     }
 
     /// Done beyond the visible limit, within scope — the "+N older" remainder.
@@ -87,7 +86,9 @@ public enum PersonalBoard {
     /// source of truth: the board drop guard, the detail-sheet stage picker, and the
     /// quick-add composer all classify against this, so a task can never enter a lane
     /// through one path that another path would have gated.
-    public static let agentLaneStages: Set<TaskStage> = [.forAgent, .needsApproval, .queued, .needsReview]
+    public static let agentLaneStages: Set<TaskStage> = [
+        .forAgent, .needsApproval, .queued, .inProgress, .needsInput, .needsReview,
+    ]
 
     /// Whether `stage` is one of the agent hand-off lanes.
     public static func isAgentLane(_ stage: TaskStage) -> Bool { agentLaneStages.contains(stage) }
@@ -158,6 +159,10 @@ public enum PersonalBoard {
         case .mine: return t.owner == .me
         case .agent: return t.owner == .agent
         }
+    }
+
+    private static func needsHuman(_ task: MustardTask) -> Bool {
+        task.stage == .needsApproval || task.stage == .needsInput || task.stage == .needsReview
     }
 
     /// Public area predicate — mobile Week (BAK-116) scopes its day-strip capacity,

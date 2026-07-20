@@ -112,7 +112,7 @@ explicit dark hex, not `Theme`.
 ## Build & run
 
 ```bash
-swift test            # full suite (647 tests as of the Craft editor pass)
+swift test            # full suite (984 tests as of the agent task-sessions MVP)
 swift build           # compile check
 ./build-app.sh        # → build/Mustard.app (ad-hoc signed, double-clickable)
 open build/Mustard.app
@@ -137,47 +137,53 @@ to Leon's Mac (cannot move to a cloud server without re-introducing API billing)
 Sweep (manual or scheduled) → Claude proposes ≤5 **Recommendations** (each with
 `confidence`, `reasoning`, an editable `draft`, an `action_type`) → you triage in
 the Agent console (Approve · Edit · Change action · Comment · Schedule · I'll do it
-· Snooze · Reject) → approved items **execute** via `claude -p` → every execution
-produces exactly one **OutputCard** (no silent completion) → you review (Accept ·
-Revise · Discard). **Trust** (Manual/Supervised/Trusted/Autonomous) × **confidence**
+· Snooze · Reject) → approved items become delegated tasks that **execute** via `claude -p`
+and land in the board's **Needs Review** column (no silent completion; output review lives
+on the board, not `OutputCard` — ADR-0010) → you review (Accept · Request changes · Take
+back). **Trust** (Manual/Supervised/Trusted/Autonomous) × **confidence**
 decides auto-run; email/Slack/ticket actions are **always gated** regardless
 (`TrustPolicy`, `RecommendationAction.isGated`). Tunable knobs:
 `TrustPolicy.autoConfidenceThreshold` and `RecommendationAction.isGated`.
 
-## Board hand-off & the execution worker (READ THIS before debugging "stuck" agent cards)
+## Delegated agent tasks & the connected-worker fallback (READ THIS before debugging "stuck" agent cards)
 
-There are **two** ways work reaches the agent, and they run differently:
+A delegated task carries a durable **`AgentRun`** conversation (ordered **`AgentMessage`**s).
+`AgentTaskCoordinator` owns **one serial local execution slot** (ADR-0003), automatically
+picks up any `For Agent`/`Queued` agent-owned task, runs a **resumable** `claude -p` turn via
+`ClaudeTaskRuntime`, and drives the lifecycle:
 
-1. **In-vault notes** — recommendations/tasks the headless agent can do itself (it can
-   reach the vault). These run via `claude -p` inside Mustard, as above.
-2. **Board hand-off** — you move a card into **For Agent** (prep) or approve one into
-   **Queued** (execute). These need connectors (Shortcut/Gmail/Slack/Chrome) that headless
-   `claude -p` **cannot** reach (ADR-0003), so execution is **decoupled** (ADR-0010) through
-   a file bridge — Mustard and the worker never call each other.
+`For Agent`/`Queued` → **AgentTaskCoordinator** → Claude start/resume
+→ **Needs You** (a question — the reply requeues and resumes the *same* provider session,
+and the slot is released so the next task runs) │ **Needs Review** (Accept · Request changes ·
+Take back). Every completed task lands in **Needs Review** — there is no silent completion.
 
-**The bridge (`docs/agent-bridge-contract.md`).** Mustard **exports** each hand-off card to
-`<KB>/_agent/outbox/<uid>.json` (routed by area — see below), a separate worker **consumes**
-it and writes `<KB>/_agent/results/<uid>.json`, and Mustard **ingests** the result and
-advances the card. Export/ingest run on the app's ~10-min loop (`MustardApp.swift` →
-`AgentService.exportWorkOrders` / `ingestAgentResults`).
+Failures go through the pure **`AgentRetryPolicy`**: authentication pauses the runtime
+globally; safe local failures back off (60/300/900s, capped at 3) then fail to review; a
+timeout/process death on a ticket/draft action is **completion-uncertain** and goes to
+review rather than retrying (idempotency: the task UID is binding creation metadata).
 
-**The worker is a skill: `drain-agent-queue`.** It is **not in this repo** — it lives in the
-sibling **`Codeheroes work`** vault repo at
-`Codeheroes work/.claude/skills/drain-agent-queue/SKILL.md` (local-only, **never pushed** —
-that repo has tracked secrets). It **must run in a connected Claude session** (has the
-connectors) and is **on-demand**: you trigger it ("drain the agent queue" / "run the agent
-worker"); a scheduled routine wrapping it is deferred. It reads each outbox order, does the
-work (routing to a matching vault skill, e.g. `dl-create-shortcut-story`, or best-effort),
-produces **drafts/reversible artifacts only**, writes the result, and archives the order.
+**The connected-worker fallback is the *only* path that uses the file bridge.** When a turn
+returns `requires_connected_worker` (a capability headless `claude -p` can't reach —
+Shortcut/Gmail/Slack/Chrome, ADR-0003), the run is flagged `requiresConnectedWorker` and
+**only then** is the card exported to `<KB>/_agent/outbox/<uid>.json` (routed by area).
+Ordinary local tasks are **never** exported — `BridgeExport` gates strictly on
+`requiresConnectedWorker == true`, so the coordinator and the bridge never both claim the
+same work. Export/ingest run on the app's ~10-min loop (`AgentService.exportWorkOrders` /
+`ingestAgentResults`); ingest folds the result back into the run's conversation (ADR-0010).
 
-Full lifecycle of one card:
-`For Agent` → export (prep) → **drain-agent-queue** preps → `Needs Approval` → you approve →
-`Queued` → export (execute) → **drain-agent-queue** executes → `Needs Review` → you accept → `Done`.
+**The worker is a skill: `drain-agent-queue`** — **not in this repo**; sibling `Codeheroes
+work` vault repo at `.claude/skills/drain-agent-queue/SKILL.md` (local-only, **never pushed**,
+that repo has tracked secrets). It runs in a **connected** Claude session, produces
+**drafts/reversible artifacts only**, and writes `<KB>/_agent/results/<uid>.json`.
 
-**Debugging "Waiting for agent to pick up" that never advances** — two causes:
-- **The worker hasn't been run.** Nothing consumes `_agent/outbox/` on its own. Check for a
-  live `outbox/<uid>.json` with no matching `results/` file → run `drain-agent-queue` in a
-  connected session. (A card that never appears in the outbox at all is the next cause.)
+**Debugging "stuck" agent cards:**
+- **An ordinary delegated task not moving** — it runs on the local serial slot, not the
+  bridge. Check `AgentTaskCoordinator.lastError` / `authenticationRequired` (a paused runtime
+  needs `claude /login` — the Agent Console shows one Retry banner). It will *not* appear in
+  the outbox; only `requiresConnectedWorker` work is exported.
+- **A connected-fallback card not advancing** — the worker hasn't run: a live
+  `outbox/<uid>.json` with no matching `results/` file → run `drain-agent-queue` in a
+  connected session.
 - **The card has no client area.** Export filters strictly by area
   (`AgentService.exportWorkOrders` → `BridgeExport`; the `PersonalBoard.canHandOffToAgent`
   gate, BAK-90). An area-less card is **silently never exported** and strands forever. Every

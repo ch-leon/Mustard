@@ -508,6 +508,14 @@ struct MarkdownTextView: NSViewRepresentable {
         /// copy/paste and Save still see the full markdown; only which glyphs get
         /// laid out changes.
         private var hiddenMarkerRanges: [NSRange] = []
+        /// `hiddenMarkerRanges` flattened for the delegate hook: O(log n) membership
+        /// instead of an O(ranges) scan per character during glyph generation.
+        private var hiddenMarkerCharacters = IndexSet()
+        /// Document length the hidden set was computed against. Glyph generation can
+        /// run for the edited range BEFORE `textDidChange` refreshes the set; a
+        /// length mismatch means the indexes are stale for THIS pass, so the hook
+        /// stands down (markers briefly visible beats nulling the wrong characters).
+        private var hiddenMarkerDocLength = 0
 
         /// Recompute which markers are hidden, then, if the set changed, force the
         /// affected glyphs to regenerate so the `shouldGenerateGlyphs` delegate
@@ -527,6 +535,8 @@ struct MarkdownTextView: NSViewRepresentable {
                 if !hiddenMarkerRanges.isEmpty {
                     let stale = hiddenMarkerRanges
                     hiddenMarkerRanges = []
+                    hiddenMarkerCharacters = IndexSet()
+                    hiddenMarkerDocLength = ns.length
                     invalidateGlyphs(for: stale, ns: ns, layoutManager: layoutManager)
                 }
                 return
@@ -543,11 +553,25 @@ struct MarkdownTextView: NSViewRepresentable {
                 .hidden
                 .filter { $0.length > 0 && $0.upperBound <= ns.length }
 
-            guard newHidden != hiddenMarkerRanges else { return }
+            guard newHidden != hiddenMarkerRanges else {
+                // Same ranges, but the doc length may have changed around them (an
+                // edit that didn't touch any marker) — keep the staleness stamp
+                // current so the delegate hook doesn't stand down forever.
+                hiddenMarkerDocLength = ns.length
+                return
+            }
             // Regenerate glyphs for everything whose hidden-state may have flipped:
-            // the union of what WAS hidden and what is NOW hidden.
+            // the union of what WAS hidden and what is NOW hidden. The set/stamp are
+            // assigned BEFORE invalidation so a synchronous re-entry into the
+            // delegate hook sees consistent state.
             let affected = hiddenMarkerRanges + newHidden
             hiddenMarkerRanges = newHidden
+            var flattened = IndexSet()
+            for range in newHidden {
+                flattened.insert(integersIn: range.location..<range.upperBound)
+            }
+            hiddenMarkerCharacters = flattened
+            hiddenMarkerDocLength = ns.length
             invalidateGlyphs(for: affected, ns: ns, layoutManager: layoutManager)
         }
 
@@ -575,13 +599,25 @@ struct MarkdownTextView: NSViewRepresentable {
                            characterIndexes charIndexes: UnsafePointer<Int>,
                            font: NSFont,
                            forGlyphRange glyphRange: NSRange) -> Int {
-            guard !hiddenMarkerRanges.isEmpty else { return 0 }
+            guard !hiddenMarkerCharacters.isEmpty,
+                  hiddenMarkerDocLength == (layoutManager.textStorage?.length ?? 0),
+                  glyphRange.length > 0
+            else { return 0 }
+
+            // Cheap no-op pre-check: character indexes are monotonic within a
+            // generation chunk, so a chunk whose span misses the hidden set (the
+            // common case) skips the buffer copy entirely.
             let count = glyphRange.length
+            let spanStart = charIndexes[0]
+            let spanEnd = charIndexes[count - 1]
+            guard spanEnd >= spanStart,
+                  hiddenMarkerCharacters.intersects(integersIn: spanStart...spanEnd)
+            else { return 0 }
+
             var newProps = [NSLayoutManager.GlyphProperty](repeating: [], count: count)
             var touched = false
             for i in 0..<count {
-                let charIndex = charIndexes[i]
-                if hiddenMarkerRanges.contains(where: { NSLocationInRange(charIndex, $0) }) {
+                if hiddenMarkerCharacters.contains(charIndexes[i]) {
                     newProps[i] = .null
                     touched = true
                 } else {

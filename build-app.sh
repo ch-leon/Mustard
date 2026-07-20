@@ -7,11 +7,21 @@ OUT="$DIR/build"
 APP="$OUT/Mustard.app"
 
 swift build -c release --package-path "$DIR"
-BIN="$(swift build -c release --package-path "$DIR" --show-bin-path)/Mustard"
+BIN_DIR="$(swift build -c release --package-path "$DIR" --show-bin-path)"
+BIN="$BIN_DIR/Mustard"
+RESOURCE_BUNDLE="$BIN_DIR/Mustard_MustardKit.bundle"
+
+if [[ ! -r "$RESOURCE_BUNDLE/MustardAgentContract.md" ]]; then
+  echo "Missing MustardKit resource bundle: $RESOURCE_BUNDLE" >&2
+  exit 1
+fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Mustard"
+# Keep nested resources in the standard signed app location. AgentTurnContract
+# checks this packaged bundle before Bundle.module's development-build lookup.
+cp -R "$RESOURCE_BUNDLE" "$APP/Contents/Resources/Mustard_MustardKit.bundle"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -31,4 +41,28 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 codesign --force --sign - "$APP"
+codesign --verify --deep --strict "$APP"
+
+if [[ ! -r "$APP/Contents/Resources/Mustard_MustardKit.bundle/MustardAgentContract.md" ]]; then
+  echo "Assembled app is missing the worker contract resource" >&2
+  exit 1
+fi
+
+# Prove workerContract resolves the packaged copy, not Bundle.module's absolute
+# .build fallback.
+# This verifier exits before SwiftUI or MustardContainer initialization, so it cannot
+# launch UI or touch the user's persistent store.
+HIDDEN_RESOURCE_BUNDLE="$RESOURCE_BUNDLE.packaging-verification-hidden"
+rm -rf "$HIDDEN_RESOURCE_BUNDLE"
+mv "$RESOURCE_BUNDLE" "$HIDDEN_RESOURCE_BUNDLE"
+restore_resource_bundle() {
+  if [[ -d "$HIDDEN_RESOURCE_BUNDLE" ]]; then
+    mv "$HIDDEN_RESOURCE_BUNDLE" "$RESOURCE_BUNDLE"
+  fi
+}
+trap restore_resource_bundle EXIT
+"$APP/Contents/MacOS/Mustard" --verify-worker-contract
+restore_resource_bundle
+trap - EXIT
+
 echo "Built $APP"
