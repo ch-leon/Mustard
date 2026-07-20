@@ -3,12 +3,14 @@ import AppKit
 import SwiftUI
 @testable import MustardKit
 
-/// Marker hiding must survive real layout passes. `setNotShownAttribute` is transient
-/// typesetter state — TextKit wipes it whenever layout regenerates (first display,
-/// resize, scroll), which is why markers stayed visible in the running app while the
-/// pure NoteDecoration logic was correct. The durable mechanism marks hidden-marker
-/// glyphs `.null` during glyph generation (NSLayoutManagerDelegate), so every layout
-/// pass re-establishes hiding by construction.
+/// Marker hiding must survive real layout passes. The original `setNotShownAttribute`
+/// approach was transient typesetter state that TextKit wiped whenever layout
+/// regenerated (first display, resize, scroll), so markers stayed visible in the
+/// running app while the pure NoteDecoration logic was correct. The durable mechanism
+/// gives hidden-marker glyphs the `.null` property during glyph generation
+/// (NSLayoutManagerDelegate), so every layout pass re-establishes hiding by
+/// construction. Markers are always hidden (Leon, 2026-07-12 — Craft/Typora model),
+/// independent of focus or caret position.
 @MainActor
 final class MarkdownMarkerHidingTests: XCTestCase {
     private let source = """
@@ -54,7 +56,7 @@ final class MarkdownMarkerHidingTests: XCTestCase {
         textView.string = ""
         coordinator.isProgrammaticUpdate = false
         coordinator.applyDecorations(scopedTo: nil)
-        coordinator.refreshMarkerVisibility(fullRecompute: true)
+        coordinator.refreshMarkerVisibility()
 
         let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 600))
         scrollView.documentView = textView
@@ -67,12 +69,13 @@ final class MarkdownMarkerHidingTests: XCTestCase {
         textView.setSelectedRange(NSRange(location: 0, length: 0))
         coordinator.isProgrammaticUpdate = false
         coordinator.applyDecorations(scopedTo: nil)
-        coordinator.refreshMarkerVisibility(fullRecompute: true)
+        coordinator.refreshMarkerVisibility()
 
         return Editor(coordinator: coordinator, layoutManager: layoutManager,
                       container: container, textView: textView, window: window)
     }
 
+    /// A hidden marker's glyphs are `.null` — they generate as not-shown.
     private func isHidden(_ editor: Editor, _ needle: String, markerLength: Int) -> Bool {
         let ns = editor.textView.string as NSString
         let range = ns.range(of: needle)
@@ -98,22 +101,21 @@ final class MarkdownMarkerHidingTests: XCTestCase {
                       "H2 marker must stay hidden after a real layout pass")
     }
 
-    func test_focusedBlockRevealsItsMarkersAcrossRelayout() {
+    func test_markersStayHiddenEvenWithCaretInTheBlock() {
         let editor = makeEditor(source)
         editor.layoutManager.ensureLayout(for: editor.container)
 
-        // Simulate focused editing: caret inside the H1 block with editor focus.
+        // Always-hidden model: focus + caret inside the heading block must NOT
+        // reveal its markers (no Bear-style reveal-on-active-line).
         let ns = editor.textView.string as NSString
         let heading = ns.range(of: "# A heading")
         editor.window.makeFirstResponder(editor.textView)
-        editor.coordinator.hasFocus = true
         editor.textView.setSelectedRange(NSRange(location: heading.location + 4, length: 0))
-        editor.coordinator.refreshMarkerVisibility(fullRecompute: true)
+        editor.coordinator.refreshMarkerVisibility()
         editor.layoutManager.ensureLayout(for: editor.container)
 
-        XCTAssertFalse(isHidden(editor, "# A heading", markerLength: 1),
-                       "the caret block's markers must be revealed")
-        XCTAssertTrue(isHidden(editor, "## Second", markerLength: 2),
-                      "other blocks stay hidden across the relayout")
+        XCTAssertTrue(isHidden(editor, "# A heading", markerLength: 1),
+                      "markers stay hidden regardless of caret position")
+        XCTAssertTrue(isHidden(editor, "## Second", markerLength: 2))
     }
 }

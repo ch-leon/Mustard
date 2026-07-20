@@ -76,6 +76,21 @@ final class MarkdownEditorProxy {
 /// invariant. The value is the wikilink target (unused by drawing, useful in debug).
 extension NSAttributedString.Key {
     static let mustardSubpageCard = NSAttributedString.Key("mustard.subpageCard")
+    /// Grounds block-glyph drawing (checkbox / bullet / divider). Value is an
+    /// `NSNumber` code (see `BlockGlyphCode`). Like `.mustardSubpageCard` this is
+    /// draw-only: the raw `- [ ] `/`- `/`---` characters stay in the string
+    /// (text == source) but are painted `.clear`, and `CardLayoutManager` draws
+    /// the real glyph over their rect.
+    static let mustardBlockGlyph = NSAttributedString.Key("mustard.blockGlyph")
+}
+
+/// The `.mustardBlockGlyph` attribute's integer codes (NSNumber-boxed — attribute
+/// values must be objc objects, and `NoteDecoration.BlockGlyph` is a Swift enum).
+enum BlockGlyphCode: Int {
+    case checkboxUnchecked = 0
+    case checkboxChecked = 1
+    case bullet = 2
+    case divider = 3
 }
 
 /// The live Craft-style editing surface for Notes (spec 2026-07-06, Phase 2a): one
@@ -125,7 +140,8 @@ struct MarkdownTextView: NSViewRepresentable {
         let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         textContainer.widthTracksTextView = true
         layoutManager.addTextContainer(textContainer)
-        let textView = NSTextView(frame: .zero, textContainer: textContainer)
+        let textView = FocusReportingTextView(frame: .zero, textContainer: textContainer)
+        textView.focusCoordinator = context.coordinator
 
         // Attributes come from us, not the pasteboard — and every automatic
         // substitution is off because it would REWRITE markdown syntax under the
@@ -168,7 +184,7 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.string = text
         context.coordinator.isProgrammaticUpdate = false
         context.coordinator.applyDecorations(scopedTo: nil)
-        context.coordinator.refreshMarkerVisibility(fullRecompute: true)
+        context.coordinator.refreshMarkerVisibility()
 
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -225,7 +241,7 @@ struct MarkdownTextView: NSViewRepresentable {
             context.coordinator.applyDecorations(scopedTo: nil)
             // A new document invalidates every cached block range from the OLD
             // string — force a full recompute rather than diffing against them.
-            context.coordinator.refreshMarkerVisibility(fullRecompute: true)
+            context.coordinator.refreshMarkerVisibility()
             // A programmatic replace means the OLD selection's toolbar (if any)
             // is now anchored to a document that no longer exists here.
             if formatBar.wrappedValue != nil { formatBar.wrappedValue = nil }
@@ -265,27 +281,14 @@ struct MarkdownTextView: NSViewRepresentable {
         private var lastPublishedRects: [MarkdownBlockRect] = []
 
         /// Phase 1 (BAK-250) focus tracking: true while THIS text view is the
-        /// first responder. Toggled by `textDidBeginEditing`/`textDidEndEditing`
-        /// (posted from `NSTextView.become/resignFirstResponder`) — distinct from
-        /// `isProgrammaticUpdate`/`isPerformingEdit`, which guard OUR OWN writes,
-        /// not the user's focus state. `nil` `focusedRange` (editor has no focus
-        /// at all) hides every marker in the document (`NoteDecoration
-        /// .markerVisibility`'s documented behaviour). Internal (not private)
-        /// so marker-hiding tests can simulate focus without a key window.
-        var hasFocus = false
-        /// Character indexes whose glyphs render hidden (`.null`), consulted by the
-        /// glyph-generation delegate hook. This is the durable home for marker
-        /// hiding: `setNotShownAttribute` is transient typesetter state that TextKit
-        /// wipes on every layout regeneration (first display, resize, scroll), so
-        /// hiding MUST be re-established during glyph generation itself or markers
-        /// reappear the moment a real window lays out.
-        private var hiddenMarkerCharacters = IndexSet()
-        /// Document length `hiddenMarkerCharacters` was computed against. Glyph
-        /// generation can run for the edited range BEFORE `textDidChange` rebuilds
-        /// the set; a length mismatch means the indexes are stale for THIS pass, so
-        /// the hook stands down (markers briefly visible beats hiding the wrong
-        /// characters). The rebuild + invalidation that follows regenerates them.
-        private var hiddenMarkerDocLength = 0
+        /// first responder. Driven by `setFocus(_:)`, called from
+        /// `FocusReportingTextView`'s `become`/`resignFirstResponder` overrides —
+        /// the ACTUAL focus signal, not `textDidBegin/EndEditing` (which fire on
+        /// first/last keystroke, so a plain click-in or click-away would be
+        /// missed). Distinct from `isProgrammaticUpdate`/`isPerformingEdit`, which
+        /// guard OUR OWN writes, not the user's focus state. `nil` `focusedRange`
+        /// (editor has no focus at all) hides every marker in the document.
+        private var hasFocus = false
 
         /// Large-note fallback (spec "never block typing"): above this many UTF-16
         /// units decoration is skipped entirely — plain editable text. 200k units
@@ -316,13 +319,12 @@ struct MarkdownTextView: NSViewRepresentable {
             // frontmatter fences) which the scoped pass can't see.
             let block = caretBlock(in: textView)
             applyDecorations(scopedTo: block)
-            // Fast path (BAK-250): rebuild marker visibility right away so the
-            // caret block's typed syntax ("**", "# ", "> ") reveals without
-            // waiting on the debounce, and so the hidden-character set (whose
-            // indexes shifted with this edit) is correct before the edited
-            // range's glyphs regenerate. The visibility decision is a cheap line
-            // scan — only `applyDecorations` needs the scoped/debounced split.
-            refreshMarkerVisibility(fullRecompute: true)
+            // Recompute which markers are hidden (BAK-250): the block under the
+            // caret is focused, so its markers reveal as you type ("**", "# ",
+            // "> ") while every other block stays hidden. Cheap — it only
+            // re-nulls glyphs whose hidden-state actually changed since the last
+            // call (see `refreshMarkerVisibility`).
+            refreshMarkerVisibility()
             scheduleFullPass()
             refreshSlashMenu()
             // Any edit collapses the selection (typing replaces it) — hide the
@@ -349,7 +351,7 @@ struct MarkdownTextView: NSViewRepresentable {
                 self?.applyDecorations(scopedTo: nil)
                 // Topology may have shifted every block's range since the last
                 // full pass — force a fresh recompute rather than diffing.
-                self?.refreshMarkerVisibility(fullRecompute: true)
+                self?.refreshMarkerVisibility()
             }
         }
 
@@ -392,6 +394,7 @@ struct MarkdownTextView: NSViewRepresentable {
                     .sorted(by: { Self.priority($0.kind) < Self.priority($1.kind) }) {
                     apply(span, to: storage)
                 }
+                applyBlockGlyph(source, block: target, to: storage)
             }
             storage.endEditing()
             isProgrammaticUpdate = false
@@ -459,94 +462,137 @@ struct MarkdownTextView: NSViewRepresentable {
             }
         }
 
+        /// Block-glyph prefixes (checkbox / bullet / divider): stamp the drawing
+        /// attribute and paint the raw `- [ ] `/`- `/`---` characters `.clear` so
+        /// they hold their column (keeping the caret hit-testable — unlike the
+        /// nulled text markers) while `CardLayoutManager` draws the real glyph over
+        /// them. Quote is intentionally skipped here: its `> ` is already a hidden
+        /// text marker (nulled by `markerVisibility`), so a quote renders as
+        /// flush-left text today; a dedicated quote treatment is a later touch.
+        private func applyBlockGlyph(_ source: String, block: NoteDecoration.Block,
+                                     to storage: NSTextStorage) {
+            guard let (markerRange, glyph) = NoteDecoration.blockGlyph(source, of: block),
+                  markerRange.upperBound <= storage.length else { return }
+            let code: BlockGlyphCode
+            switch glyph {
+            case .checkbox(let checked): code = checked ? .checkboxChecked : .checkboxUnchecked
+            case .bullet: code = .bullet
+            case .divider: code = .divider
+            case .quote: return
+            }
+            storage.addAttribute(NSAttributedString.Key.mustardBlockGlyph,
+                                 value: NSNumber(value: code.rawValue), range: markerRange)
+            storage.addAttribute(.foregroundColor, value: NSColor.clear, range: markerRange)
+        }
+
         // MARK: Marker visibility (Phase 1 / BAK-250 — Craft-style focus reveal)
 
-        /// Applies `NoteDecoration.markerVisibility`/`.revealedBlocks` as TextKit-1
-        /// `notShownAttribute` GLYPH flags — never a text-storage edit and never a
-        /// font-size/character trick. `setNotShownAttribute` marks a glyph as
-        /// generated-but-not-laid-out-or-painted while leaving the character (and
-        /// every attribute `applyDecorations` set on it) completely untouched, so:
-        ///   - the revealed state's layout metrics never change (revealed markers
-        ///     just keep today's dimmed attributes — nothing new is applied to
-        ///     them at all);
-        ///   - copy/paste and Save still see the FULL markdown string, because
-        ///     `NSTextStorage`'s string and its pasteboard/file representation are
-        ///     glyph-flag-agnostic;
-        ///   - nothing can desync attribute ranges from the string, because the
-        ///     glyph range is re-derived from the character range on every call,
-        ///     never cached across an edit.
+        /// The character ranges whose markers are currently hidden. Read by the
+        /// `shouldGenerateGlyphs` delegate below, which gives every glyph in these
+        /// ranges the `.null` glyph property — a null glyph both draws NOTHING and
+        /// takes ZERO width, so hidden syntax truly disappears and the surrounding
+        /// text reflows into its place (a heading's title slides left to where the
+        /// "# " was), which is exactly the Craft behaviour.
         ///
-        /// `fullRecompute` selects which of the two cost paths to take, mirroring
-        /// `applyDecorations`'s own scoped-vs-full split:
-        ///   - `true` (initial load, doc replace, or the debounced full pass after
-        ///     an edit that may have shifted every block's range): re-derive
-        ///     `markerVisibility` from scratch and set EVERY hideable marker's
-        ///     glyph flag explicitly, ignoring the cached diff baseline (which may
-        ///     hold stale pre-edit ranges that no longer index this string).
-        ///   - `false` (a pure selection/caret move — text unchanged, so cached
-        ///     ranges are still valid): diff `revealedBlocks` against the cached
-        ///     `revealedMarkerBlocks` and re-touch ONLY the blocks whose
-        ///     membership changed — never a whole-document glyph walk on a plain
-        ///     caret move.
-        /// Recompute which marker characters hide vs reveal and re-invalidate the
-        /// glyphs whose visibility changed. The decision (`NoteDecoration
-        /// .markerVisibility`) is a cheap line scan, so every path takes the same
-        /// full recompute — `fullRecompute` is retained for call-site stability but
-        /// both values behave identically now that application happens during glyph
-        /// generation (see `hiddenMarkerCharacters`) rather than as transient
-        /// per-glyph state that had to be touched incrementally.
-        func refreshMarkerVisibility(fullRecompute: Bool) {
+        /// This replaces the original `setNotShownAttribute` approach (2026-07-12
+        /// fix, Leon's eye-check): that API (a) left the hidden glyph's advance
+        /// width in place, so markers would only stop *drawing* while still holding
+        /// their column — never a real reflow — and (b) is a property of
+        /// already-generated glyphs, so it was silently wiped every time
+        /// `applyDecorations` set a font attribute and the glyphs regenerated. Net
+        /// effect in the running app: markers never hid at all. Deciding
+        /// visibility at glyph-GENERATION time (here) is regeneration-safe by
+        /// construction — regeneration just re-consults this set.
+        ///
+        /// The underlying text storage and its attributes are never touched, so
+        /// copy/paste and Save still see the full markdown; only which glyphs get
+        /// laid out changes.
+        private var hiddenMarkerRanges: [NSRange] = []
+        /// `hiddenMarkerRanges` flattened for the delegate hook: O(log n) membership
+        /// instead of an O(ranges) scan per character during glyph generation.
+        private var hiddenMarkerCharacters = IndexSet()
+        /// Document length the hidden set was computed against. Glyph generation can
+        /// run for the edited range BEFORE `textDidChange` refreshes the set; a
+        /// length mismatch means the indexes are stale for THIS pass, so the hook
+        /// stands down (markers briefly visible beats nulling the wrong characters).
+        private var hiddenMarkerDocLength = 0
+
+        /// Recompute which markers are hidden, then, if the set changed, force the
+        /// affected glyphs to regenerate so the `shouldGenerateGlyphs` delegate
+        /// re-applies (or lifts) their `.null` property. Recomputes the whole set
+        /// from the pure `markerVisibility` decision each time — cheap for
+        /// hand-written notes, and there is no cross-call glyph-flag state to keep
+        /// in sync. Driven by text change / load / doc-replace, never by caret
+        /// movement (hiding is focus-independent — see below).
+        func refreshMarkerVisibility() {
             guard let textView, let layoutManager = textView.layoutManager else { return }
             let source = textView.string
-            let length = (source as NSString).length
-            guard length <= Self.plainTextFallbackLimit else {
-                replaceHiddenMarkers(with: IndexSet(), docLength: length, layoutManager: layoutManager)
+            let ns = source as NSString
+
+            // Large-note fallback: no hiding, plain editable text (matches the
+            // decoration + block-rect fallbacks).
+            guard ns.length <= Self.plainTextFallbackLimit else {
+                if !hiddenMarkerRanges.isEmpty {
+                    let stale = hiddenMarkerRanges
+                    hiddenMarkerRanges = []
+                    hiddenMarkerCharacters = IndexSet()
+                    hiddenMarkerDocLength = ns.length
+                    invalidateGlyphs(for: stale, ns: ns, layoutManager: layoutManager)
+                }
                 return
             }
 
-            let focusedRange: NSRange? = hasFocus ? textView.selectedRange() : nil
-            let visibility = NoteDecoration.markerVisibility(source, focusedRange: focusedRange)
-            var hidden = IndexSet()
-            for range in visibility.hidden where range.length > 0 && range.upperBound <= length {
-                hidden.insert(integersIn: range.location..<range.upperBound)
+            // "Always hidden" (Leon, 2026-07-12): markers never reveal, not even on
+            // the line being edited — the Craft/Typora model, not Bear's
+            // reveal-on-active-line. `focusedRange: nil` hides EVERY block's
+            // markers; the raw `# `/`**`/`` ` `` still live in the file
+            // (markdown-as-truth) and the caret can traverse them to edit, they
+            // just never draw. Hiding therefore depends only on the text, so this
+            // runs on text change / load, never on caret movement.
+            let newHidden = NoteDecoration.markerVisibility(source, focusedRange: nil)
+                .hidden
+                .filter { $0.length > 0 && $0.upperBound <= ns.length }
+
+            guard newHidden != hiddenMarkerRanges else {
+                // Same ranges, but the doc length may have changed around them (an
+                // edit that didn't touch any marker) — keep the staleness stamp
+                // current so the delegate hook doesn't stand down forever.
+                hiddenMarkerDocLength = ns.length
+                return
             }
-            replaceHiddenMarkers(with: hidden, docLength: length, layoutManager: layoutManager)
+            // Regenerate glyphs for everything whose hidden-state may have flipped:
+            // the union of what WAS hidden and what is NOW hidden. The set/stamp are
+            // assigned BEFORE invalidation so a synchronous re-entry into the
+            // delegate hook sees consistent state.
+            let affected = hiddenMarkerRanges + newHidden
+            hiddenMarkerRanges = newHidden
+            var flattened = IndexSet()
+            for range in newHidden {
+                flattened.insert(integersIn: range.location..<range.upperBound)
+            }
+            hiddenMarkerCharacters = flattened
+            hiddenMarkerDocLength = ns.length
+            invalidateGlyphs(for: affected, ns: ns, layoutManager: layoutManager)
         }
 
-        /// Swap in the new hidden set and force glyph REGENERATION (not merely
-        /// relayout) for every character whose visibility flipped — regeneration is
-        /// what re-runs the delegate hook that applies `.null`. Stale indexes past
-        /// the document end are clamped defensively.
-        private func replaceHiddenMarkers(with newSet: IndexSet, docLength: Int,
-                                          layoutManager: NSLayoutManager) {
-            let previous = hiddenMarkerCharacters
-            let previousLength = hiddenMarkerDocLength
-            hiddenMarkerCharacters = newSet
-            hiddenMarkerDocLength = docLength
-            guard previous != newSet || previousLength != docLength else { return }
-
-            var changed = previous.symmetricDifference(newSet)
-            if docLength > 0 {
-                changed = changed.intersection(IndexSet(integersIn: 0..<docLength))
-            } else {
-                changed = IndexSet()
-            }
-            for range in changed.rangeView {
-                let characterRange = NSRange(location: range.lowerBound,
-                                             length: range.upperBound - range.lowerBound)
-                layoutManager.invalidateGlyphs(forCharacterRange: characterRange,
-                                               changeInLength: 0, actualCharacterRange: nil)
-                layoutManager.invalidateLayout(forCharacterRange: characterRange,
+        /// Force glyph regeneration + relayout over the given ranges so the
+        /// `shouldGenerateGlyphs` delegate re-runs against the updated
+        /// `hiddenMarkerRanges`. Ranges past the current length are clamped out
+        /// defensively (they can only be stale pre-edit ranges).
+        private func invalidateGlyphs(for ranges: [NSRange], ns: NSString,
+                                      layoutManager: NSLayoutManager) {
+            for range in ranges {
+                guard range.length > 0, range.upperBound <= ns.length else { continue }
+                layoutManager.invalidateGlyphs(forCharacterRange: range, changeInLength: 0,
                                                actualCharacterRange: nil)
+                layoutManager.invalidateLayout(forCharacterRange: range, actualCharacterRange: nil)
             }
         }
 
-        /// Glyph-generation hook: mark hidden marker characters' glyphs `.null` so
-        /// they neither lay out nor draw. Running here (rather than poking
-        /// `setNotShownAttribute` after the fact) makes hiding survive every layout
-        /// pass by construction — TextKit re-invokes this whenever it regenerates
-        /// glyphs. Stands down when the set is stale for the current document (see
-        /// `hiddenMarkerDocLength`).
+        /// Glyph-generation hook: any character in a `hiddenMarkerRanges` range
+        /// gets the `.null` glyph property (no draw, no width → reflow). Returning
+        /// 0 when nothing is hidden lets the layout manager use its own defaults —
+        /// the zero-cost common path.
         func layoutManager(_ layoutManager: NSLayoutManager,
                            shouldGenerateGlyphs glyphs: UnsafePointer<CGGlyph>,
                            properties props: UnsafePointer<NSLayoutManager.GlyphProperty>,
@@ -558,45 +604,75 @@ struct MarkdownTextView: NSViewRepresentable {
                   glyphRange.length > 0
             else { return 0 }
 
-            // Cheap no-op pre-check: character indexes are monotonic for a generation
-            // chunk, so if the chunk's span misses the hidden set entirely (the common
-            // case — most of any document isn't a marker), skip the buffer copy.
+            // Cheap no-op pre-check: character indexes are monotonic within a
+            // generation chunk, so a chunk whose span misses the hidden set (the
+            // common case) skips the buffer copy entirely.
+            let count = glyphRange.length
             let spanStart = charIndexes[0]
-            let spanEnd = charIndexes[glyphRange.length - 1]
+            let spanEnd = charIndexes[count - 1]
             guard spanEnd >= spanStart,
                   hiddenMarkerCharacters.intersects(integersIn: spanStart...spanEnd)
             else { return 0 }
 
-            var newProps = Array(UnsafeBufferPointer(start: props, count: glyphRange.length))
-            var modified = false
-            for index in 0..<glyphRange.length where hiddenMarkerCharacters.contains(charIndexes[index]) {
-                newProps[index].insert(.null)
-                modified = true
+            var newProps = [NSLayoutManager.GlyphProperty](repeating: [], count: count)
+            var touched = false
+            for i in 0..<count {
+                if hiddenMarkerCharacters.contains(charIndexes[i]) {
+                    newProps[i] = .null
+                    touched = true
+                } else {
+                    newProps[i] = props[i]
+                }
             }
-            guard modified else { return 0 }
-            newProps.withUnsafeBufferPointer { buffer in
-                layoutManager.setGlyphs(glyphs, properties: buffer.baseAddress!,
-                                        characterIndexes: charIndexes, font: font,
-                                        forGlyphRange: glyphRange)
-            }
-            return glyphRange.length
+            guard touched else { return 0 }
+            layoutManager.setGlyphs(glyphs, properties: &newProps, characterIndexes: charIndexes,
+                                    font: font, forGlyphRange: glyphRange)
+            return count
         }
 
-        /// First-responder tracking (posted by `NSTextView.become/resignFirstResponder`).
-        func textDidBeginEditing(_ notification: Notification) {
-            hasFocus = true
-            refreshMarkerVisibility(fullRecompute: true)
+        /// The real first-responder signal (from `FocusReportingTextView`). Markers
+        /// are always hidden regardless of focus (see `refreshMarkerVisibility`), so
+        /// this only governs the format toolbar — which should never hover while the
+        /// editor isn't the first responder.
+        func setFocus(_ focused: Bool) {
+            guard hasFocus != focused else { return }
+            hasFocus = focused
             refreshFormatBar()
         }
 
-        /// The editor lost focus entirely — every marker hides (spec: "an
-        /// unfocused document reads like rendered rich text"), and the format
-        /// toolbar (which only ever shows for THIS view's own selection) hides
-        /// with it.
-        func textDidEndEditing(_ notification: Notification) {
-            hasFocus = false
-            refreshMarkerVisibility(fullRecompute: true)
-            refreshFormatBar()
+        /// A click inside a checkbox's marker region toggles `[ ]` ⇄ `[x]` in the
+        /// source (via the undo-safe splice) instead of placing a caret. Returns
+        /// true when it handled the click so the text view skips its default
+        /// mouse handling. `viewPoint` is in the text view's coordinate space.
+        func handleCheckboxClick(at viewPoint: CGPoint, layoutManager: NSLayoutManager,
+                                 textContainer: NSTextContainer, containerOrigin: CGPoint) -> Bool {
+            guard let textView else { return false }
+            let source = textView.string
+            guard (source as NSString).length <= Self.plainTextFallbackLimit else { return false }
+            let containerPoint = CGPoint(x: viewPoint.x - containerOrigin.x,
+                                         y: viewPoint.y - containerOrigin.y)
+            guard layoutManager.numberOfGlyphs > 0 else { return false }
+            let glyphIndex = layoutManager.glyphIndex(for: containerPoint, in: textContainer)
+            guard glyphIndex < layoutManager.numberOfGlyphs else { return false }
+            // `glyphIndex(for:)` snaps to the NEAREST glyph, so a click in the
+            // blank area below the last line resolves to that line's last glyph.
+            // Reject clicks outside the actual line box so clicking below a
+            // final checkbox line can't silently toggle it.
+            let fragment = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+            guard NSPointInRect(containerPoint, fragment) else { return false }
+            let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+
+            let blocks = NoteDecoration.blocks(source)
+            guard let block = blocks.first(where: { NSLocationInRange(charIndex, $0.range) }),
+                  let (markerRange, glyph) = NoteDecoration.blockGlyph(source, of: block),
+                  case .checkbox = glyph,
+                  NSLocationInRange(charIndex, markerRange),
+                  let result = CheckboxToggle.toggled(source, at: charIndex)
+            else { return false }
+
+            textView.window?.makeFirstResponder(textView)
+            applyWholeDocumentSplice(newSource: result.source, selection: result.selection)
+            return true
         }
 
         // MARK: Link clicks
@@ -665,16 +741,13 @@ struct MarkdownTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            // Stand down mid-splice AND mid-doc-replace — the transaction's own
-            // explicit full recompute (performSlashCommand / moveBlock /
-            // updateNSView's doc-replace) owns marker visibility; a selection-
-            // change fired incidentally during it would otherwise take the
-            // incremental path and diff a stale (pre-transaction) baseline of
-            // Block ranges that no longer index this string.
             guard !isPerformingEdit, !isProgrammaticUpdate else { return }
-            // Pure caret/selection move: text is unchanged, so the cached diff
-            // baseline is still valid — take the cheap incremental path.
-            refreshMarkerVisibility(fullRecompute: false)
+            // Marker visibility is NOT refreshed here: under the "always hidden"
+            // policy (Leon, 2026-07-12) hiding no longer depends on where the
+            // caret is, only on the text, so a pure selection move can't change
+            // it — refreshing happens on text change / load / doc-replace instead.
+            // (This also removes the per-caret-move O(doc) rescan flagged in
+            // BAK-254.) The format bar still tracks the selection.
             refreshFormatBar()
 
             // Close-only path: never opens (allowOpen false).
@@ -915,7 +988,7 @@ struct MarkdownTextView: NSViewRepresentable {
             isPerformingEdit = false
 
             applyDecorations(scopedTo: nil)
-            refreshMarkerVisibility(fullRecompute: true)
+            refreshMarkerVisibility()
 
             let newLength = (newSource as NSString).length
             let clampedLocation = max(0, min(selection.location, newLength))
@@ -1017,6 +1090,48 @@ struct MarkdownTextView: NSViewRepresentable {
     }
 }
 
+// MARK: - Focus-reporting text view (Phase 1 / BAK-250)
+
+/// An `NSTextView` that reports first-responder gain/loss to the coordinator, so
+/// marker hiding keys off ACTUAL focus. `textDidBegin/EndEditing` were the wrong
+/// signal — they fire on the first/last keystroke of an editing session, so a
+/// plain click-in (before typing) or click-away wouldn't toggle focus. Overriding
+/// `become`/`resignFirstResponder` is the reliable hook.
+final class FocusReportingTextView: NSTextView {
+    weak var focusCoordinator: MarkdownTextView.Coordinator?
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecome = super.becomeFirstResponder()
+        if didBecome { focusCoordinator?.setFocus(true) }
+        return didBecome
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let didResign = super.resignFirstResponder()
+        if didResign { focusCoordinator?.setFocus(false) }
+        return didResign
+    }
+
+    /// A single click on a checkbox glyph toggles it instead of placing a caret.
+    /// Everything else (multi-click, non-checkbox clicks) falls through to normal
+    /// text-view behaviour.
+    override func mouseDown(with event: NSEvent) {
+        // Plain single clicks only — a modifier click (shift/cmd/etc.) must still
+        // extend/place a selection that can start on a checkbox's column.
+        let plainClick = event.modifierFlags
+            .intersection([.shift, .command, .control, .option]).isEmpty
+        if event.clickCount == 1, plainClick, let layoutManager, let textContainer,
+           focusCoordinator?.handleCheckboxClick(
+               at: convert(event.locationInWindow, from: nil),
+               layoutManager: layoutManager,
+               textContainer: textContainer,
+               containerOrigin: textContainerOrigin) == true {
+            return
+        }
+        super.mouseDown(with: event)
+    }
+}
+
 // MARK: - Subpage-card drawing (2b Task 10)
 
 /// TK1 layout manager that draws a Craft-style card BEHIND any range carrying the
@@ -1040,11 +1155,72 @@ final class CardLayoutManager: NSLayoutManager {
         }
     }()
 
+    /// One SF Symbol flattened to a single tint (same recipe as `cardIcon`),
+    /// cached. `nil` only if the symbol is unavailable on the OS.
+    private static func glyphImage(_ name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
+        let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: NSFont.Weight.regular)
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration) else { return nil }
+        let size = symbol.size
+        return NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: rect)
+            color.set()
+            rect.fill(using: NSCompositingOperation.sourceAtop)
+            return true
+        }
+    }
+    private static let checkboxUnchecked = glyphImage("square", pointSize: 15, color: Theme.NSPalette.textTertiary)
+    private static let checkboxChecked = glyphImage("checkmark.square", pointSize: 15, color: Theme.NSPalette.accent)
+
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
         guard let storage = textStorage, let container = textContainers.first else { return }
 
         let charRange = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+
+        // Block glyphs (checkbox / bullet / divider) drawn over their transparent
+        // raw-markdown characters (Phase: block-glyph rendering).
+        storage.enumerateAttribute(NSAttributedString.Key.mustardBlockGlyph,
+                                   in: charRange, options: []) { value, range, _ in
+            guard let code = (value as? NSNumber)?.intValue,
+                  let glyph = BlockGlyphCode(rawValue: code) else { return }
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            guard glyphRange.length > 0 else { return }
+            var markerRect = self.boundingRect(forGlyphRange: glyphRange, in: container)
+            markerRect.origin.x += origin.x
+            markerRect.origin.y += origin.y
+
+            switch glyph {
+            case .checkboxUnchecked, .checkboxChecked:
+                let image = (glyph == .checkboxChecked)
+                    ? CardLayoutManager.checkboxChecked : CardLayoutManager.checkboxUnchecked
+                guard let image else { return }
+                let iconRect = NSRect(x: markerRect.minX + 1.0,
+                                      y: markerRect.midY - image.size.height / 2.0,
+                                      width: image.size.width, height: image.size.height)
+                image.draw(in: iconRect, from: NSRect.zero,
+                           operation: NSCompositingOperation.sourceOver,
+                           fraction: 1.0, respectFlipped: true, hints: nil)
+            case .bullet:
+                let diameter: CGFloat = 5.0
+                let dot = NSRect(x: markerRect.minX + 3.0, y: markerRect.midY - diameter / 2.0,
+                                 width: diameter, height: diameter)
+                Theme.NSPalette.textPrimary.setFill()
+                NSBezierPath(ovalIn: dot).fill()
+            case .divider:
+                // Span the whole line fragment, not the narrow "---" glyph rect.
+                var lineRect = self.lineFragmentRect(forGlyphAt: glyphRange.location, effectiveRange: nil)
+                lineRect.origin.x += origin.x
+                lineRect.origin.y += origin.y
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: lineRect.minX + 2.0, y: lineRect.midY))
+                path.line(to: NSPoint(x: lineRect.maxX - 8.0, y: lineRect.midY))
+                Theme.NSPalette.hairline.setStroke()
+                path.lineWidth = 1.0
+                path.stroke()
+            }
+        }
+
         storage.enumerateAttribute(NSAttributedString.Key.mustardSubpageCard,
                                    in: charRange,
                                    options: []) { value, range, _ in
