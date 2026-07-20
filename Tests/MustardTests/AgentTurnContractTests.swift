@@ -179,6 +179,39 @@ final class AgentTurnContractTests: XCTestCase {
         XCTAssertThrowsError(try AgentTurnContract.decode(json))
     }
 
+    func test_resolvedDraftURLConfinesToDraftsFolderThroughSymlinks() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory
+            .appendingPathComponent("drafts-confine-\(UUID().uuidString)", isDirectory: true)
+        let outside = fm.temporaryDirectory
+            .appendingPathComponent("drafts-outside-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: root); try? fm.removeItem(at: outside) }
+        let draftsDir = root.appendingPathComponent("_agent/drafts/u1", isDirectory: true)
+        try fm.createDirectory(at: draftsDir, withIntermediateDirectories: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try "safe".write(to: draftsDir.appendingPathComponent("ok.md"), atomically: true, encoding: .utf8)
+        try "secret".write(to: outside.appendingPathComponent("target.md"), atomically: true, encoding: .utf8)
+        // A symlink planted inside the drafts folder pointing outside the vault.
+        try fm.createSymbolicLink(
+            at: draftsDir.appendingPathComponent("escape.md"),
+            withDestinationURL: outside.appendingPathComponent("target.md")
+        )
+        // A symlinked DIRECTORY inside the drafts folder pointing outside.
+        try fm.createSymbolicLink(
+            at: draftsDir.appendingPathComponent("outdir"),
+            withDestinationURL: outside
+        )
+
+        XCTAssertNotNil(AgentDrafts.resolvedDraftURL(root: root.path, relativePath: "_agent/drafts/u1/ok.md"))
+        // A brand-new (not-yet-written) file inside the folder is fine too.
+        XCTAssertNotNil(AgentDrafts.resolvedDraftURL(root: root.path, relativePath: "_agent/drafts/u1/new.md"))
+        XCTAssertNil(AgentDrafts.resolvedDraftURL(root: root.path, relativePath: "_agent/drafts/u1/escape.md"),
+                     "a symlinked file escaping the drafts folder must be rejected")
+        XCTAssertNil(AgentDrafts.resolvedDraftURL(root: root.path, relativePath: "_agent/drafts/u1/outdir/target.md"),
+                     "a path through a symlinked directory escaping the vault must be rejected")
+        XCTAssertNil(AgentDrafts.resolvedDraftURL(root: root.path, relativePath: "notes/elsewhere.md"))
+    }
+
     func test_draftPathSafety() {
         XCTAssertTrue(AgentDrafts.isSafeRelativePath("_agent/drafts/u1/reply.md"))
         XCTAssertFalse(AgentDrafts.isSafeRelativePath("/etc/passwd"))

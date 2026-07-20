@@ -29,6 +29,11 @@ public struct AgentDraftsSection: View {
 private struct AgentDraftCard: View {
     let draft: AgentDraft
     let workingDirectory: String
+    /// REQUIRES `AgentDraftPanelState` in the environment or SwiftUI traps at render.
+    /// Every host that presents `TaskDetailSheet` must inject it — today that is
+    /// `TaskDetailDrawerModifier` and `ConsoleTaskSheet` (AgentConsoleView). A new
+    /// host (preview, sheet, widget) that forgets `.environment(...)` will crash the
+    /// first time a task WITH drafts is opened through it, which smoke tests miss.
     @Environment(AgentDraftPanelState.self) private var panel
     @State private var snippet: String = ""
 
@@ -73,7 +78,10 @@ private struct AgentDraftCard: View {
         }
         .buttonStyle(.plain)
         .task(id: draft.uid) {
-            snippet = FileVaultIO(rootPath: workingDirectory).read(draft.relativePath) ?? ""
+            // Resolved-URL read: a symlink planted in the drafts folder must not
+            // leak outside-vault content into the card snippet.
+            snippet = AgentDrafts.resolvedDraftURL(root: workingDirectory, relativePath: draft.relativePath)
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
         }
     }
 

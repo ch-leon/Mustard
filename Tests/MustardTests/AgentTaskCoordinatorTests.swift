@@ -235,6 +235,63 @@ final class AgentTaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(drafts.first?.relativePath, "_agent/drafts/u1/reply.md")
     }
 
+    func test_secondTurnReturningSameDraftPathUpdatesInPlaceWithoutDuplicating() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .success(.init(outcome: .completed, message: "done", questions: [], summary: "Drafted",
+                           artifacts: [], retryDisposition: .none, errorCategory: nil,
+                           connectedCapability: nil, drafts: [
+                               .init(kind: "comment", title: "Jira reply", path: "_agent/drafts/u1/reply.md"),
+                           ])),
+            .success(.init(outcome: .completed, message: "revised", questions: [], summary: "Revised",
+                           artifacts: [], retryDisposition: .none, errorCategory: nil,
+                           connectedCapability: nil, drafts: [
+                               .init(kind: "comment", title: "Jira reply (v2)", path: "_agent/drafts/u1/reply.md"),
+                           ])),
+        ])
+        let (coordinator, context) = try fixture(runtime: runtime)
+        let task = insertRoutedTask(in: context, title: "Draft it", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+        coordinator.requestChanges(task, feedback: "Tighten it", now: secondTurn)
+        await coordinator.runNext(settings: settings, now: secondTurn)
+
+        let drafts = task.agentRun?.drafts ?? []
+        XCTAssertEqual(drafts.count, 1, "a re-returned draft path must not duplicate the card")
+        XCTAssertEqual(drafts.first?.title, "Jira reply (v2)")
+    }
+
+    func test_outcomeSaveFailureRollsBackMaterializedDrafts() async throws {
+        let runtime = ScriptedAgentRuntime(responses: [
+            .success(.init(outcome: .completed, message: "done", questions: [], summary: "Drafted",
+                           artifacts: [], retryDisposition: .none, errorCategory: nil,
+                           connectedCapability: nil, drafts: [
+                               .init(kind: "comment", title: "Jira reply", path: "_agent/drafts/u1/reply.md"),
+                           ])),
+        ])
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        var saveCount = 0
+        let coordinator = AgentTaskCoordinator(
+            context: context,
+            runtime: runtime,
+            persist: {
+                saveCount += 1
+                // Save 1 is the pre-flight; save 2 is the outcome save — fail it.
+                if saveCount == 2 { throw CocoaError(.fileWriteUnknown) }
+                try context.save()
+            },
+            contractProvider: { self.testContract },
+            nowProvider: { self.secondTurn }
+        )
+        let task = insertRoutedTask(in: context, title: "Draft rollback", stage: .forAgent)
+
+        await coordinator.runNext(settings: settings, now: firstTurn)
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AgentDraft>()).count, 0,
+                       "drafts materialized in the failed outcome save must be rolled back")
+        XCTAssertTrue(task.agentRun?.drafts?.isEmpty ?? true)
+    }
+
     func test_needsInputReleasesSlotAndSecondRunNextRunsNextTask() async throws {
         let runtime = ScriptedAgentRuntime(responses: [
             .question("Which version?"),

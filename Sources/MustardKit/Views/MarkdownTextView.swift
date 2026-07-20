@@ -554,7 +554,17 @@ struct MarkdownTextView: NSViewRepresentable {
                            font: NSFont,
                            forGlyphRange glyphRange: NSRange) -> Int {
             guard !hiddenMarkerCharacters.isEmpty,
-                  hiddenMarkerDocLength == (layoutManager.textStorage?.length ?? 0)
+                  hiddenMarkerDocLength == (layoutManager.textStorage?.length ?? 0),
+                  glyphRange.length > 0
+            else { return 0 }
+
+            // Cheap no-op pre-check: character indexes are monotonic for a generation
+            // chunk, so if the chunk's span misses the hidden set entirely (the common
+            // case — most of any document isn't a marker), skip the buffer copy.
+            let spanStart = charIndexes[0]
+            let spanEnd = charIndexes[glyphRange.length - 1]
+            guard spanEnd >= spanStart,
+                  hiddenMarkerCharacters.intersects(integersIn: spanStart...spanEnd)
             else { return 0 }
 
             var newProps = Array(UnsafeBufferPointer(start: props, count: glyphRange.length))

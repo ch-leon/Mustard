@@ -36,11 +36,28 @@ public struct AgentDraftPayload: Codable, Equatable, Sendable {
 
 public enum AgentDrafts {
     /// A draft path must be relative, escape-free, and confined to the drafts folder.
+    /// String-level check only — callers that touch the filesystem must go through
+    /// `resolvedDraftURL`, which additionally defeats symlink escapes.
     public static func isSafeRelativePath(_ path: String) -> Bool {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.hasPrefix("/"),
               trimmed.hasPrefix("_agent/drafts/") else { return false }
         return !trimmed.split(separator: "/").contains("..")
+    }
+
+    /// The filesystem-level confinement check: resolve symlinks on both the vault
+    /// root and the candidate path and require the REAL location to stay inside
+    /// `<root>/_agent/drafts/`. A syntactically safe relative path can still escape
+    /// through a symlink planted inside the drafts folder; every read and (crucially)
+    /// every autosave write must use the URL this returns, or nothing at all.
+    public static func resolvedDraftURL(root: String, relativePath: String) -> URL? {
+        guard isSafeRelativePath(relativePath), !root.isEmpty else { return nil }
+        let rootURL = URL(fileURLWithPath: root, isDirectory: true).resolvingSymlinksInPath()
+        let candidate = rootURL.appendingPathComponent(relativePath).resolvingSymlinksInPath()
+        let draftsRoot = rootURL.appendingPathComponent("_agent/drafts", isDirectory: true)
+            .resolvingSymlinksInPath()
+        guard candidate.path.hasPrefix(draftsRoot.path + "/") else { return nil }
+        return candidate
     }
 }
 

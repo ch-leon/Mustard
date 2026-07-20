@@ -31,6 +31,11 @@ enum AgentConversation {
         return message
     }
 
+    /// Record draft references on the run. Keyed by `relativePath`: a retried or
+    /// resumed turn that re-returns a file the run already references updates that
+    /// draft's title/kind in place rather than duplicating the card. Returns only
+    /// the NEWLY created records — the coordinator's save-failure rollback deletes
+    /// exactly those (an in-place title touch is not worth a snapshot).
     @discardableResult
     static func materializeDrafts(
         _ payloads: [AgentDraftPayload],
@@ -39,6 +44,11 @@ enum AgentConversation {
     ) -> [AgentDraft] {
         var created: [AgentDraft] = []
         for payload in payloads where AgentDrafts.isSafeRelativePath(payload.path) {
+            if let existing = (run.drafts ?? []).first(where: { $0.relativePath == payload.path }) {
+                existing.kind = AgentDraftKind(rawValue: payload.kind) ?? .other
+                if !payload.title.isEmpty { existing.title = payload.title }
+                continue
+            }
             let draft = AgentDraft(
                 run: run,
                 kind: AgentDraftKind(rawValue: payload.kind) ?? .other,
