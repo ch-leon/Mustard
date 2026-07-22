@@ -20,9 +20,7 @@ public struct VoiceCapturePillView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(maxWidth: 380, alignment: .leading)
-        .background(Theme.Palette.bg, in: Capsule())
-        .overlay(Capsule().stroke(Theme.Palette.divider, lineWidth: 1))
-        .elevation(.float, cornerRadius: 28)
+        .elevation(.float, cornerRadius: 28)   // bg ground + hairline + soft shadow
         .padding(8)
         .animation(Theme.Motion.settle, value: controller.phase)
     }
