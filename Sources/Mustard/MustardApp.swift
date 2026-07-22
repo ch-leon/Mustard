@@ -78,6 +78,13 @@ private final class MustardAppScheduler {
                 }
                 lastInbox = .now
             }
+            // Voice-capture cleanup (F25): batch any due raw captures through one
+            // claude call. The pass itself is a pure text transform — the working
+            // directory is only claude's cwd — so any enabled KB folder serves.
+            let cleanupDir = updated.sources.first {
+                $0.enabled && !$0.workingDirectory.isEmpty
+            }?.workingDirectory ?? NSHomeDirectory()
+            await agent.cleanupCaptures(workingDirectory: cleanupDir)
         }
 
         // Cheap local work remains independent of the Claude execution gate.
