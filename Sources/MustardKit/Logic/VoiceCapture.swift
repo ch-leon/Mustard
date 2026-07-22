@@ -22,7 +22,9 @@ public enum VoiceCapture {
     /// tap regardless of what the recognizer produced); then an empty transcript
     /// cancels; otherwise commit with the normalized title.
     public static func outcome(pressedAt: Date, releasedAt: Date, transcript: String) -> Outcome {
-        guard releasedAt.timeIntervalSince(pressedAt) >= minimumHold else {
+        // 1ms tolerance: Date stores seconds as a Double, so an interval built to be
+        // exactly `minimumHold` can compare a hair under it. Imperceptible for UX.
+        guard releasedAt.timeIntervalSince(pressedAt) >= minimumHold - 0.001 else {
             return .cancelled(.tooShort)
         }
         let title = normalizeTitle(transcript)
