@@ -144,8 +144,30 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢
 
-*(Cleared — B1 shipped as **F17**, the multi-source foundation as **F18**, and I1
-delegation as **F19**. Next unblocked candidate: **I2 Trust that earns itself** —
+- [ ] **F25 Voice capture — push-to-talk → board task → agent cleanup queue**
+      *(spec approved by Leon 2026-07-22 — see ADR-0011)*. Hold a global hotkey
+      (⌃⌥Space, Carbon `RegisterEventHotKey` — press *and* release, no TCC grant),
+      speak, release → task. Three slices:
+      - **v1 Capture:** on-device `SFSpeechRecognizer` + `AVAudioEngine` push-to-talk;
+        live-transcript pill (HoverPanel pattern, never steals focus); release inserts
+        an Inbox task (`.me`, `source = "voice"`, `captureState = .raw`, verbatim
+        transcript kept on `captureTranscript`); <300 ms or empty → cancel. Pure
+        `VoiceCapture` outcome/normalizer unit (TDD). Info.plist mic+speech usage
+        strings in `build-app.sh`.
+      - **v2 Cleanup queue:** raw captures batch (≤5) through one `claude -p`
+        text-transform pass on the scheduler tick when the execution gate is free —
+        title/description/schedule/area auto-applied (tier 1, reversible;
+        `normalizePlacement` invariant); 60/300/900 s backoff capped at 3 then
+        `.failed` (task stays usable raw). Pure `CaptureCleanupQueue` +
+        `CaptureCleanup` prompt/parser/schedule-resolver units (TDD).
+      - **v3 Routing:** agent-shaped captures additionally emit a `Recommendation`
+        (`source = "voice"`, rec.task = the captured task, action limited to
+        draft_email/draft_slack/ticket_write/vault_note) into the existing triage →
+        trust → gating → bridge loop. Never sets `owner = .agent` directly (BAK-90 +
+        coordinator auto-pickup stay honest).
+
+*(Previous: B1 shipped as **F17**, the multi-source foundation as **F18**, and I1
+delegation as **F19**. Other unblocked candidate: **I2 Trust that earns itself** —
 design locked 2026-06-16, still needs a plan.)*
 
 ## Later — autonomous, unblocked 🔓
