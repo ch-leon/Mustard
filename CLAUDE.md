@@ -65,7 +65,11 @@ Mustard/
                                    NoteMetadata, WikilinkURL
       Agent/                     ClaudeRunner (Process shell), VaultSweep (prompt+parser),
                                    AgentService (@Observable orchestrator), FileVaultIO
-                                   (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex)
+                                   (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex),
+                                   CaptureCleanup (voice cleanup prompt+parser, ADR-0011)
+      Capture/                   push-to-talk voice capture (F25, ADR-0011): PushToTalkHotKey
+                                   (Carbon, ⌃⌥Space), SpeechTranscriber (on-device SFSpeech),
+                                   VoiceCaptureController (hotkey→pill→raw Inbox task)
       Calendar/                  GoogleOAuth (PKCE/URL/token), GoogleCalendarParser
       Views/                     SwiftUI screens + surfaces (Root, Today, Board, Week,
                                    AgentConsole, Notch, Hover, CommandBar, TaskDetail, rows;
