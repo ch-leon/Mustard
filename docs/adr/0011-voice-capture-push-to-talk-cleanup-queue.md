@@ -76,3 +76,24 @@ existing recommendation loop.**
   schedule resolution, apply/routing) is pure and unit-tested.
 - SwiftData schema stays CloudKit-additive (ADR-0001): four new optional/defaulted
   `MustardTask` columns, one new `SourceID` case.
+
+## Addendum (2026-07-23) — area-less hand-offs reach the connected worker
+
+First hands-on test surfaced the strand: approving a voice-routed `draft_email` rec
+promotes the task to `.queued`/agent, but a voice capture frequently has **no client
+area** ("Email Bree about Lottie animations" maps to no client). Both
+`AgentTaskQueue.route` and `AgentService.exportWorkOrders` key on the task's area, so a
+blank-area task never routes to a worker outbox and stalls in Queued forever (BAK-90).
+
+**Decision (Leon, 2026-07-23): keep the connected-worker model (ADR-0010) and fix the
+routing** — chosen over wiring native Gmail into the app. The cleanup pass still only
+*infers* an area when the transcript makes it obvious and otherwise leaves it blank (the
+displayed area stays blank). To unstrand the hand-off, a **configurable default agent
+project/KB** (falling back to the meeting source's `Code Heroes` default) resolves at
+route/export time whenever the task has no area — routing-only, it does not stamp the
+task. The manual `delegate()` BAK-90 nudge ("give it a client area") stays for a person
+dragging a card into the agent lane; the default only rescues programmatic hand-offs
+(voice approval) that would otherwise strand. The worker (`drain-agent-queue`, in Leon's
+sibling vault repo, never pushed here) owns the actual Gmail-connector call that creates
+the real draft. Tracked as **F26**. The console/board attention-surface cleanup this
+test also surfaced is **F27** (planning).

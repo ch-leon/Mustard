@@ -95,7 +95,37 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢 (queued 2026-07-12)
 
-*(Cleared — F23 shipped same-day, see Done.)*
+- [ ] **F26 Voice hand-off reaches the connected worker (real Gmail draft)**
+      *(direction: Leon picked "connected worker, fix routing" 2026-07-23 — see ADR-0011
+      addendum)*. Today an approved voice-routed outward task (`draft_email` etc.)
+      promotes to `.queued`/agent but **strands** when it has no client area:
+      `AgentTaskQueue.route` and `AgentService.exportWorkOrders` both key on the task's
+      area, so a blank-area capture never routes to a worker outbox (BAK-90). Fix so the
+      voice → agent → **real Gmail draft** → Needs Review loop completes:
+      - **Default route for area-less agent tasks.** Introduce a configurable default
+        agent project/KB (fallback to the meeting source's `Code Heroes` default). Pure
+        `AgentTaskQueue.route` + `BridgeExport`/`exportWorkOrders` resolve it at route/
+        export time when `task.list?.area == nil`. Keep the task's displayed area blank
+        (per Leon) — the fallback is routing-only. TDD (extend `AgentTaskQueueTests`,
+        `BridgeExportTests`).
+      - **Keep `delegate()`'s BAK-90 entry nudge for MANUAL drags** (a person dragging a
+        card to the agent lane still gets "give it a client area"); the default only
+        rescues programmatic hand-offs (voice approval) that would otherwise strand.
+      - **Worker side (Leon's sibling repo, out of this repo):** `drain-agent-queue` must
+        actually call the Gmail connector to create the draft (not just write a draft
+        artifact). Guided change in the `Codeheroes work` vault skill — never pushed here.
+      - Acceptance: approve the "Email Bree" voice rec → card moves Queued → (worker) →
+        Needs Review with a live Gmail draft link.
+
+- [ ] **F27 Console/board attention consolidation** *(planning — raised by Leon
+      2026-07-23)*. The Agent Console left column stacks three visually-similar things:
+      **NEEDS YOU** (tasks with a question), **NEEDS REVIEW** (completed agent work
+      awaiting accept/reject), and the **RECOMMENDATIONS** triage deck (proposals not yet
+      started). The first two are tasks mid-execution and *also* appear in their board
+      columns; the third is pre-execution proposals. Same card treatment blurs the phases
+      and double-surfaces review work. Decide: (a) a visually distinct card for
+      review/approval tasks vs. proposal cards, and (b) which surface (console vs. board)
+      is canonical for each phase. **Spec/design first, no code yet.**
 
 ## Done (2026-07-12) ✅
 
