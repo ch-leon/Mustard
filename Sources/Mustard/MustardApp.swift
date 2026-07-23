@@ -76,6 +76,13 @@ private final class MustardAppScheduler {
                         agent.ingestAgentResults(workingDir: source.workingDirectory)
                     }
                 }
+                // Area-less connected-worker hand-offs (F26) route to the default KB —
+                // the meeting vault — since they match no source's area filter above.
+                let defaultDir = UserDefaults.standard.string(forKey: "meetingVaultPath") ?? ""
+                if !defaultDir.isEmpty, !updated.sources.contains(where: { $0.enabled && $0.workingDirectory == defaultDir }) {
+                    agent.exportAreaLessWork(workingDir: defaultDir, project: "Code Heroes")
+                    agent.ingestAgentResults(workingDir: defaultDir)
+                }
                 lastInbox = .now
             }
             // Voice-capture cleanup (F25): batch any due raw captures through one
