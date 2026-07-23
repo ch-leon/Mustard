@@ -321,39 +321,8 @@ public struct MustardBoardCard: View {
     private func rejectGate() { context.delete(task) }
 }
 
-/// Wrapping horizontal layout for the meta row (area/source/due may overflow the
-/// narrow column). Falls back gracefully on older SDKs via SwiftUI's `Layout`.
-/// Shared with `TaskChipRow` (BAK-245) so row chips wrap the same way card meta does.
-struct FlowMeta: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
-        for sub in subviews {
-            let size = sub.sizeThatFits(.unspecified)
-            if x > 0 && x + size.width > maxWidth {
-                x = 0; y += rowHeight + spacing; rowHeight = 0
-            }
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-        return CGSize(width: maxWidth == .infinity ? x : maxWidth, height: y + rowHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
-        for sub in subviews {
-            let size = sub.sizeThatFits(.unspecified)
-            if x > bounds.minX && x + size.width > bounds.maxX {
-                x = bounds.minX; y += rowHeight + spacing; rowHeight = 0
-            }
-            sub.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-    }
-}
+// `FlowMeta` (the wrapping meta-row layout) moved to SharedUI/FlowMeta.swift so the iOS
+// target can compile it too — it's shared by MustardBoardCard (desktop) and TaskChipRow.
 
 #if DEBUG
 #Preview {
