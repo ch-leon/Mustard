@@ -7,7 +7,7 @@ Things 3 calm — warm off-white, hairline dividers, one blue accent.
 ## Run
 
 ```bash
-swift test          # 20 tests: models, DayPlanner, agent loop, runner spawn path
+swift test          # full suite: models, Logic, agent loop, parsers, voice capture
 ./build-app.sh      # builds build/Mustard.app (signed, double-clickable)
 open build/Mustard.app
 ```
@@ -39,6 +39,14 @@ open build/Mustard.app
 - **Hover panel** — ⌘⇧H: always-on-top, non-activating mini panel showing your
   current focus (or what the agent is executing) and how many items wait on you.
   Expands on hover.
+- **Voice capture** — hold **⌃⌥Space** anywhere on the Mac, speak a task, release: a
+  floating pill shows the live transcript (on-device speech, no audio leaves the Mac)
+  and the words land as an Inbox task instantly. The agent then tidies it in the
+  background — inferring a short title, description, schedule ("…on the 9th of
+  August"), and area — and, when you asked it to *do* something ("email the action
+  points to Matt"), proposes it in the Agent triage deck for your approval (email/
+  Slack/tickets stay gated). First launch asks for Microphone + Speech permission.
+  Spec: ADR-0011.
 
 Agents run through your **Claude subscription** (`claude -p`, headless) — no API
 key, no metered billing. If runs fail with 401, run `/login` inside `claude`
