@@ -125,7 +125,8 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
       columns; the third is pre-execution proposals. Same card treatment blurs the phases
       and double-surfaces review work. Decide: (a) a visually distinct card for
       review/approval tasks vs. proposal cards, and (b) which surface (console vs. board)
-      is canonical for each phase. **Spec/design first, no code yet.**
+      is canonical for each phase. **Spec/design first, no code yet.** Handover /
+      starting context: `docs/specs/2026-07-23-console-board-attention-consolidation-design.md`.
 
 ## Done (2026-07-12) ✅
 
