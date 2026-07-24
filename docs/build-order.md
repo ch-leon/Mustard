@@ -95,7 +95,38 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢 (queued 2026-07-12)
 
-*(Cleared — F23 shipped same-day, see Done.)*
+- [ ] **F26 Voice hand-off reaches the connected worker (real Gmail draft)**
+      *(direction: Leon picked "connected worker, fix routing" 2026-07-23 — see ADR-0011
+      addendum)*. Today an approved voice-routed outward task (`draft_email` etc.)
+      promotes to `.queued`/agent but **strands** when it has no client area:
+      `AgentTaskQueue.route` and `AgentService.exportWorkOrders` both key on the task's
+      area, so a blank-area capture never routes to a worker outbox (BAK-90). Fix so the
+      voice → agent → **real Gmail draft** → Needs Review loop completes:
+      - **Default route for area-less agent tasks.** Introduce a configurable default
+        agent project/KB (fallback to the meeting source's `Code Heroes` default). Pure
+        `AgentTaskQueue.route` + `BridgeExport`/`exportWorkOrders` resolve it at route/
+        export time when `task.list?.area == nil`. Keep the task's displayed area blank
+        (per Leon) — the fallback is routing-only. TDD (extend `AgentTaskQueueTests`,
+        `BridgeExportTests`).
+      - **Keep `delegate()`'s BAK-90 entry nudge for MANUAL drags** (a person dragging a
+        card to the agent lane still gets "give it a client area"); the default only
+        rescues programmatic hand-offs (voice approval) that would otherwise strand.
+      - **Worker side (Leon's sibling repo, out of this repo):** `drain-agent-queue` must
+        actually call the Gmail connector to create the draft (not just write a draft
+        artifact). Guided change in the `Codeheroes work` vault skill — never pushed here.
+      - Acceptance: approve the "Email Bree" voice rec → card moves Queued → (worker) →
+        Needs Review with a live Gmail draft link.
+
+- [ ] **F27 Console/board attention consolidation** *(planning — raised by Leon
+      2026-07-23)*. The Agent Console left column stacks three visually-similar things:
+      **NEEDS YOU** (tasks with a question), **NEEDS REVIEW** (completed agent work
+      awaiting accept/reject), and the **RECOMMENDATIONS** triage deck (proposals not yet
+      started). The first two are tasks mid-execution and *also* appear in their board
+      columns; the third is pre-execution proposals. Same card treatment blurs the phases
+      and double-surfaces review work. Decide: (a) a visually distinct card for
+      review/approval tasks vs. proposal cards, and (b) which surface (console vs. board)
+      is canonical for each phase. **Spec/design first, no code yet.** Handover /
+      starting context: `docs/specs/2026-07-23-console-board-attention-consolidation-design.md`.
 
 ## Done (2026-07-12) ✅
 
@@ -144,8 +175,30 @@ the sibling Triage-tool repo under `docs/superpowers/plans/`.
 
 ## Next — buildable, unblocked 🟢
 
-*(Cleared — B1 shipped as **F17**, the multi-source foundation as **F18**, and I1
-delegation as **F19**. Next unblocked candidate: **I2 Trust that earns itself** —
+- [ ] **F25 Voice capture — push-to-talk → board task → agent cleanup queue**
+      *(spec approved by Leon 2026-07-22 — see ADR-0011)*. Hold a global hotkey
+      (⌃⌥Space, Carbon `RegisterEventHotKey` — press *and* release, no TCC grant),
+      speak, release → task. Three slices:
+      - **v1 Capture:** on-device `SFSpeechRecognizer` + `AVAudioEngine` push-to-talk;
+        live-transcript pill (HoverPanel pattern, never steals focus); release inserts
+        an Inbox task (`.me`, `source = "voice"`, `captureState = .raw`, verbatim
+        transcript kept on `captureTranscript`); <300 ms or empty → cancel. Pure
+        `VoiceCapture` outcome/normalizer unit (TDD). Info.plist mic+speech usage
+        strings in `build-app.sh`.
+      - **v2 Cleanup queue:** raw captures batch (≤5) through one `claude -p`
+        text-transform pass on the scheduler tick when the execution gate is free —
+        title/description/schedule/area auto-applied (tier 1, reversible;
+        `normalizePlacement` invariant); 60/300/900 s backoff capped at 3 then
+        `.failed` (task stays usable raw). Pure `CaptureCleanupQueue` +
+        `CaptureCleanup` prompt/parser/schedule-resolver units (TDD).
+      - **v3 Routing:** agent-shaped captures additionally emit a `Recommendation`
+        (`source = "voice"`, rec.task = the captured task, action limited to
+        draft_email/draft_slack/ticket_write/vault_note) into the existing triage →
+        trust → gating → bridge loop. Never sets `owner = .agent` directly (BAK-90 +
+        coordinator auto-pickup stay honest).
+
+*(Previous: B1 shipped as **F17**, the multi-source foundation as **F18**, and I1
+delegation as **F19**. Other unblocked candidate: **I2 Trust that earns itself** —
 design locked 2026-06-16, still needs a plan.)*
 
 ## Later — autonomous, unblocked 🔓

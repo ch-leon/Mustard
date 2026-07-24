@@ -36,6 +36,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- Voice capture (F25, ADR-0011): both keys are hard-required — macOS kills
+       the app on first mic/speech access without them. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Mustard listens while you hold the capture hotkey so your spoken task can be transcribed.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Mustard transcribes your held-hotkey voice captures on this Mac to create tasks.</string>
 </dict>
 </plist>
 PLIST

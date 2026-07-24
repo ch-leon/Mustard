@@ -76,8 +76,22 @@ private final class MustardAppScheduler {
                         agent.ingestAgentResults(workingDir: source.workingDirectory)
                     }
                 }
+                // Area-less connected-worker hand-offs (F26) route to the default KB —
+                // the meeting vault — since they match no source's area filter above.
+                let defaultDir = UserDefaults.standard.string(forKey: "meetingVaultPath") ?? ""
+                if !defaultDir.isEmpty, !updated.sources.contains(where: { $0.enabled && $0.workingDirectory == defaultDir }) {
+                    agent.exportAreaLessWork(workingDir: defaultDir, project: "Code Heroes")
+                    agent.ingestAgentResults(workingDir: defaultDir)
+                }
                 lastInbox = .now
             }
+            // Voice-capture cleanup (F25): batch any due raw captures through one
+            // claude call. The pass itself is a pure text transform — the working
+            // directory is only claude's cwd — so any enabled KB folder serves.
+            let cleanupDir = updated.sources.first {
+                $0.enabled && !$0.workingDirectory.isEmpty
+            }?.workingDirectory ?? NSHomeDirectory()
+            await agent.cleanupCaptures(workingDirectory: cleanupDir)
         }
 
         // Cheap local work remains independent of the Claude execution gate.
@@ -120,6 +134,7 @@ struct MustardApp: App {
     @State private var hoverPanel: HoverPanel?
     @State private var notch: NotchController?
     @State private var notchNav = NotchNavigation()
+    @State private var voiceCapture: VoiceCaptureController?
     init() {
         let container = MustardContainer.make()
         let executionGate = AgentExecutionGate()
@@ -186,6 +201,13 @@ struct MustardApp: App {
                         }
                         controller.show()
                         notch = controller
+                    }
+                    if voiceCapture == nil {
+                        // Push-to-talk capture (F25): hold ⌃⌥Space anywhere, speak,
+                        // release → raw Inbox task for the cleanup queue.
+                        let capture = VoiceCaptureController(context: container.mainContext)
+                        capture.activate()
+                        voiceCapture = capture
                     }
                 }
         }

@@ -65,14 +65,18 @@ Mustard/
                                    NoteMetadata, WikilinkURL
       Agent/                     ClaudeRunner (Process shell), VaultSweep (prompt+parser),
                                    AgentService (@Observable orchestrator), FileVaultIO
-                                   (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex)
+                                   (MeetingVaultIO + NoteVaultIO), NoteIndexService (notes reindex),
+                                   CaptureCleanup (voice cleanup prompt+parser, ADR-0011)
+      Capture/                   push-to-talk voice capture (F25, ADR-0011): PushToTalkHotKey
+                                   (Carbon, ⌃⌥Space), SpeechTranscriber (on-device SFSpeech),
+                                   VoiceCaptureController (hotkey→pill→raw Inbox task)
       Calendar/                  GoogleOAuth (PKCE/URL/token), GoogleCalendarParser
       Views/                     SwiftUI screens + surfaces (Root, Today, Board, Week,
                                    AgentConsole, Notch, Hover, CommandBar, TaskDetail, rows;
                                    Notes, NoteEditor [live Craft editor — no Source/Preview
                                    toggle], MarkdownTextView (TextKit-1 surface), SlashMenuView,
                                    BlockGutterOverlay, MarkdownPreview, BacklinksPanel,
-                                   MorningRitual)
+                                   MorningRitual, VoiceCapturePillView [push-to-talk pill, F25])
       MustardContainer.swift     builds the on-disk ModelContainer
       PreviewData.swift          in-memory sample container for #Preview
   Tests/MustardTests/            XCTest — one file per Logic/Agent/Calendar unit
@@ -81,7 +85,7 @@ Mustard/
 **Separation rule:** anything with a decision in it (sorting, bucketing, gating,
 parsing, scheduling) goes in `Logic/` or as a pure function in `Agent`/`Calendar`
 so it can be unit-tested. `Views/` only renders and dispatches. This is why the
-suite can cover 73 cases without UI tests.
+suite covers the whole decision surface without UI tests.
 
 ## Design language — "Things 3 calm" (do not deviate)
 
@@ -112,7 +116,7 @@ explicit dark hex, not `Theme`.
 ## Build & run
 
 ```bash
-swift test            # full suite (984 tests as of the agent task-sessions MVP)
+swift test            # full suite (1,088 at the F25 voice-capture MVP; F26 adds a handful)
 swift build           # compile check
 ./build-app.sh        # → build/Mustard.app (ad-hoc signed, double-clickable)
 open build/Mustard.app
@@ -186,10 +190,44 @@ that repo has tracked secrets). It runs in a **connected** Claude session, produ
   connected session.
 - **The card has no client area.** Export filters strictly by area
   (`AgentService.exportWorkOrders` → `BridgeExport`; the `PersonalBoard.canHandOffToAgent`
-  gate, BAK-90). An area-less card is **silently never exported** and strands forever. Every
-  path that can put a card in an agent lane must go through the area gate — see
-  `PersonalBoard.isAgentLane` / `newTaskPlacement` (the single source of truth) and its
-  tests. Give the card a client-area list to unstick it.
+  gate, BAK-90). A manually-delegated area-less card is **silently never exported** and
+  strands forever — every path that can *manually* put a card in an agent lane goes
+  through the area gate (`PersonalBoard.isAgentLane` / `newTaskPlacement`, the single
+  source of truth). Give it a client-area list to unstick it. **Exception (F26):**
+  *programmatic* hand-offs that can't carry an area — voice-routed captures — are rescued
+  by an injected **default route** (the meeting vault, under `Code Heroes`) via
+  `AgentTaskQueue.route(…, defaultRoute:)` + `AgentService.exportAreaLessWork`, so they
+  reach the connected worker instead of stranding. The manual `delegate()` nudge is
+  unchanged; the default only applies to area-*less* tasks.
+
+## Voice capture (F25/F26 — ADR-0011)
+
+Push-to-talk quick capture: hold **⌃⌥Space** anywhere, speak, release → an Inbox task.
+Capture is instant and offline-safe; the agent structures and routes it afterwards.
+
+- **Capture (no LLM, no network).** `Capture/PushToTalkHotKey` (Carbon
+  `RegisterEventHotKey`, press+release, no TCC grant) → `Capture/SpeechTranscriber`
+  (on-device `SFSpeechRecognizer`, audio stays local) → `Capture/VoiceCaptureController`
+  sequences hotkey → the floating `VoiceCapturePillView` → insert. Every decision
+  (min-hold cancel, transcript normalization) lives in the pure, tested `Logic/VoiceCapture`.
+  The task is born `source = "voice"`, `captureState = .raw`, owner `.me`, with the
+  verbatim transcript on `captureTranscript`.
+- **Cleanup queue (tier 1, auto-applied).** `Logic/CaptureCleanupQueue` picks ≤5 due raw
+  captures oldest-first with a 60/300/900s backoff → `.failed`; `Agent/CaptureCleanup`
+  builds the batched, date-grounded prompt + parser; `AgentService.cleanupCaptures`
+  (scheduler tick, gated on `AgentExecutionGate`) applies title/description/schedule
+  (`PersonalBoard.normalizePlacement`) + known-area stamp in place — reversible, verbatim
+  transcript retained.
+- **Routing (tier 2, proposed — never auto-run).** An agent-shaped capture also emits a
+  pending `Recommendation` (`source = "voice"`, `rec.task` = the captured task, action
+  limited to draft_email/draft_slack/ticket_write/vault_note) into the triage deck. It
+  **never** sets `owner = .agent` itself — approval promotes the same task through the
+  ordinary gating/trust/bridge path, so always-gated email stays gated. See the area-less
+  rescue (F26) in the "stuck agent cards" section above; the real Gmail draft is created
+  by the connected worker (`drain-agent-queue`, out of repo).
+- **Build:** `build-app.sh`'s Info.plist carries `NSMicrophoneUsageDescription` +
+  `NSSpeechRecognitionUsageDescription` (hard-required). The hotkey/mic/speech/pill layer
+  is macOS-runtime-only (verified by eye); all decision logic is pure and unit-tested.
 
 ## Git / PR conventions
 
